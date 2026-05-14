@@ -4,7 +4,7 @@ project(app_database LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "LA ROCA ERP")
+set(BINARY_NAME "la_roca_erp")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
