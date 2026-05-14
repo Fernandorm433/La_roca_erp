@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "800586504903",
+    "project_id": "larocaerp",
+    "storage_bucket": "larocaerp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800586504903:android:8961517dec19f492d37ce2",
+        "android_client_info": {
+          "package_name": "com.example.app_database"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgOYzgtjnOMrVIhff6bP_0n-hYGWdiI-I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
