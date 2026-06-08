@@ -1,6 +1,8 @@
 // Archivo: lib/screens/home/home_page.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/theme_provider.dart';
 import '../../core/theme/app_colors.dart';
 
 // ── Módulos existentes ──────────────────────────────────────────
@@ -19,9 +21,14 @@ import '../logistica/logistica_page.dart';
 import '../comercial/comercial_page.dart';
 import '../facturacion/facturacion_page.dart';
 import '../mapa/mapa_page.dart';
+import '../comercial/liquidaciones_page.dart';
 
 // ── [NUEVO] Módulo de Costos ────────────────────────────────────
 import '../costos/costos_page.dart';
+
+// ── [NUEVO] Módulo de Carguíos (Mixers) ───────────────────────
+import '../logistica/gestor_mixers_page.dart';
+import '../planta/mis_carguios_page.dart';
 
 // ── Módulos Ventas y Seguimiento ────────────────────────────────
 import '../ventas/ventas_page.dart';
@@ -34,6 +41,7 @@ import '../empleados/comunicados_page.dart';
 
 import 'dart:io';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import '../../core/services/gps_service.dart'; // ← [NUEVO] GPS Service
 
 // ─────────────────────────────────────────────────────────────
 // ENUMS Y MODELO
@@ -41,6 +49,7 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 
 enum RolUsuario {
   admin,
+  rrhh,
   programacion,
   calidad,
   ventas,
@@ -88,6 +97,11 @@ class _HomePageState extends State<HomePage> {
       "DEBUG: Entrando como ${widget.nombreUsuario} con rol: ${widget.rol.name}",
     );
     _configurarAccesos();
+    
+    // Inicializar el motor de rastreo en primer plano + historial (si es operador)
+    if (widget.rol == RolUsuario.operador) {
+      GpsService().inicializarRastreoSiEsOperador();
+    }
   }
 
   void _configurarAccesos() {
@@ -154,10 +168,15 @@ class _HomePageState extends State<HomePage> {
         itemsPermitidos = [
           ...modulosBaseEmpleado,
           AppMenuItem(
+            titulo: 'Mis Carguíos',
+            icono: Icons.local_shipping_outlined,
+            pagina: const MisCarguiosPage(),
+            seccion: 'OPERACIONES',
+          ),
+          AppMenuItem(
             titulo: 'Checklists',
             icono: Icons.checklist_outlined,
             pagina: const ChecklistPage(),
-            seccion: 'OPERACIONES',
           ),
         ];
         break;
@@ -227,6 +246,17 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.fire_truck_outlined,
             pagina: const GestorBombasPage(),
           ),
+          AppMenuItem(
+            titulo: 'Despachos',
+            icono: Icons.local_shipping_outlined,
+            pagina: const GestorMixersPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Liquidaciones',
+            icono: Icons.account_balance_wallet_outlined,
+            pagina: const LiquidacionesPage(),
+            seccion: 'GESTIÓN',
+          ),
         ];
         break;
 
@@ -266,6 +296,7 @@ class _HomePageState extends State<HomePage> {
       //   • Facturación   (sección GESTIÓN)      ← ya importado, ahora visible
       // ─────────────────────────────────────────────────────────
       case RolUsuario.admin:
+      case RolUsuario.rrhh:
       default:
         itemsPermitidos = [
           // ── MI ESPACIO ──────────────────────────────────────
@@ -337,6 +368,11 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.fire_truck_outlined,
             pagina: const GestorBombasPage(),
           ),
+          AppMenuItem(
+            titulo: 'Despachos',
+            icono: Icons.local_shipping_outlined,
+            pagina: const GestorMixersPage(),
+          ),
           // [NUEVO] Checklists: antes solo visible para rol operador
           AppMenuItem(
             titulo: 'Checklists',
@@ -375,6 +411,11 @@ class _HomePageState extends State<HomePage> {
             titulo: 'Facturación',
             icono: Icons.receipt_long_outlined,
             pagina: const FacturacionPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Liquidaciones',
+            icono: Icons.account_balance_wallet_outlined,
+            pagina: const LiquidacionesPage(),
           ),
         ];
         break;
@@ -452,9 +493,9 @@ class _HomePageState extends State<HomePage> {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(ctx).size.height * 0.80,
         ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
@@ -567,7 +608,7 @@ class _HomePageState extends State<HomePage> {
                       fontSize: 15,
                       color: esSeleccionado
                           ? AppColors.accent
-                          : AppColors.primaryDark,
+                          : Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                   if (esSeleccionado) ...[
@@ -665,6 +706,23 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, child) {
+              return IconButton(
+                icon: Icon(
+                  themeProvider.isDarkMode
+                      ? Icons.light_mode_outlined
+                      : Icons.dark_mode_outlined,
+                  color: themeProvider.isDarkMode ? Colors.yellow : AppColors.primaryDark,
+                  size: 20,
+                ),
+                tooltip: themeProvider.isDarkMode ? 'Modo Claro' : 'Modo Oscuro',
+                onPressed: () {
+                  themeProvider.toggleTheme(!themeProvider.isDarkMode);
+                },
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(
               Icons.logout_outlined,
@@ -677,8 +735,8 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(width: 4),
         ],
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.primaryDark,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
@@ -721,7 +779,7 @@ class _HomePageState extends State<HomePage> {
                     setState(() => indiceActual = i);
                   }
                 },
-                backgroundColor: Colors.white,
+                backgroundColor: Theme.of(context).cardColor,
                 indicatorColor: AppColors.accent.withOpacity(0.1),
                 destinations: _construirDestinosMovil(necesitaMenuExtra),
               ),
@@ -737,7 +795,7 @@ class _HomePageState extends State<HomePage> {
     return SizedBox(
       width: extendido ? 220 : 72,
       child: Container(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         child: Column(
           children: [
             if (extendido)
@@ -758,11 +816,11 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Text(
+                    Text(
                       'La Roca',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryDark,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                   ],
@@ -855,7 +913,7 @@ class _HomePageState extends State<HomePage> {
                                 fontSize: 14,
                                 color: esSeleccionado
                                     ? AppColors.accent
-                                    : AppColors.primaryDark,
+                                    : Theme.of(context).textTheme.bodyLarge?.color,
                               ),
                             ),
                           ),

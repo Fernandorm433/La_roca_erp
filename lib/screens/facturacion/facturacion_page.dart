@@ -871,7 +871,7 @@ class _FacturacionPageState extends State<FacturacionPage>
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    initialValue: clienteId,
+                    value: clienteId,
                     decoration: InputDecoration(
                       labelText: 'Cliente *',
                       prefixIcon: const Icon(
@@ -1083,7 +1083,7 @@ class _FacturacionPageState extends State<FacturacionPage>
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    initialValue: facturaId,
+                    value: facturaId,
                     decoration: InputDecoration(
                       labelText: 'Factura *',
                       prefixIcon: const Icon(
@@ -1293,7 +1293,7 @@ class _FacturacionPageState extends State<FacturacionPage>
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
-                    initialValue: facturaId,
+                    value: facturaId,
                     decoration: InputDecoration(
                       labelText: 'Factura relacionada *',
                       prefixIcon: const Icon(

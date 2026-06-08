@@ -242,12 +242,12 @@ class _VentasPageState extends State<VentasPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   "Ventas & Asesores",
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
                 ),
                 PopupMenuButton<String>(
@@ -265,9 +265,9 @@ class _VentasPageState extends State<VentasPage> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Row(
                       children: [
@@ -279,10 +279,10 @@ class _VentasPageState extends State<VentasPage> {
                         const SizedBox(width: 8),
                         Text(
                           etiquetaFiltro,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
-                            color: AppColors.primaryDark,
+                            color: Theme.of(context).textTheme.bodyLarge?.color,
                           ),
                         ),
                         const SizedBox(width: 5),
@@ -340,18 +340,18 @@ class _VentasPageState extends State<VentasPage> {
             const SizedBox(height: 20),
 
             if (asesoresOrdenados.isNotEmpty) ...[
-              const Text(
+              Text(
                 "Rendimiento Comercial",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
                 ),
               ),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: cardDecoration(),
+                decoration: cardDecoration(context),
                 child: Column(
                   children: asesoresOrdenados.asMap().entries.map((entry) {
                     int idx = entry.key;
@@ -533,7 +533,7 @@ class _VentasPageState extends State<VentasPage> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: cardDecoration(),
+        decoration: cardDecoration(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -628,8 +628,8 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: DefaultTabController(
@@ -668,10 +668,10 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
                   ),
                   Text(
                     widget.asesor,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F172A),
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -729,7 +729,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
                   hintText: "Buscar cliente o proyecto...",
                   prefixIcon: const Icon(Icons.search, color: Colors.indigo),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: Theme.of(context).cardColor,
                   contentPadding: const EdgeInsets.symmetric(
                     vertical: 0,
                     horizontal: 20,

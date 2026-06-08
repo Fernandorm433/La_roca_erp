@@ -1042,7 +1042,7 @@ class _ComercialPageState extends State<ComercialPage>
                         const SizedBox(height: 14),
                         // Selector de cliente
                         DropdownButtonFormField<String>(
-                          initialValue: clienteId,
+                          value: clienteId,
                           decoration: InputDecoration(
                             labelText: 'Cliente *',
                             prefixIcon: const Icon(
@@ -1127,7 +1127,7 @@ class _ComercialPageState extends State<ComercialPage>
                               children: [
                                 // Diseño
                                 DropdownButtonFormField<String>(
-                                  initialValue: item['precio_id'],
+                                  value: item['precio_id'],
                                   decoration: InputDecoration(
                                     labelText: 'Diseño / F\'c',
                                     border: OutlineInputBorder(

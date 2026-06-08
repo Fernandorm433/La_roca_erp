@@ -16,6 +16,8 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // ← Agregado para escr
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
+import 'package:provider/provider.dart';
+import 'core/theme/theme_provider.dart';
 import 'core/theme/app_colors.dart';
 import 'screens/home/home_page.dart';
 import 'screens/auth/login_page.dart';
@@ -31,9 +33,9 @@ void main() async {
   // INICIALIZAR SUPABASE DESPUÉS
   // INICIALIZAR SUPABASE DESPUÉS
   await Supabase.initialize(
-    url: "https://rppchistprnodthwtuxt.supabase.co",
+    url: "http://91.98.135.205:8000",
     anonKey:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwcGNoaXN0cHJub2R0aHd0dXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2MzkzODIsImV4cCI6MjA4ODIxNTM4Mn0.w-6cx-VTGPs-y5rlLh48nrPlQtVoo2FMF6KwfH52YeE",
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
   );
 
   // Intentar inicializar notificaciones capturando el error
@@ -49,7 +51,12 @@ void main() async {
     await initializeService();
   }
 
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -96,9 +103,9 @@ void onStart(ServiceInstance service) async {
   // IMPORTANTE: El servicio corre en un hilo aislado, por lo que 
   // debemos inicializar Supabase de nuevo solo para este hilo.
   await Supabase.initialize(
-    url: "https://rppchistprnodthwtuxt.supabase.co",
+    url: "http://91.98.135.205:8000",
     anonKey:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwcGNoaXN0cHJub2R0aHd0dXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2MzkzODIsImV4cCI6MjA4ODIxNTM4Mn0.w-6cx-VTGPs-y5rlLh48nrPlQtVoo2FMF6KwfH52YeE",
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
   );
 
   if (service is AndroidServiceInstance) {
@@ -173,14 +180,21 @@ void onStart(ServiceInstance service) async {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// RESTO DE TU APLICACIÓN (MyApp y AuthGate)
+// 🔧 MODO DEMO — Cambia a true para saltar el login y probar pantallas
+// Cambia el rol abajo para ver las diferentes vistas:
+// admin, programacion, calidad, ventas, asesor, operador, empleados
 // ─────────────────────────────────────────────────────────────────────────
+const bool kModoDemo = false; // ← CAMBIA A false PARA VOLVER AL LOGIN REAL
+const String kDemoRol = 'admin'; // ← CAMBIA EL ROL AQUÍ PARA PROBAR
+const String kDemoNombre = 'Usuario Demo';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: "ERP Operaciones",
@@ -190,26 +204,18 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('es', 'ES')],
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Inter',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.accent,
-          background: AppColors.background,
-        ),
-        scaffoldBackgroundColor: AppColors.background,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: AppColors.background,
-          elevation: 0,
-          centerTitle: false,
-          titleTextStyle: TextStyle(
-            color: AppColors.primaryDark,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      home: const AuthGate(),
+      themeMode: themeProvider.themeMode,
+      theme: AppColors.lightTheme,
+      darkTheme: AppColors.darkTheme,
+      home: kModoDemo
+          ? HomePage(
+              rol: RolUsuario.values.firstWhere(
+                (e) => e.name == kDemoRol,
+                orElse: () => RolUsuario.admin,
+              ),
+              nombreUsuario: kDemoNombre,
+            )
+          : const AuthGate(),
     );
   }
 }

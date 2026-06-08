@@ -23,6 +23,7 @@ class _MapaPageState extends State<MapaPage> {
 
   // ── Firestore listener (reemplaza Timer.periodic) ──────────────────────
   StreamSubscription<QuerySnapshot>? _fleetSubscription;
+  StreamSubscription<QuerySnapshot>? _historySubscription;
 
   // --- ROL ---
   bool _cargandoRol = true;
@@ -42,8 +43,8 @@ class _MapaPageState extends State<MapaPage> {
   LatLng? _lastGeocodedPos;
 
   // --- HISTORIAL (leído desde subcolección Firestore) ---
-  DateTime _histDesde = DateTime.now().subtract(const Duration(hours: 5));
-  DateTime _histHasta = DateTime.now();
+  DateTime _histDesde = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 0, 0);
+  DateTime _histHasta = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
   List<LatLng>              _historyRoute  = [];
   List<Map<String, dynamic>> _historyStops  = [];
   List<Map<String, dynamic>> _historyEvents = [];
@@ -62,7 +63,8 @@ class _MapaPageState extends State<MapaPage> {
 
   @override
   void dispose() {
-    _fleetSubscription?.cancel(); // ← cancela el stream de Firestore
+    _fleetSubscription?.cancel();
+    _historySubscription?.cancel();
     super.dispose();
   }
 
@@ -162,55 +164,36 @@ class _MapaPageState extends State<MapaPage> {
     }, onError: (e) => debugPrint("Error stream Firestore flota: $e"));
   }
 
-  // ─── 2. HISTORIAL: lee la subcolección procesada por la Cloud Function ──
-  // La Cloud Function 'procesarGPS' ya calculó las paradas y las guardó en:
-  //   operadores_gps/{conductorId}/historial/{docId}
-  // Estructura esperada de cada doc:
-  //   { inicio: Timestamp, fin: Timestamp, duracion_min: int, lat: double, lng: double }
-  Future<void> _cargarHistorial() async {
+  // ─── 2. HISTORIAL: Stream reactivo de la subcolección ──
+  void _startHistoryListener() {
+    _historySubscription?.cancel();
+
     if (_selectedConductorId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecciona una unidad primero en la pestaña "En Vivo"'),
-        ),
-      );
       return;
     }
 
     setState(() {
       _cargandoHistorial = true;
-      _showingHistoryMap = true;
-      _historyRoute.clear();
-      _historyStops.clear();
-      _historyEvents.clear();
     });
 
-    try {
-      // Leer subcolección 'historial' del operador seleccionado
-      final QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('operadores_gps')
-          .doc(_selectedConductorId)
-          .collection('historial')
-          .where(
-            'inicio',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(_histDesde.toUtc()),
-          )
-          .where(
-            'inicio',
-            isLessThanOrEqualTo: Timestamp.fromDate(_histHasta.toUtc()),
-          )
-          .orderBy('inicio', descending: false)
-          .get();
+    _historySubscription = FirebaseFirestore.instance
+        .collection('operadores_gps')
+        .doc(_selectedConductorId)
+        .collection('historial')
+        .where('inicio', isGreaterThanOrEqualTo: Timestamp.fromDate(_histDesde.toUtc()))
+        .where('inicio', isLessThanOrEqualTo: Timestamp.fromDate(_histHasta.toUtc()))
+        .orderBy('inicio', descending: false)
+        .snapshots()
+        .listen((QuerySnapshot snapshot) {
+      if (!mounted) return;
 
       if (snapshot.docs.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No hay historial en este rango de fechas'),
-            ),
-          );
-          setState(() => _cargandoHistorial = false);
-        }
+        setState(() {
+          _historyRoute.clear();
+          _historyStops.clear();
+          _historyEvents.clear();
+          _cargandoHistorial = false;
+        });
         return;
       }
 
@@ -218,21 +201,19 @@ class _MapaPageState extends State<MapaPage> {
       final List<Map<String, dynamic>> stops  = [];
       final List<Map<String, dynamic>> events = [];
 
-      // Evento "Inicio de turno"
       final DateTime primerInicio = (snapshot.docs.first['inicio'] as Timestamp)
           .toDate()
           .toLocal();
       events.add({
         'icon'  : Icons.play_circle_filled_rounded,
-        'color' : const Color(0xFF10B981), // verde esmeralda
+        'color' : const Color(0xFF10B981),
         'time'  : DateFormat('HH:mm').format(primerInicio),
-        'desc'  : 'Inicio de registro',
+        'desc'  : 'Inicio de ruta',
         'type'  : 'start',
         'lat'   : null,
         'lng'   : null,
       });
 
-      // Iterar paradas ya procesadas por el backend
       for (final DocumentSnapshot doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
 
@@ -243,32 +224,35 @@ class _MapaPageState extends State<MapaPage> {
         final DateTime? fin =
             (data['fin'] as Timestamp?)?.toDate().toLocal();
         final int durMin = (data['duracion_min'] as num?)?.toInt() ?? 0;
+        final String estado = data['estado'] as String? ?? '';
         
-        if (durMin < 5) continue;
+        if (durMin < 1 && estado != 'detenido') continue;
 
-        // Ruta del mapa: cada parada agrega un punto
         if (lat != null && lng != null) {
           route.add(LatLng(lat, lng));
-          stops.add({'lat': lat, 'lng': lng, 'dur': '$durMin min'});
+          stops.add({'lat': lat, 'lng': lng, 'dur': estado == 'detenido' ? 'En curso' : '$durMin min'});
         }
 
-        // Timeline: clasificar por duración
-        final Color stopColor = durMin >= 30
-            ? Colors.red.shade700
-            : durMin >= 10
-                ? Colors.orange.shade700
-                : Colors.blue.shade600;
+        final Color stopColor = estado == 'detenido'
+            ? Colors.deepPurple
+            : durMin >= 30
+                ? Colors.red.shade700
+                : durMin >= 10
+                    ? Colors.orange.shade700
+                    : Colors.blue.shade600;
 
-        final IconData stopIcon = durMin >= 30
-            ? Icons.warning_amber_rounded
-            : Icons.local_parking_rounded;
+        final IconData stopIcon = estado == 'detenido'
+            ? Icons.pause_circle_filled
+            : durMin >= 30
+                ? Icons.warning_amber_rounded
+                : Icons.local_parking_rounded;
 
         events.add({
           'icon'    : stopIcon,
           'color'   : stopColor,
           'time'    : DateFormat('HH:mm').format(inicio),
           'time_fin': fin != null ? DateFormat('HH:mm').format(fin) : null,
-          'desc'    : 'Parada de $durMin min',
+          'desc'    : estado == 'detenido' ? 'Detenido ahora ($durMin min)' : 'Parada de $durMin min',
           'dur'     : durMin,
           'type'    : 'stop',
           'lat'     : lat,
@@ -276,34 +260,39 @@ class _MapaPageState extends State<MapaPage> {
         });
       }
 
-      // Evento "Fin de registro"
       final DocumentSnapshot lastDoc = snapshot.docs.last;
       final DateTime? finTs =
           (lastDoc['fin'] as Timestamp?)?.toDate().toLocal();
-      events.add({
-        'icon'  : Icons.stop_circle_rounded,
-        'color' : Colors.red.shade600,
-        'time'  : DateFormat('HH:mm').format(finTs ?? DateTime.now()),
-        'desc'  : 'Fin de registro',
-        'type'  : 'end',
-        'lat'   : null,
-        'lng'   : null,
-      });
+      
+      final String ultimoEstado = lastDoc['estado'] as String? ?? '';
+      if (ultimoEstado != 'detenido') {
+        events.add({
+          'icon'  : Icons.stop_circle_rounded,
+          'color' : Colors.grey.shade600,
+          'time'  : DateFormat('HH:mm').format(finTs ?? DateTime.now()),
+          'desc'  : 'Última conexión',
+          'type'  : 'end',
+          'lat'   : null,
+          'lng'   : null,
+        });
+      }
+
+      final bool wasEmpty = _historyRoute.isEmpty;
 
       setState(() {
         _historyRoute  = route;
         _historyStops  = stops;
-        _historyEvents = events; // ya en orden cronológico (ascendente)
+        _historyEvents = events;
         _cargandoHistorial = false;
       });
 
-      if (route.isNotEmpty) {
+      if (route.isNotEmpty && wasEmpty && _showingHistoryMap) {
         _mapController.move(route.first, 14.0);
       }
-    } catch (e) {
+    }, onError: (e) {
       debugPrint("Error historial Firestore: $e");
       if (mounted) setState(() => _cargandoHistorial = false);
-    }
+    });
   }
 
   // ─── 3. UTILIDADES ────────────────────────────────────────────────────
@@ -354,17 +343,18 @@ class _MapaPageState extends State<MapaPage> {
     _selectedConductorId = vehiculo['conductor_id'] as String;
     _selectedVehicleId   = vehiculo['id'] as String;
     _showingHistoryMap   = false;
-    _direccionActual     = "Calculando dirección..."; // ← Mensaje de carga
+    _direccionActual     = "Calculando dirección...";
   });
   
   _mapController.move(LatLng(vehiculo['lat'], vehiculo['lng']), 16.0);
-  
-  // ← NUEVO: Solicitar dirección inmediatamente al hacer tap
   _obtenerDireccionReal(vehiculo['lat'], vehiculo['lng']);
 
   if (MediaQuery.of(context).size.width < 800) {
     setState(() => _isLeftPanelOpen = false);
   }
+
+  // Cargar historial de la unidad dinámicamente
+  _startHistoryListener();
 }
 
   Future<void> _openGoogleMaps(double lat, double lng) async {
@@ -395,6 +385,11 @@ class _MapaPageState extends State<MapaPage> {
           if (isDesde) _histDesde = newDateTime;
           else         _histHasta = newDateTime;
         });
+        
+        // Reiniciar listener de historial si hay un conductor seleccionado
+        if (_selectedConductorId != null) {
+          _startHistoryListener();
+        }
       }
     }
   }
@@ -707,10 +702,20 @@ class _MapaPageState extends State<MapaPage> {
                 ],
               ),
             ),
-            const TabBar(
-              tabs: [Tab(text: 'En Vivo'), Tab(text: 'Historial')],
-              labelColor: Color(0xFF0F172A),
-              indicatorColor: Color(0xFF10B981),
+            TabBar(
+              tabs: const [Tab(text: 'En Vivo'), Tab(text: 'Historial')],
+              labelColor: const Color(0xFF0F172A),
+              indicatorColor: const Color(0xFF10B981),
+              onTap: (index) {
+                if (index == 1) {
+                  setState(() => _showingHistoryMap = true);
+                  if (_historyRoute.isNotEmpty) {
+                    _mapController.move(_historyRoute.first, 14.0);
+                  }
+                } else {
+                  setState(() => _showingHistoryMap = false);
+                }
+              },
             ),
             Expanded(
               child: TabBarView(
@@ -846,30 +851,6 @@ class _MapaPageState extends State<MapaPage> {
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F172A),
-                          ),
-                          icon: _cargandoHistorial
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.history, size: 16),
-                          label: Text(
-                            _cargandoHistorial
-                                ? 'Cargando...'
-                                : 'Ver Historial de Paradas',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          onPressed:
-                              _cargandoHistorial ? null : _cargarHistorial,
                         ),
                         const Divider(height: 24),
 

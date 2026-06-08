@@ -1,76 +1,8 @@
-// lib/screens/guias/guias_page.dart
-// Guías de Despacho — La Roca Concretos
-// Solo para órdenes con tipo_documento = RECIBO
-// Guarda en Supabase + genera PDF con número correlativo global
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
-
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/pdf_generator.dart';
-
-// ─────────────────────────────────────────────────────────────
-// MODELOS LOCALES
-// ─────────────────────────────────────────────────────────────
-
-class OrdenProgramada {
-  final String id;
-  final String opNro; // "OP-2025-3428"
-  final String cliente;
-  final String rucDni;
-  final String obra; // dirección
-  final String diseno;
-  final String cemento;
-  final String slump;
-  final String huso;
-  final String aditivo;
-  final double volumen;
-
-  OrdenProgramada({
-    required this.id,
-    required this.opNro,
-    required this.cliente,
-    required this.rucDni,
-    required this.obra,
-    required this.diseno,
-    required this.cemento,
-    required this.slump,
-    required this.huso,
-    required this.aditivo,
-    required this.volumen,
-  });
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) || other is OrdenProgramada && id == other.id;
-
-  @override
-  int get hashCode => id.hashCode;
-
-  String get etiquetaDropdown =>
-      '${opNro.isNotEmpty ? "$opNro | " : ""}$cliente';
-}
-
-class Conductor {
-  final String id;
-  final String nombre;
-  final String placa;
-  final String marca; // columna TIPO_LICENCIA se usa para inferir marca
-  // Si tu tabla tiene columna 'marca', úsala directamente.
-
-  Conductor({
-    required this.id,
-    required this.nombre,
-    required this.placa,
-    required this.marca,
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// PÁGINA PRINCIPAL
-// ─────────────────────────────────────────────────────────────
+import '../logistica/guia_pdf_preview.dart';
+import '../logistica/cierre_diario_service.dart';
 
 class GuiasDespachoPage extends StatefulWidget {
   const GuiasDespachoPage({super.key});
@@ -79,31 +11,68 @@ class GuiasDespachoPage extends StatefulWidget {
   State<GuiasDespachoPage> createState() => _GuiasDespachoPageState();
 }
 
-class _GuiasDespachoPageState extends State<GuiasDespachoPage>
-    with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
+class _FilaGuiaData {
+  String? id;
+  String ordenCarga;
+  String numeroGuia;
+  String numeroCarguioCA;
+  double volumen;
+  String operadorNombre;
+  String codigoMixer;
+  String estado;
+  String precinto;
+  String horaSalida;
+  
+  TextEditingController numCtrl; 
+  TextEditingController precCtrl; 
+  TextEditingController hsCtrl; 
+  
+  FocusNode numFocus;
+  FocusNode precFocus;
+  FocusNode hsFocus;
+
+  _FilaGuiaData({
+    this.id,
+    required this.ordenCarga,
+    required this.numeroGuia,
+    required this.numeroCarguioCA,
+    required this.volumen,
+    this.operadorNombre = '',
+    this.codigoMixer = '',
+    this.estado = 'Pendiente',
+    this.precinto = '',
+    this.horaSalida = '',
+  })  : numCtrl = TextEditingController(text: numeroGuia),
+        precCtrl = TextEditingController(text: precinto),
+        hsCtrl = TextEditingController(text: horaSalida),
+        numFocus = FocusNode(),
+        precFocus = FocusNode(),
+        hsFocus = FocusNode();
+
+  void dispose() {
+    numCtrl.dispose();
+    precCtrl.dispose();
+    hsCtrl.dispose();
+    numFocus.dispose();
+    precFocus.dispose();
+    hsFocus.dispose();
+  }
+}
+
+class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
   final supabase = Supabase.instance.client;
+  bool loading = true;
+  bool cerrando = false;
+  DateTime fechaSeleccionada = DateTime.now();
+  bool diaCerrado = false;
+  bool esJefeOperaciones = false; 
 
-  // ── Estado de carga ──────────────────────────────────────────
-  bool _loading = true;
-  bool _guardando = false;
+  List<Map<String, dynamic>> ventas = [];
+  Map<String, List<_FilaGuiaData>> carguiosPorVenta = {};
+  Map<String, String> bombasPorVenta = {};
 
-  // ── Datos del servidor ───────────────────────────────────────
-  List<OrdenProgramada> _ordenes = [];
-  List<Conductor> _conductores = [];
-
-  // ── Selecciones del formulario ───────────────────────────────
-  OrdenProgramada? _ordenSeleccionada;
-  Conductor? _conductorSeleccionado;
-  String? _bombaAsignada;
-
-  // ── Controladores ────────────────────────────────────────────
-  final _volumenController = TextEditingController();
-  final _precintoController = TextEditingController();
-  TimeOfDay _horaSalida = TimeOfDay.now();
-
-  // ── Búsqueda en dropdown ─────────────────────────────────────
-  String _busquedaOrden = '';
+  Map<String, TextEditingController> opCtrls = {}; 
+  Map<String, FocusNode> opFocus = {};
 
   @override
   void initState() {
@@ -113,857 +82,528 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage>
 
   @override
   void dispose() {
-    _volumenController.dispose();
-    _precintoController.dispose();
+    for (var list in carguiosPorVenta.values) {
+      for (var c in list) { c.dispose(); }
+    }
+    for (var c in opCtrls.values) { c.dispose(); }
+    for (var f in opFocus.values) { f.dispose(); }
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // CARGA DE DATOS
-  // ─────────────────────────────────────────────────────────────
-
   Future<void> _cargarDatos() async {
-    setState(() => _loading = true);
-    await Future.wait([_cargarOrdenes(), _cargarConductores()]);
-    if (mounted) setState(() => _loading = false);
-  }
+    setState(() => loading = true);
+    String fechaFiltro = fechaSeleccionada.toIso8601String().split('T')[0];
 
-  Future<void> _cargarOrdenes() async {
     try {
-      final hoy = DateTime.now().toIso8601String().split('T')[0];
+      diaCerrado = await CierreDiarioService.isDiaCerrado(fechaFiltro);
 
-      final data = await supabase
-          .from('ventas_programacion')
+      final ventasDataRaw = await supabase
+          .from("ventas_programacion")
           .select()
-          .eq('fecha_entrega', hoy)
-          .order('hora_entrega');
+          .eq('fecha_entrega', fechaFiltro)
+          .order("hora_entrega", ascending: true);
 
-      // Cargar bomba asignada para cada orden
-      final asignaciones = await supabase.from('asignacion_bombas').select();
-      final mapaAsignaciones = <String, String>{
-        for (var a in asignaciones)
-          a['id_venta'].toString(): a['bomba_asignada'].toString(),
-      };
+      final ventasData = ventasDataRaw.where((v) => v['numero_atencion']?.toString() != '0').toList();
 
-      final List<OrdenProgramada> lista = [];
+      final asignaciones = await supabase.from("asignacion_bombas").select();
+      Map<String, String> mapaBombas = {};
+      for (var a in asignaciones) {
+        mapaBombas[a['id_venta'].toString()] = a['bomba_asignada'].toString();
+      }
 
-      for (final o in (data as List)) {
-        final estado = o['estado']?.toString().toUpperCase() ?? '';
-        final numAtencion = o['numero_atencion']?.toString() ?? '';
-        final tipoDoc = o['tipo_documento']?.toString().toUpperCase() ?? '';
-        final vol = double.tryParse(o['volumen']?.toString() ?? '0') ?? 0.0;
+      List<dynamic> carguiosData = [];
+      try {
+        carguiosData = await supabase.from("carguios_mixers").select();
+      } catch (e) {
+        debugPrint("Error al cargar carguios_mixers: $e");
+      }
 
-        // ✅ Solo RECIBO con número de atención válido y volumen > 0
-        if (estado == 'CANCELADO') continue;
-        if (numAtencion == '0' || numAtencion.isEmpty) continue;
-        if (tipoDoc != 'RECIBO') continue;
-        if (vol <= 0) continue;
+      Map<String, List<_FilaGuiaData>> agrupados = {};
+      for (var c in carguiosData) {
+        String idVenta = c['id_venta'].toString();
+        if (!agrupados.containsKey(idVenta)) agrupados[idVenta] = [];
+        agrupados[idVenta]!.add(_FilaGuiaData(
+          id: c['id'].toString(),
+          ordenCarga: c['orden_carga']?.toString() ?? '',
+          numeroGuia: c['nro_guia']?.toString() ?? '', 
+          numeroCarguioCA: c['numero_carguio']?.toString() ?? '',
+          volumen: double.tryParse(c['volumen_carguio'].toString()) ?? 0.0,
+          operadorNombre: c['operador_nombre']?.toString() ?? '',
+          codigoMixer: c['codigo_mixer']?.toString() ?? '',
+          estado: c['estado']?.toString() ?? 'Pendiente',
+          precinto: c['precinto']?.toString() ?? '',
+          horaSalida: c['hora_salida']?.toString() ?? '',
+        ));
+      }
 
-        final id = o['id']?.toString() ?? numAtencion;
-        final bomba = mapaAsignaciones[id] ?? '';
+      agrupados.forEach((key, list) {
+        list.sort((a, b) {
+          int aOrd = int.tryParse(a.ordenCarga) ?? 9999;
+          int bOrd = int.tryParse(b.ordenCarga) ?? 9999;
+          if (aOrd != bOrd) return aOrd.compareTo(bOrd);
+          return (a.id ?? '').compareTo(b.id ?? '');
+        });
+      });
 
-        lista.add(
-          OrdenProgramada(
-            id: id,
-            opNro:
-                o['codigo_op']?.toString() ??
-                o['op_nro']?.toString() ??
-                (o['numero_atencion'] != null
-                    ? 'OP-${o['numero_atencion']}'
-                    : ''),
-            cliente: o['nombre_razon_social']?.toString() ?? 'Sin Cliente',
-            rucDni:
-                o['dni_ruc']?.toString() ??
-                o['ruc_dni']?.toString() ??
-                o['ruc']?.toString() ??
-                '',
-            obra: o['direccion']?.toString() ?? 'S/D',
-            diseno: o['diseno']?.toString() ?? '',
-            cemento: o['cemento']?.toString() ?? 'CEMENTO YURA HE',
-            slump: o['slump']?.toString() ?? '',
-            huso: o['huso']?.toString() ?? '',
-            aditivo: o['aditivo']?.toString() ?? 'ADITIVO PLASTIFICANTE',
-            volumen: vol,
-          ),
-        );
+      for (var v in ventasData) {
+        String idV = _obtenerIdSeguro(v);
+        
+        bool isRecibo = v['tipo_documento']?.toString().toUpperCase() == 'RECIBO';
+        String opGuardada = v['orden_pedido']?.toString() ?? '';
 
-        // Pre-cargar bomba si ya estaba seleccionada
-        if (bomba.isNotEmpty && _ordenSeleccionada?.id == id) {
-          _bombaAsignada = bomba;
+        if (!opCtrls.containsKey(idV)) {
+          opCtrls[idV] = TextEditingController(text: opGuardada);
+          opFocus[idV] = FocusNode();
+          opFocus[idV]!.addListener(() {
+            if (!opFocus[idV]!.hasFocus) {
+              _guardarOP(idV, v);
+            }
+          });
+        }
+        
+        if (isRecibo && (opGuardada.isEmpty || opGuardada.toUpperCase() == 'PENDIENTE')) {
+          if (!diaCerrado || esJefeOperaciones) {
+            String newOP = await _generarOP();
+            opCtrls[idV]!.text = newOP;
+            v['orden_pedido'] = newOP;
+            await supabase.from('ventas_programacion').update({'orden_pedido': newOP}).eq('id', idV);
+          }
+        }
+        
+        if (agrupados.containsKey(idV)) {
+           for (var f in agrupados[idV]!) {
+              f.numFocus.addListener(() { if (!f.numFocus.hasFocus) _guardarFilaUnica(f); });
+              f.precFocus.addListener(() { if (!f.precFocus.hasFocus) _guardarFilaUnica(f); });
+              f.hsFocus.addListener(() { if (!f.hsFocus.hasFocus) _guardarFilaUnica(f); });
+           }
         }
       }
 
-      if (mounted) setState(() => _ordenes = lista);
-    } catch (e) {
-      debugPrint('Error cargando órdenes: $e');
-    }
-  }
-
-  Future<void> _cargarConductores() async {
-    try {
-      final data = await supabase.from('conductores').select().order('nombre');
-
-      final List<Conductor> lista = [];
-      for (final c in (data as List)) {
-        final nombre = c['nombre']?.toString() ?? '';
-        final placa = c['placa']?.toString() ?? '';
-        if (nombre.isEmpty) continue;
-
-        // La tabla no tiene columna marca — inferimos del campo TIPO_LICENCIA
-        // o dejamos vacío. Si en el futuro agregas columna 'marca', cámbialo aquí.
-        final marca =
-            c['marca']?.toString() ??
-            c['marca_vehiculo']?.toString() ??
-            c['tipo_vehiculo']?.toString() ??
-            '';
-
-        lista.add(
-          Conductor(
-            id: c['id']?.toString() ?? '',
-            nombre: nombre.toUpperCase(),
-            placa: placa.toUpperCase(),
-            marca: marca.toUpperCase(),
-          ),
-        );
-      }
-      if (mounted) setState(() => _conductores = lista);
-    } catch (e) {
-      debugPrint('Error cargando conductores: $e');
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // OBTENER NÚMERO CORRELATIVO DESDE SUPABASE RPC
-  // ─────────────────────────────────────────────────────────────
-
-  Future<String> _generarNumeroGuia() async {
-    try {
-      final resultado = await supabase.rpc(
-        'generar_numero',
-        params: {
-          'prefijo': '001',
-          'tabla': 'guias_despacho',
-          'columna': 'numero_guia',
-        },
-      );
-      return resultado.toString();
-    } catch (e) {
-      // Fallback: timestamp si la función RPC falla
-      debugPrint('RPC generar_numero falló: $e');
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      return '001-${ts.toString().substring(5)}';
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // GUARDAR GUÍA + ABRIR PDF
-  // ─────────────────────────────────────────────────────────────
-
-  Future<void> _guardarYGenerarGuia() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    if (_ordenSeleccionada == null) {
-      _snack('Selecciona una orden de programación', esError: true);
-      return;
-    }
-    if (_conductorSeleccionado == null) {
-      _snack('Selecciona un conductor', esError: true);
-      return;
-    }
-
-    setState(() => _guardando = true);
-
-    try {
-      // 1. Obtener número correlativo
-      final nroGuia = await _generarNumeroGuia();
-
-      // 2. Preparar hora formateada
-      final now = DateTime.now();
-      final dtSalida = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        _horaSalida.hour,
-        _horaSalida.minute,
-      );
-      final horaFormateada = DateFormat('h:mm a').format(dtSalida);
-
-      final double volDispatch =
-          double.tryParse(_volumenController.text) ??
-          _ordenSeleccionada!.volumen;
-
-      // 3. Guardar en Supabase — tabla guias_despacho (del SQL que creamos)
-      await supabase.from('guias_despacho').insert({
-        'numero_guia': nroGuia,
-        'fecha_despacho': now.toIso8601String().split('T')[0],
-        'estado': 'programada',
-        'op_nro': _ordenSeleccionada!.opNro,
-        'nombre_cliente': _ordenSeleccionada!.cliente,
-        'ruc_dni_cliente': _ordenSeleccionada!.rucDni,
-        'obra_destino': _ordenSeleccionada!.obra,
-        'm3_despachado': volDispatch,
-        'diseno': _ordenSeleccionada!.diseno,
-        'cemento': _ordenSeleccionada!.cemento,
-        'slump': _ordenSeleccionada!.slump,
-        'huso': _ordenSeleccionada!.huso,
-        'aditivo': _ordenSeleccionada!.aditivo,
-        'resistencia_mezcla': _ordenSeleccionada!.diseno,
-        'conductor': _conductorSeleccionado!.nombre,
-        'placa_vehiculo': _conductorSeleccionado!.placa,
-        'marca_vehiculo': _conductorSeleccionado!.marca,
-        'bomba': _bombaAsignada ?? '-',
-        'hora_salida': horaFormateada,
-        'nro_precinto': _precintoController.text,
-        'facturado': false,
-        'operador_id': supabase.auth.currentUser?.id,
-      });
-
-      // 4. Construir mapa de datos para el PDF
-      final datosPdf = <String, dynamic>{
-        'nro_guia': nroGuia,
-        'fecha': now.toIso8601String(),
-        'op_nro': _ordenSeleccionada!.opNro,
-        'cliente': _ordenSeleccionada!.cliente,
-        'ruc_dni': _ordenSeleccionada!.rucDni,
-        'direccion_obra': _ordenSeleccionada!.obra,
-        'diseno': _ordenSeleccionada!.diseno,
-        'cemento': _ordenSeleccionada!.cemento,
-        'slump': _ordenSeleccionada!.slump,
-        'huso': _ordenSeleccionada!.huso,
-        'aditivo': _ordenSeleccionada!.aditivo,
-        'vol_m3': volDispatch,
-        'bomba': _bombaAsignada ?? '-',
-        'hora_salida': horaFormateada,
-        'nro_precinto': _precintoController.text,
-        'conductor': _conductorSeleccionado!.nombre,
-        'marca_vehiculo': _conductorSeleccionado!.marca,
-        'placa_vehiculo': _conductorSeleccionado!.placa,
-      };
-
-      if (!mounted) return;
-      setState(() => _guardando = false);
-
-      // 5. Navegar a previsualización PDF
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              _VistaPreviewGuia(nroGuia: nroGuia, datosPdf: datosPdf),
-        ),
-      );
-
-      // 6. Limpiar formulario después de regresar
-      _limpiarFormulario();
-    } catch (e) {
       if (mounted) {
-        setState(() => _guardando = false);
-        _snack('Error al guardar la guía: $e', esError: true);
+        setState(() {
+          ventas = List<Map<String, dynamic>>.from(ventasData);
+          carguiosPorVenta = agrupados;
+          bombasPorVenta = mapaBombas;
+          loading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+      if (mounted) {
+        setState(() => loading = false);
       }
     }
   }
 
-  void _limpiarFormulario() {
-    setState(() {
-      _ordenSeleccionada = null;
-      _conductorSeleccionado = null;
-      _bombaAsignada = null;
-      _busquedaOrden = '';
-      _horaSalida = TimeOfDay.now();
-    });
-    _volumenController.clear();
-    _precintoController.clear();
+  String _obtenerIdSeguro(Map<String, dynamic> v) {
+    String id = v['id']?.toString() ?? '';
+    if (id.isEmpty || id == 'null') id = v['numero_atencion']?.toString() ?? '';
+    return id;
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // UI HELPERS
-  // ─────────────────────────────────────────────────────────────
+  Future<String> _generarOP() async {
+    int ano = DateTime.now().year;
+    String prefix = 'OP-$ano-';
+    try {
+      final res = await supabase
+          .from('ventas_programacion')
+          .select('orden_pedido')
+          .like('orden_pedido', '$prefix%')
+          .order('orden_pedido', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      
+      if (res != null && res['orden_pedido'] != null) {
+        String lastOP = res['orden_pedido'];
+        int num = int.tryParse(lastOP.split('-').last) ?? 3699;
+        return '$prefix${num + 1}';
+      }
+    } catch (e) {
+      debugPrint("Error buscando ultima OP: $e");
+    }
+    return '${prefix}3700'; 
+  }
+  
+  Future<void> _guardarOP(String idVenta, Map<String, dynamic> v) async {
+    if (diaCerrado && !esJefeOperaciones) return;
+    String nuevaOP = opCtrls[idVenta]!.text.trim();
+    if (nuevaOP != (v['orden_pedido']?.toString() ?? '')) {
+      try {
+        await supabase.from('ventas_programacion').update({'orden_pedido': nuevaOP}).eq('id', idVenta);
+        v['orden_pedido'] = nuevaOP;
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OP Guardada'), duration: Duration(milliseconds: 600)));
+      } catch (e) {
+        debugPrint("Error auto-guardando OP: $e");
+      }
+    }
+  }
 
-  void _snack(String msg, {bool esError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: esError ? AppColors.error : AppColors.success,
-      ),
+  Future<void> _guardarFilaUnica(_FilaGuiaData f) async {
+    if (diaCerrado && !esJefeOperaciones) return;
+    if (f.id == null) return; 
+    
+    try {
+      Map<String, dynamic> cData = {
+        'nro_guia': f.numCtrl.text,
+        'numero_carguio': f.numeroCarguioCA.isEmpty ? f.numCtrl.text : f.numeroCarguioCA, // Fallback if no CA generated yet
+        'precinto': f.precCtrl.text,
+        'hora_salida': f.hsCtrl.text,
+      };
+      await supabase.from('carguios_mixers').update(cData).eq('id', f.id!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guardado'), duration: Duration(milliseconds: 600)));
+      }
+    } catch (e) {
+      debugPrint("Error auto-guardando fila Guia: $e");
+    }
+  }
+
+  Future<void> _cerrarDia() async {
+    setState(() => cerrando = true);
+    try {
+      String fechaFiltro = fechaSeleccionada.toIso8601String().split('T')[0];
+      await CierreDiarioService.cerrarDia(fechaFiltro);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Día Cerrado y enviado a Historial', style: TextStyle(color: Colors.white)), backgroundColor: Colors.purple));
+        setState(() {
+          diaCerrado = true;
+          cerrando = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error cerrando: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error al cerrar: $e"), backgroundColor: Colors.red));
+        setState(() => cerrando = false);
+      }
+    }
+  }
+
+  Color _getColorEstado(String estado) {
+    estado = estado.toUpperCase();
+    if (estado == 'CARGANDO') return Colors.yellow.shade800;
+    if (estado == 'REGULANDO') return Colors.blue.shade600;
+    if (estado == 'DESPACHADO' || estado == 'EN OBRA' || estado == 'DESCARGANDO' || estado == 'SALIO DE PLANTA') return Colors.green.shade600;
+    return Colors.grey.shade500; 
+  }
+
+  InputDecoration _softInput({Color? fillColor}) {
+    return InputDecoration(
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      filled: true,
+      fillColor: fillColor ?? Colors.grey.shade100,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.5), width: 1.5)),
     );
   }
 
-  Future<void> _seleccionarHora() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _horaSalida,
-      builder: (context, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.accent),
-        ),
-        child: child!,
+  void _abrirPdfGuia(Map<String, dynamic> venta, _FilaGuiaData carguio) {
+    if (carguio.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Este viaje aún no se ha guardado en planta.')));
+      return;
+    }
+    
+    Map<String, dynamic> cData = {
+      'nro_guia': carguio.numCtrl.text,
+      'operador_nombre': carguio.operadorNombre,
+      'codigo_mixer': carguio.codigoMixer,
+      'volumen': carguio.volumen.toString(),
+      'hora_salida': carguio.hsCtrl.text,
+      'precinto': carguio.precCtrl.text,
+    };
+    
+    venta['orden_pedido'] = opCtrls[_obtenerIdSeguro(venta)]!.text;
+    venta['bomba'] = bombasPorVenta[_obtenerIdSeguro(venta)];
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GuiaPdfPreview(venta: venta, carguio: cData),
       ),
     );
-    if (picked != null) setState(() => _horaSalida = picked);
   }
-
-  // ─────────────────────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    bool isReadOnly = diaCerrado && !esJefeOperaciones;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF1F5F9), 
       appBar: AppBar(
-        title: const Text('Nueva Guía de Despacho'),
+        title: Row(
+          children: [
+            const Text("Control de Guías", style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 22, letterSpacing: -0.5)),
+            if (diaCerrado)
+              Container(
+                margin: const EdgeInsets.only(left: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.purple.shade200)),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock, size: 14, color: Colors.purple.shade700),
+                    const SizedBox(width: 4),
+                    Text("HISTORIAL CERRADO", style: TextStyle(color: Colors.purple.shade700, fontSize: 11, fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+          ],
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: const Padding(
-          padding: EdgeInsets.all(12),
-          child: Icon(Icons.description, color: AppColors.accent, size: 24),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.accent),
-            tooltip: 'Recargar órdenes',
-            onPressed: _cargarDatos,
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── PASO 1: ORDEN ──────────────────────────────
-                  _buildSeccion(
-                    titulo: 'Paso 1 — Orden de programación (solo RECIBO)',
-                    icono: Icons.list_alt_outlined,
-                    child: _buildSelectorOrden(),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ── DATOS FIJOS ────────────────────────────────
-                  if (_ordenSeleccionada != null) ...[
-                    _buildSeccion(
-                      titulo: 'Datos de la orden',
-                      icono: Icons.lock_outline,
-                      child: _buildDatosFijos(),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // ── PASO 2: CONDUCTOR ──────────────────────────
-                  _buildSeccion(
-                    titulo: 'Paso 2 — Conductor y vehículo',
-                    icono: Icons.person_outlined,
-                    child: _buildSelectorConductor(),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ── PASO 3: DETALLES MANUALES ──────────────────
-                  _buildSeccion(
-                    titulo: 'Paso 3 — Detalles del despacho',
-                    icono: Icons.input_outlined,
-                    child: _buildDetallesDespacho(),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // ── BOTÓN GENERAR ──────────────────────────────
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _guardando ? null : _guardarYGenerarGuia,
-                      icon: _guardando
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.print, color: Colors.white),
-                      label: Text(
-                        _guardando
-                            ? 'Guardando y generando...'
-                            : 'GUARDAR Y PREVISUALIZAR GUÍA (PDF)',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accent,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 3,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // WIDGETS DE SECCIÓN
-  // ─────────────────────────────────────────────────────────────
-
-  Widget _buildSeccion({
-    required String titulo,
-    required IconData icono,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icono, color: AppColors.primaryDark, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                titulo,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        child,
-      ],
-    );
-  }
-
-  // ── Selector de orden ──────────────────────────────────────
-
-  Widget _buildSelectorOrden() {
-    final ordenesFiltradas = _busquedaOrden.isEmpty
-        ? _ordenes
-        : _ordenes
-              .where(
-                (o) =>
-                    o.cliente.toLowerCase().contains(
-                      _busquedaOrden.toLowerCase(),
-                    ) ||
-                    o.opNro.toLowerCase().contains(
-                      _busquedaOrden.toLowerCase(),
-                    ),
-              )
-              .toList();
-
-    return _cardContenido(
-      child: Column(
-        children: [
-          // Buscador rápido
-          TextField(
-            onChanged: (v) => setState(() => _busquedaOrden = v),
-            decoration: InputDecoration(
-              hintText: 'Buscar cliente u OP...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.accent),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 10,
-                horizontal: 12,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<OrdenProgramada>(
-            isExpanded: true,
-            initialValue: _ordenSeleccionada,
-            decoration: InputDecoration(
-              labelText: ordenesFiltradas.isEmpty
-                  ? 'No hay órdenes RECIBO para hoy'
-                  : 'Seleccionar orden...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              prefixIcon: const Icon(
-                Icons.receipt_long_outlined,
-                color: AppColors.accent,
-              ),
-            ),
-            items: ordenesFiltradas
-                .map(
-                  (o) => DropdownMenuItem(
-                    value: o,
-                    child: Text(
-                      o.etiquetaDropdown,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: ordenesFiltradas.isEmpty
-                ? null
-                : (val) {
-                    setState(() {
-                      _ordenSeleccionada = val;
-                      // Pre-poblar volumen con el de la orden
-                      if (val != null) {
-                        _volumenController.text = val.volumen % 1 == 0
-                            ? val.volumen.toInt().toString()
-                            : val.volumen.toStringAsFixed(1);
-                      }
-                    });
-                  },
-            validator: (v) => v == null ? 'Campo requerido' : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Datos fijos de la orden ───────────────────────────────
-
-  Widget _buildDatosFijos() {
-    final o = _ordenSeleccionada!;
-    return _cardContenido(
-      color: AppColors.primaryDark.withOpacity(0.03),
-      border: true,
-      child: Wrap(
-        spacing: 30,
-        runSpacing: 8,
-        children: [
-          _datoFijo('Cliente', o.cliente),
-          _datoFijo('RUC/DNI', o.rucDni),
-          _datoFijo('Dirección obra', o.obra),
-          _datoFijo('Diseño', o.diseno),
-          _datoFijo('Slump', o.slump),
-          _datoFijo('Huso', o.huso),
-        ],
-      ),
-    );
-  }
-
-  Widget _datoFijo(String label, String valor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          valor.isNotEmpty ? valor : '-',
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        ),
-      ],
-    );
-  }
-
-  // ── Selector de conductor ─────────────────────────────────
-
-  Widget _buildSelectorConductor() {
-    return _cardContenido(
-      child: Column(
-        children: [
-          DropdownButtonFormField<Conductor>(
-            isExpanded: true,
-            initialValue: _conductorSeleccionado,
-            decoration: InputDecoration(
-              labelText: _conductores.isEmpty
-                  ? 'No hay conductores registrados'
-                  : 'Seleccionar conductor...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              prefixIcon: const Icon(
-                Icons.person_search_outlined,
-                color: AppColors.accent,
-              ),
-            ),
-            items: _conductores
-                .map(
-                  (c) => DropdownMenuItem(
-                    value: c,
-                    child: Text(c.nombre, overflow: TextOverflow.ellipsis),
-                  ),
-                )
-                .toList(),
-            onChanged: _conductores.isEmpty
-                ? null
-                : (val) => setState(() => _conductorSeleccionado = val),
-            validator: (v) => v == null ? 'Campo requerido' : null,
-          ),
-
-          // Mostrar placa y marca al seleccionar
-          if (_conductorSeleccionado != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.accent.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.accent.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.directions_car,
-                    color: AppColors.accent,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Placa: ${_conductorSeleccionado!.placa}'
-                      '${_conductorSeleccionado!.marca.isNotEmpty ? "  |  Marca: ${_conductorSeleccionado!.marca}" : ""}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryDark,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Detalles del despacho ─────────────────────────────────
-
-  Widget _buildDetallesDespacho() {
-    return _cardContenido(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final esMovil = constraints.maxWidth < 500;
-          final mitad = esMovil
-              ? constraints.maxWidth
-              : (constraints.maxWidth / 2) - 8;
-
-          return Wrap(
-            spacing: 16,
-            runSpacing: 16,
+          Row(
             children: [
-              // Columna izquierda
-              SizedBox(
-                width: mitad,
-                child: Column(
-                  children: [
-                    // Volumen
-                    TextFormField(
-                      controller: _volumenController,
-                      decoration: InputDecoration(
-                        labelText: 'Volumen a despachar (m³)',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.local_shipping_outlined,
-                          color: AppColors.accent,
-                        ),
-                        suffixText: 'm³',
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Campo requerido';
-                        if (double.tryParse(v) == null) {
-                          return 'Debe ser un número';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Bomba (informativo, ya viene de asignacion_bombas)
-                    TextFormField(
-                      initialValue: _bombaAsignada ?? '',
-                      decoration: InputDecoration(
-                        labelText: 'Bomba asignada',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.fire_truck_outlined,
-                          color: AppColors.accent,
-                        ),
-                        hintText: 'CBP 15, DIRECTO...',
-                      ),
-                      onChanged: (v) => _bombaAsignada = v,
-                    ),
-                  ],
-                ),
-              ),
-
-              // Columna derecha
-              SizedBox(
-                width: mitad,
-                child: Column(
-                  children: [
-                    // Precinto
-                    TextFormField(
-                      controller: _precintoController,
-                      decoration: InputDecoration(
-                        labelText: 'Número de precinto',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.vpn_key_outlined,
-                          color: AppColors.accent,
-                        ),
-                        hintText: 'P-001350',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Hora salida
-                    InkWell(
-                      onTap: _seleccionarHora,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black38),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.access_time,
-                              color: AppColors.accent,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Hora de salida (planta)',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _horaSalida.format(context),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: AppColors.primaryDark,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(
-                              Icons.arrow_drop_down,
-                              color: AppColors.primaryDark,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              const Text("Jefe de OP", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              Switch(
+                value: esJefeOperaciones,
+                activeColor: Colors.purple,
+                onChanged: (val) => setState(() => esJefeOperaciones = val),
               ),
             ],
-          );
-        },
-      ),
-    );
-  }
-
-  // ── Card contenedor ───────────────────────────────────────
-
-  Widget _cardContenido({
-    required Widget child,
-    Color? color,
-    bool border = false,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color ?? Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: border ? Border.all(color: Colors.black12) : null,
-        boxShadow: border
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-      ),
-      child: child,
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// PANTALLA DE PREVISUALIZACIÓN PDF
-// ─────────────────────────────────────────────────────────────
-
-class _VistaPreviewGuia extends StatelessWidget {
-  final String nroGuia;
-  final Map<String, dynamic> datosPdf;
-
-  const _VistaPreviewGuia({required this.nroGuia, required this.datosPdf});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Guía: $nroGuia'),
-        backgroundColor: AppColors.primaryDark,
-        foregroundColor: Colors.white,
-      ),
-      body: PdfPreview(
-        build: (format) => PdfGenerator.generarGuiaDespacho(datosPdf),
-        allowSharing: true,
-        allowPrinting: true,
-        canChangeOrientation: false,
-        canChangePageFormat: false,
-        pdfFileName: 'Guia_$nroGuia.pdf',
-        actions: [
-          PdfPreviewAction(
-            icon: const Icon(Icons.save_alt, color: Colors.white),
-            onPressed: (context, build, pageFormat) async {
-              // La acción de guardar ya la maneja allowSharing/allowPrinting
+          ),
+          IconButton(
+            icon: const Icon(Icons.calendar_month, color: AppColors.primaryDark),
+            tooltip: "Consultar Historial",
+            onPressed: () async {
+              final seleccion = await showDatePicker(
+                context: context,
+                initialDate: fechaSeleccionada,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2030),
+              );
+              if (seleccion != null) {
+                setState(() => fechaSeleccionada = seleccion);
+                _cargarDatos();
+              }
             },
+          ),
+          if (!diaCerrado || esJefeOperaciones)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+              child: ElevatedButton.icon(
+                onPressed: cerrando ? null : _cerrarDia,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(horizontal: 16)),
+                icon: cerrando ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.archive_outlined, size: 20),
+                label: const Text("Cerrar Día", style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            )
+        ],
+      ),
+      body: loading 
+          ? const Center(child: CircularProgressIndicator()) 
+          : ventas.isEmpty 
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.description_outlined, size: 80, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text("No hay programación para esta fecha.", style: TextStyle(color: Colors.grey.shade500, fontSize: 18, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                )
+              : _buildModernList(isReadOnly),
+    );
+  }
+
+  Widget _buildModernList(bool isReadOnly) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: ventas.length,
+      itemBuilder: (context, index) {
+        var v = ventas[index];
+        String idVenta = _obtenerIdSeguro(v);
+        String bomba = bombasPorVenta[idVenta] ?? 'DIRECTO';
+        List<_FilaGuiaData> carguios = carguiosPorVenta[idVenta] ?? [];
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 8))],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // HEADER CARD (Venta)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Row(
+                  children: [
+                    Text(v['hora_entrega']?.toString().substring(0,5) ?? '00:00', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20, letterSpacing: -0.5)),
+                    const SizedBox(width: 24),
+                    SizedBox(
+                      width: 140,
+                      child: TextField(
+                        controller: opCtrls[idVenta],
+                        focusNode: opFocus[idVenta],
+                        enabled: !isReadOnly,
+                        style: TextStyle(fontWeight: FontWeight.w900, color: Colors.blue.shade700, fontSize: 15),
+                        decoration: _softInput().copyWith(hintText: 'OP...'),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text("${v['volumen']} m³", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // TRIPS (Carguios)
+              if (carguios.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.hourglass_empty, size: 16, color: Colors.orange.shade300),
+                        const SizedBox(width: 8),
+                        Text("Esperando que Planta asigne viajes...", style: TextStyle(color: Colors.orange.shade800, fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    children: carguios.map((f) => _buildTripRow(f, v, isReadOnly)).toList(),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTripRow(_FilaGuiaData f, Map<String, dynamic> venta, bool isReadOnly) {
+    Color estadoColor = _getColorEstado(f.estado);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // ORDEN
+          SizedBox(
+            width: 40,
+            child: Text(
+              f.ordenCarga.isEmpty ? "#" : "# ${f.ordenCarga}", 
+              style: TextStyle(fontWeight: FontWeight.w900, color: Colors.green.shade700, fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // CA-CODE BADGE
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: estadoColor.withValues(alpha: 0.1), 
+              borderRadius: BorderRadius.circular(6), 
+              border: Border.all(color: estadoColor.withValues(alpha: 0.3), width: 1.5)
+            ),
+            child: Text(
+              f.numeroCarguioCA.isEmpty ? "Sin Asignar" : f.numeroCarguioCA, 
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: estadoColor, letterSpacing: 0.5)
+            ),
+          ),
+          const SizedBox(width: 16),
+          // GUIA
+          SizedBox(
+            width: 140,
+            child: TextField(
+              controller: f.numCtrl,
+              focusNode: f.numFocus,
+              enabled: !isReadOnly,
+              style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 14),
+              decoration: _softInput().copyWith(hintText: 'N° Guía'),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // VOLUMEN
+          SizedBox(
+            width: 70,
+            child: Text(
+              "${f.volumen.toStringAsFixed(2)} m³", 
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF0F172A))
+            ),
+          ),
+          const SizedBox(width: 16),
+          // OPERADOR
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(f.operadorNombre.isEmpty ? 'Sin Operador' : f.operadorNombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // PRECINTO
+          SizedBox(
+            width: 120,
+            child: TextField(
+              controller: f.precCtrl,
+              focusNode: f.precFocus,
+              enabled: !isReadOnly,
+              decoration: _softInput().copyWith(hintText: 'Precinto...'),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // HORA SALIDA
+          SizedBox(
+            width: 90,
+            child: TextField(
+              controller: f.hsCtrl,
+              focusNode: f.hsFocus,
+              enabled: !isReadOnly,
+              textAlign: TextAlign.center,
+              decoration: _softInput().copyWith(hintText: '00:00'),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // PRINT PDF
+          Container(
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+            child: IconButton(
+              icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.red, size: 22),
+              tooltip: 'Imprimir Guía',
+              onPressed: () => _abrirPdfGuia(venta, f),
+            ),
           ),
         ],
       ),

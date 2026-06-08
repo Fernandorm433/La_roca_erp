@@ -909,9 +909,10 @@ class _GranulometriaPageState extends State<GranulometriaPage>
         children: [
           const Icon(Icons.show_chart_rounded, color: _C.amber, size: 16),
           const SizedBox(width: 8),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+          Expanded(
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'GRÁFICO DE GRANULOMETRÍA DEL AGREGADO',
@@ -930,9 +931,9 @@ class _GranulometriaPageState extends State<GranulometriaPage>
                   fontWeight: FontWeight.w500,
                 ),
               ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
           _legendItem(_C.navyLight, 'Muestra'),
           const SizedBox(width: 12),
           _legendItem(_C.green, 'Límite'),

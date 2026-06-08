@@ -4,6 +4,7 @@
 // ══════════════════════════════════════════════════════════════════
 
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -25,6 +26,7 @@ class Empleado {
   final bool activo;
   final String? telefono;
   final String? fechaIngreso;
+  final String? fechaNacimiento;
 
   Empleado({
     required this.id,
@@ -37,6 +39,7 @@ class Empleado {
     required this.activo,
     this.telefono,
     this.fechaIngreso,
+    this.fechaNacimiento,
   });
 
   factory Empleado.fromMap(Map<String, dynamic> m) => Empleado(
@@ -50,6 +53,7 @@ class Empleado {
     activo: m['activo'] == true,
     telefono: m['telefono']?.toString(),
     fechaIngreso: m['fecha_ingreso']?.toString(),
+    fechaNacimiento: m['fecha_nacimiento']?.toString(),
   );
 
   String get iniciales {
@@ -173,7 +177,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _cargarTodo();
   }
 
@@ -309,6 +313,8 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                 _tabAsistencia(),
                 _tabPlanilla(),
                 _tabComunicados(),
+                _tabCapacitaciones(),
+                _tabSolicitudes(),
                 _tabAccesos(),
               ],
             ),
@@ -345,6 +351,14 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
               );
             case 4:
               return FloatingActionButton.extended(
+                onPressed: _subirCapacitacion,
+                backgroundColor: Colors.purple.shade700,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Subir Capacitación'),
+              );
+            case 6:
+              return FloatingActionButton.extended(
                 onPressed: () => _abrirFormUsuario(),
                 backgroundColor: Colors.indigo.shade800,
                 foregroundColor: Colors.white,
@@ -365,132 +379,157 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
 
   Widget _buildHero() {
     return Container(
+      clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF4F46E5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Color(0xFF0F172A), // Premium dark slate
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Recursos Humanos',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Gestión integral del capital humano',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _cargarTodo,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.sync_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ],
+      child: Stack(
+        children: [
+          // Dynamic mesh gradients
+          Positioned(
+            top: -100,
+            left: -50,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF6366F1).withOpacity(0.4),
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  _kpiHero(
-                    'Personal',
-                    '${_empleados.length}',
-                    Icons.people_alt_outlined,
-                    const Color(0xFF818CF8),
-                  ),
-                  const SizedBox(width: 10),
-                  _kpiHero(
-                    'Accesos',
-                    '${_usuarios.length}',
-                    Icons.vpn_key_outlined,
-                    const Color(0xFF34D399),
-                  ),
-                  const SizedBox(width: 10),
-                  _kpiHero(
-                    'Avisos',
-                    '${_comunicados.length}',
-                    Icons.campaign_outlined,
-                    const Color(0xFFFBBF24),
-                  ),
-                  const SizedBox(width: 10),
-                  _kpiHero(
-                    'Planilla',
-                    'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}',
-                    Icons.payments_outlined,
-                    const Color(0xFFF472B6),
-                  ),
-                ],
+            ),
+          ).animate(onPlay: (c) => c.repeat()).rotate(duration: 20.seconds),
+          Positioned(
+            bottom: -50,
+            right: -80,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFEC4899).withOpacity(0.3),
               ),
-            ],
+            ),
+          ).animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(end: 1.2, duration: 8.seconds),
+          // Blur layer for glass effect
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+              child: const SizedBox(),
+            ),
           ),
-        ),
+          // Content
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Recursos Humanos',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                              ),
+                            ).animate().fade().slideX(begin: -0.1),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Gestión integral del capital humano',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ).animate().fade(delay: 100.ms).slideX(begin: -0.1),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _cargarTodo,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
+                            ],
+                          ),
+                          child: const Icon(Icons.sync_rounded, color: Colors.white, size: 22),
+                        ),
+                      ).animate().fade(delay: 200.ms).scale(),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
+                    children: [
+                      _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF818CF8)),
+                      const SizedBox(width: 12),
+                      _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF34D399)),
+                      const SizedBox(width: 12),
+                      _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFFBBF24)),
+                      const SizedBox(width: 12),
+                      _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFFF472B6)),
+                    ],
+                  ).animate().fade(delay: 300.ms).slideY(begin: 0.1),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-    ).animate().fade().slideY(begin: -0.05);
+    );
   }
 
   Widget _kpiHero(String title, String value, IconData icon, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.15)),
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(height: 14),
             Text(
               value,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1,
               ),
             ),
+            const SizedBox(height: 2),
             Text(
               title,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.55),
-                fontSize: 10,
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -506,41 +545,48 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
 
   Widget _buildTabBar() {
     return Container(
-      color: const Color(0xFF4F46E5),
+      color: const Color(0xFF0F172A), // Match the hero background to avoid seam
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF4F7FA), // Transition to body color
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
-        child: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          indicator: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+            ],
           ),
-          labelStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.grey.shade500,
+            indicator: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4)),
+              ],
+            ),
+            indicatorPadding: const EdgeInsets.all(6),
+            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            dividerColor: Colors.transparent,
+            tabs: const [
+              Tab(icon: Icon(Icons.badge_rounded, size: 18), text: 'Personal'),
+              Tab(icon: Icon(Icons.calendar_today_rounded, size: 18), text: 'Asistencia'),
+              Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: 'Planilla'),
+              Tab(icon: Icon(Icons.campaign_rounded, size: 18), text: 'Avisos'),
+              Tab(icon: Icon(Icons.school_rounded, size: 18), text: 'Capacitaciones'),
+              Tab(icon: Icon(Icons.assignment_rounded, size: 18), text: 'Solicitudes'),
+              Tab(icon: Icon(Icons.admin_panel_settings_rounded, size: 18), text: 'Accesos'),
+            ],
           ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          dividerColor: Colors.transparent,
-          tabs: const [
-            Tab(icon: Icon(Icons.badge_outlined, size: 16), text: 'Personal'),
-            Tab(
-              icon: Icon(Icons.calendar_today_outlined, size: 16),
-              text: 'Asistencia',
-            ),
-            Tab(
-              icon: Icon(Icons.account_balance_wallet_outlined, size: 16),
-              text: 'Planilla',
-            ),
-            Tab(icon: Icon(Icons.campaign_outlined, size: 16), text: 'Avisos'),
-            Tab(icon: Icon(Icons.security_outlined, size: 16), text: 'Accesos'),
-          ],
         ),
       ),
     );
@@ -557,8 +603,38 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       );
     }
 
+    final mesActual = DateTime.now().month;
+    final cumpleaneros = _empleados.where((e) {
+      if (e.fechaNacimiento == null || e.fechaNacimiento!.isEmpty) return false;
+      try {
+        final dt = DateTime.parse(e.fechaNacimiento!);
+        return dt.month == mesActual;
+      } catch (_) { return false; }
+    }).toList();
+
     return Column(
       children: [
+        if (cumpleaneros.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.pink.shade400]),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.cake, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '¡Este mes celebramos ${cumpleaneros.length} cumpleaños!',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
         // Buscador
         Container(
           color: Colors.white,
@@ -1468,7 +1544,77 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   }
 
   // ══════════════════════════════════════════════════════════════
-  // TAB 5: ACCESOS
+  // TAB 5: CAPACITACIONES
+  // ══════════════════════════════════════════════════════════════
+
+  Widget _tabCapacitaciones() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _emptyState(
+          'Las capacitaciones se mostrarán aquí',
+          Icons.school_outlined,
+          accion: 'Subir Capacitación',
+          onAccion: _subirCapacitacion,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _subirCapacitacion() async {
+    try {
+      final result = await official_picker.FilePicker.pickFiles(
+        type: official_picker.FileType.custom,
+        allowedExtensions: ['pdf', 'ppt', 'pptx'],
+        withData: true,
+      );
+      
+      if (result != null && result.files.single.bytes != null) {
+        final fileBytes = result.files.single.bytes!;
+        final fileName = result.files.single.name;
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Subiendo archivo...')),
+        );
+        final path = 'capacitaciones/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        await supabase.storage.from('archivos_rrhh').uploadBinary(
+          path, 
+          fileBytes,
+          fileOptions: const FileOptions(upsert: true),
+        );
+        
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Capacitación subida exitosamente'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al subir: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // TAB 6: SOLICITUDES
+  // ══════════════════════════════════════════════════════════════
+
+  Widget _tabSolicitudes() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _emptyState(
+          'No hay solicitudes pendientes',
+          Icons.assignment_outlined,
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // TAB 7: ACCESOS
   // ══════════════════════════════════════════════════════════════
 
   Widget _tabAccesos() {
@@ -1864,7 +2010,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     const SizedBox(height: 16),
                     // Dropdown Área
                     DropdownButtonFormField<String>(
-                      initialValue: area,
+                      value: area,
                       decoration: InputDecoration(
                         labelText: 'Área de Trabajo *',
                         prefixIcon: const Icon(
@@ -1893,7 +2039,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     const SizedBox(height: 16),
                     // Dropdown Cargo (dinámico según área)
                     DropdownButtonFormField<String>(
-                      initialValue: cargo,
+                      value: cargo,
                       decoration: InputDecoration(
                         labelText: 'Cargo Específico *',
                         prefixIcon: const Icon(
@@ -2094,7 +2240,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                 ),
                 const SizedBox(height: 20),
                 DropdownButtonFormField<String>(
-                  initialValue: empId,
+                  value: empId,
                   decoration: InputDecoration(
                     labelText: 'Empleado *',
                     prefixIcon: const Icon(
@@ -2124,7 +2270,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  initialValue: estado,
+                  value: estado,
                   decoration: InputDecoration(
                     labelText: 'Estado',
                     prefixIcon: const Icon(
@@ -2447,7 +2593,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      initialValue: importancia,
+                      value: importancia,
                       decoration: InputDecoration(
                         labelText: 'Importancia',
                         prefixIcon: const Icon(
@@ -2654,7 +2800,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      initialValue: rol,
+                      value: rol,
                       decoration: InputDecoration(
                         labelText: 'Rol en el Sistema *',
                         prefixIcon: const Icon(
@@ -2847,40 +2993,41 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Colors.white,
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 10)),
+                ],
               ),
-              child: Icon(icon, size: 48, color: Colors.grey.shade300),
-            ),
-            const SizedBox(height: 16),
+              child: Icon(icon, size: 54, color: const Color(0xFF6366F1).withOpacity(0.4)),
+            ).animate().scale(delay: 200.ms, duration: 400.ms, curve: Curves.easeOutBack),
+            const SizedBox(height: 24),
             Text(
               msg,
-              style: TextStyle(
-                color: Colors.grey.shade500,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
               textAlign: TextAlign.center,
-            ),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.3,
+              ),
+            ).animate().fade(delay: 400.ms).slideY(begin: 0.2),
             if (accion != null && onAccion != null) ...[
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: onAccion,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add_rounded, size: 20),
                 label: Text(accion),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF4F46E5),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ),
+              ).animate().fade(delay: 600.ms).scale(),
             ],
           ],
         ),

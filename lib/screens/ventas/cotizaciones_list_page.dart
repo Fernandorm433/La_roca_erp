@@ -3,76 +3,56 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/utils/cotizacion_pdf_generator.dart';
+import 'cotizacion_pdf_preview.dart';
 import 'cotizaciones_page.dart';
+import 'cotizacion_detalle_page.dart';
 
 class CotizacionesListPage extends StatefulWidget {
   const CotizacionesListPage({super.key});
-
   @override
   State<CotizacionesListPage> createState() => _CotizacionesListPageState();
 }
 
 class _CotizacionesListPageState extends State<CotizacionesListPage> {
-  final _supabase = Supabase.instance.client;
-  final _searchCtrl = TextEditingController();
-
-  List<Map<String, dynamic>> _cotizaciones = [];
-  List<Map<String, dynamic>> _filtradas = [];
-  bool _cargando = true;
+  final _sb = Supabase.instance.client;
+  final _search = TextEditingController();
+  List<Map<String, dynamic>> _all = [], _shown = [];
+  bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _cargar();
-    _searchCtrl.addListener(_filtrar);
-  }
+  void initState() { super.initState(); _load(); _search.addListener(_filter); }
 
   @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _search.dispose(); super.dispose(); }
 
-  Future<void> _cargar() async {
-    setState(() => _cargando = true);
+  Future<void> _load() async {
+    setState(() => _loading = true);
     try {
-      final data = await _supabase
-          .from('cotizaciones')
+      final d = await _sb.from('cotizaciones')
           .select('*, cotizacion_items(*)')
           .order('created_at', ascending: false);
-      setState(() {
-        _cotizaciones = List<Map<String, dynamic>>.from(data);
-        _filtradas = _cotizaciones;
-      });
-    } catch (e) {
-      _snack('Error al cargar: $e', error: true);
-    } finally {
-      setState(() => _cargando = false);
-    }
+      setState(() { _all = List<Map<String, dynamic>>.from(d); _shown = _all; });
+    } catch (e) { _snack('Error: $e', err: true); }
+    finally { setState(() => _loading = false); }
   }
 
-  void _filtrar() {
-    final q = _searchCtrl.text.toLowerCase();
-    setState(() {
-      _filtradas = q.isEmpty
-          ? _cotizaciones
-          : _cotizaciones.where((c) {
-              return (c['cliente_nombre'] ?? '').toLowerCase().contains(q) ||
-                  (c['asesor_nombre'] ?? '').toLowerCase().contains(q) ||
-                  (c['numero_cotizacion'] ?? '').toLowerCase().contains(q);
-            }).toList();
-    });
+  void _filter() {
+    final q = _search.text.toLowerCase();
+    setState(() => _shown = q.isEmpty ? _all : _all.where((c) =>
+      (c['cliente_nombre'] ?? '').toLowerCase().contains(q) ||
+      (c['asesor_nombre'] ?? '').toLowerCase().contains(q) ||
+      (c['numero_cotizacion'] ?? '').toLowerCase().contains(q)).toList());
   }
 
-  void _snack(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: error ? Colors.red.shade700 : const Color(0xFF2E7D32),
-    ));
-  }
+  void _snack(String m, {bool err = false}) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(m),
+        backgroundColor: err ? Colors.red.shade700 : AppColors.primaryDark,
+      ));
 
-  Future<void> _eliminar(String id) async {
+  Future<void> _delete(String id) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -80,9 +60,9 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
         title: const Text('¿Eliminar cotización?'),
         content: const Text('Esta acción no se puede deshacer.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
@@ -91,227 +71,241 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
     );
     if (ok != true) return;
     try {
-      await _supabase.from('cotizacion_items').delete().eq('cotizacion_id', id);
-      await _supabase.from('cotizaciones').delete().eq('id', id);
+      await _sb.from('cotizacion_items').delete().eq('cotizacion_id', id);
+      await _sb.from('cotizaciones').delete().eq('id', id);
       _snack('Cotización eliminada');
-      _cargar();
-    } catch (e) {
-      _snack('Error: $e', error: true);
-    }
+      _load();
+    } catch (e) { _snack('Error: $e', err: true); }
   }
 
-  Future<void> _generarPDF(Map<String, dynamic> cot) async {
+  Future<void> _pdf(Map<String, dynamic> c) async {
     try {
-      final items = (cot['cotizacion_items'] as List? ?? [])
-          .map((i) => ItemCotizacion(
-                tipo: i['tipo'] ?? 'Concreto',
-                descripcion: i['descripcion'] ?? '',
-                detalles: List<String>.from(i['detalles'] ?? []),
-                cantidad: double.tryParse(i['cantidad'].toString()) ?? 0,
-                unidad: i['unidad'] ?? 'M³',
-                precioUnitario: double.tryParse(i['precio_unitario'].toString()) ?? 0,
-              ))
-          .toList();
-
+      final items = (c['cotizacion_items'] as List? ?? []).map((i) => ItemCotizacion(
+        tipo: i['tipo'] ?? 'Concreto',
+        descripcion: i['descripcion'] ?? '',
+        detalles: List<String>.from(i['detalles'] ?? []),
+        cantidad: double.tryParse(i['cantidad'].toString()) ?? 0,
+        unidad: i['unidad'] ?? 'M³',
+        precioUnitario: double.tryParse(i['precio_unitario'].toString()) ?? 0,
+      )).toList();
       final datos = DatosCotizacion(
-        numeroCotizacion: cot['numero_cotizacion'] ?? '',
-        fecha: DateTime.tryParse(cot['created_at'] ?? '') ?? DateTime.now(),
-        clienteNombre: cot['cliente_nombre'] ?? '',
-        clienteDocumento: cot['cliente_documento'] ?? '',
-        clienteDireccion: cot['obra_direccion'] ?? cot['cliente_direccion'] ?? '',
-        clienteTelefono: cot['cliente_telefono'] ?? '',
-        asesorNombre: cot['asesor_nombre'] ?? '',
-        asesorTelefono: cot['asesor_telefono'] ?? '',
-        igvPorcentaje: double.tryParse(cot['igv_porcentaje'].toString()) ?? 18.0,
+        numeroCotizacion: c['numero_cotizacion'] ?? '',
+        fecha: DateTime.tryParse(c['created_at'] ?? '') ?? DateTime.now(),
+        clienteNombre: c['cliente_nombre'] ?? '',
+        clienteDocumento: c['cliente_documento'] ?? '',
+        clienteDireccion: c['obra_direccion'] ?? c['cliente_direccion'] ?? '',
+        clienteTelefono: c['cliente_telefono'] ?? '',
+        asesorNombre: c['asesor_nombre'] ?? '',
+        asesorTelefono: c['asesor_telefono'] ?? '',
+        igvPorcentaje: double.tryParse(c['igv_porcentaje']?.toString() ?? '18') ?? 18.0,
         items: items,
       );
-
-      final bytes = await CotizacionPdfGenerator.generar(cotizacion: datos);
-      await Printing.sharePdf(bytes: bytes, filename: '${datos.numeroCotizacion}.pdf');
-    } catch (e) {
-      _snack('Error PDF: $e', error: true);
-    }
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CotizacionPdfPreview(cotizacion: datos),
+          ),
+        );
+      }
+    } catch (e) { _snack('Error PDF: $e', err: true); }
   }
 
-  void _abrir({Map<String, dynamic>? cotizacion, bool duplicar = false}) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CotizacionesPage(
-          cotizacionExistente: duplicar ? null : cotizacion,
-          datosParaDuplicar: duplicar ? cotizacion : null,
-        ),
+  void _open({Map<String, dynamic>? cot, bool dup = false}) async {
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => CotizacionesPage(
+        cotizacionExistente: dup ? null : cot,
+        datosParaDuplicar: dup ? cot : null,
       ),
-    );
-    _cargar();
+    ));
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: const Color(0xFFF2F5F2),
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black87),
-          onPressed: () {},
-        ),
-        title: const Text('Cotizaciones',
-            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 20)),
-        backgroundColor: const Color(0xFFF8F9FA),
+        backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
+        // ── Sin menú ni notificaciones ──
+        title: const Text('Cotizaciones',
+            style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 20)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: Color(0xFF2E7D32), size: 28),
-            onPressed: () => _abrir(),
+            icon: const Icon(Icons.add, color: AppColors.primaryDark, size: 28),
+            onPressed: () => _open(),
           ),
-          const SizedBox(width: 8), // Ícono de notificaciones eliminado
+          const SizedBox(width: 4),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      decoration: const InputDecoration(
-                        hintText: 'Buscar por cliente...',
-                        hintStyle: TextStyle(color: Colors.grey),
-                        prefixIcon: Icon(Icons.search, color: Colors.grey),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
+      body: Column(children: [
+        // Buscador
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Row(children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F7F0),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: TextField(
+                  controller: _search,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar por cliente...',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                    prefixIcon: Icon(Icons.search, color: Colors.grey, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
-                const SizedBox(width: 10),
-                const Icon(Icons.arrow_upward, color: Colors.black87),
-              ],
+              ),
             ),
-          ),
-          Expanded(
-            child: _cargando
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)))
-                : _filtradas.isEmpty
-                    ? const Center(child: Text('No hay cotizaciones', style: TextStyle(color: Colors.grey)))
-                    : RefreshIndicator(
-                        onRefresh: _cargar,
-                        color: const Color(0xFF2E7D32),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _filtradas.length,
-                          itemBuilder: (_, i) => _CotizacionCard(
-                            cot: _filtradas[i],
-                            onPDF: () => _generarPDF(_filtradas[i]),
-                            onDuplicar: () => _abrir(cotizacion: _filtradas[i], duplicar: true),
-                            onEditar: () => _abrir(cotizacion: _filtradas[i]),
-                            onEliminar: () => _eliminar(_filtradas[i]['id']),
-                          ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => setState(() => _shown = _shown.reversed.toList()),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F7F0),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Icon(Icons.swap_vert, color: AppColors.primaryDark, size: 20),
+              ),
+            ),
+          ]),
+        ),
+
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: AppColors.primaryDark))
+              : _shown.isEmpty
+                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.description_outlined, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      Text('No hay cotizaciones', style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
+                    ]))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      color: AppColors.primaryDark,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                        itemCount: _shown.length,
+                        itemBuilder: (_, i) => _CotCard(
+                          cot: _shown[i],
+                          onTap: () async {
+                            final updated = await Navigator.push<bool>(context, MaterialPageRoute(
+                              builder: (_) => CotizacionDetallePage(cotizacion: _shown[i]),
+                            ));
+                            if (updated == true) _load();
+                          },
+                          onPDF: () => _pdf(_shown[i]),
+                          onDup: () => _open(cot: _shown[i], dup: true),
+                          onEdit: () => _open(cot: _shown[i]),
+                          onDel: () => _delete(_shown[i]['id']),
                         ),
                       ),
-          ),
-        ],
-      ),
+                    ),
+        ),
+      ]),
     );
   }
 }
 
-class _CotizacionCard extends StatelessWidget {
+// ─── CARD ─────────────────────────────────────────────────────────────────────
+class _CotCard extends StatelessWidget {
   final Map<String, dynamic> cot;
-  final VoidCallback onPDF, onDuplicar, onEditar, onEliminar;
-
-  const _CotizacionCard({
-    required this.cot, required this.onPDF, required this.onDuplicar, required this.onEditar, required this.onEliminar,
-  });
+  final VoidCallback onTap, onPDF, onDup, onEdit, onDel;
+  const _CotCard({required this.cot, required this.onTap, required this.onPDF,
+      required this.onDup, required this.onEdit, required this.onDel});
 
   @override
   Widget build(BuildContext context) {
     final total = double.tryParse(cot['total']?.toString() ?? '0') ?? 0;
     final estado = cot['estado'] ?? 'borrador';
     final fmt = NumberFormat('#,##0.00', 'es_PE');
+    final isDrive = estado == 'aprobada' || estado == 'enviada';
 
-    final creado = cot['created_at'] != null ? DateFormat("dd MMM · HH:mm", "es").format(DateTime.parse(cot['created_at']).toLocal()) : '-';
-    final atencion = cot['hora_entrega'] != null ? DateFormat("dd MMM · HH:mm", "es").format(DateTime.parse(cot['hora_entrega']).toLocal()) : '-';
+    String creado = '';
+    String atencion = '';
+    if (cot['created_at'] != null) {
+      final dt = DateTime.tryParse(cot['created_at']);
+      if (dt != null) creado = 'Creado: ${DateFormat('dd MMM · HH:mm').format(dt.toLocal())}';
+    }
+    if (cot['hora_entrega'] != null) {
+      final dt = DateTime.tryParse(cot['hora_entrega']);
+      if (dt != null) atencion = '   Atención: ${DateFormat('dd MMM · HH:mm').format(dt.toLocal())}';
+    }
 
-    final isDestacada = estado == 'aprobada' || estado == 'enviada';
-    final cardColor = isDestacada ? const Color(0xFFA5D6A7) : const Color(0xFFF9FBE7);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text((cot['cliente_nombre'] ?? 'Sin nombre').toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87), textAlign: TextAlign.center),
-            const SizedBox(height: 4),
-            Text('Asesor: ${cot['asesor_nombre'] ?? '—'}', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-            const SizedBox(height: 8),
-            if (estado == 'editada')
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFB2EBF2), borderRadius: BorderRadius.circular(20)),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.edit_note, size: 14, color: Color(0xFF006064)), SizedBox(width: 4),
-                  Text('Editada · 1 cambio', style: TextStyle(fontSize: 11, color: Color(0xFF006064), fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text('${fmt.format(total)} s/', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
-                    if (isDestacada) ...[
-                      const SizedBox(width: 8),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: const Color(0xFF424242), borderRadius: BorderRadius.circular(20)), child: const Text('DRIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
-                    ]
-                  ],
-                ),
-                Row(
-                  children: [
-                    _IconBtn(icon: Icons.picture_as_pdf_outlined, onTap: onPDF),
-                    _IconBtn(icon: Icons.copy_outlined, onTap: onDuplicar),
-                    _IconBtn(icon: Icons.edit_outlined, onTap: onEditar),
-                    _IconBtn(icon: Icons.delete_outline, color: Colors.red.shade700, onTap: onEliminar),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('Creado: $creado   Atención: $atencion', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-          ],
+        color: isDrive ? const Color(0xFFEEFAEE) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDrive ? const Color(0xFF81C784) : const Color(0xFFE2EDE2),
+          width: isDrive ? 1.5 : 1,
         ),
       ),
-    );
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 10, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(
+            child: Text(
+              (cot['cliente_nombre'] ?? 'Sin nombre').toString().toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: Color(0xFF1A2E1A)),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Center(
+            child: Text('Asesor: ${cot['asesor_nombre'] ?? '—'}',
+                style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Text('${fmt.format(total)} S/',
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
+            const SizedBox(width: 8),
+            if (isDrive)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(20)),
+                child: const Text('DRIVE',
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
+            const Spacer(),
+            _IBtn(icon: Icons.picture_as_pdf_outlined, onTap: onPDF),
+            _IBtn(icon: Icons.copy_outlined, onTap: onDup),
+            _IBtn(icon: Icons.edit_outlined, onTap: onEdit),
+            _IBtn(icon: Icons.delete_outline, color: Colors.red.shade400, onTap: onDel),
+          ]),
+          const SizedBox(height: 6),
+          Text('$creado$atencion', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        ]),
+      ),
+    ),  // Container
+    );  // InkWell
   }
 }
 
-class _IconBtn extends StatelessWidget {
-  final IconData icon; final Color color; final VoidCallback onTap;
-  const _IconBtn({required this.icon, this.color = Colors.black87, required this.onTap});
-
+class _IBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _IBtn({required this.icon, required this.onTap, this.color = const Color(0xFF607D8B)});
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) => InkWell(
     onTap: onTap,
-    child: Container(
-      margin: const EdgeInsets.only(left: 8), padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(border: Border.all(color: color.withOpacity(0.5)), borderRadius: BorderRadius.circular(6), color: Colors.white.withOpacity(0.5)),
+    borderRadius: BorderRadius.circular(8),
+    child: Padding(
+      padding: const EdgeInsets.all(7),
       child: Icon(icon, size: 20, color: color),
     ),
   );

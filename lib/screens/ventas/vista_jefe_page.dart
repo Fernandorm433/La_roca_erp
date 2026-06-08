@@ -1198,18 +1198,20 @@ class _VistaJefePageState extends State<VistaJefePage>
 
   Widget _buildEstadoVacio(String t, String s, IconData i) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(i, size: 40, color: Colors.grey.shade300),
-          const SizedBox(height: 8),
-          Text(t, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(
-            s,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
-          ),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(i, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text(t, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              s,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }

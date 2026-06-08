@@ -8,6 +8,11 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_page.dart';
+import '../../main.dart';
+import 'boletas_page.dart';
+import 'solicitudes_page.dart';
+import 'asistencia_page.dart';
+import 'capacitaciones_page.dart';
 
 // ─── Paleta ────────────────────────────────────────────────────────────────
 const _kDarkBg   = Color(0xFF0D2137);
@@ -178,6 +183,31 @@ class _PerfilPageState extends State<PerfilPage>
   Future<void> _cargarPerfil() async {
     setState(() { _cargando = true; _error = null; });
     try {
+      if (kModoDemo) {
+        if (!mounted) return;
+        setState(() {
+          _perfil = const EmpleadoPerfil(
+            id: 'demo-123',
+            nombre: 'Juan',
+            apellido: 'Pérez',
+            correo: 'juan.perez@ejemplo.com',
+            telefono: '+51 987 654 321',
+            area: 'Operaciones',
+            ubicacion: 'Planta Principal',
+            estado: 'Activo',
+            fechaIngreso: '2022-01-15',
+            jornada: 'Tiempo Completo',
+            puesto: 'Supervisor',
+            documentos: 5,
+            solicitudes: 2,
+            rol: 'admin',
+          );
+          _cargando = false;
+        });
+        _fadeCtrl.forward();
+        return;
+      }
+
       final authUser = _supabase.auth.currentUser;
       final uid = widget.empleadoId ?? authUser?.id ?? '';
       if (uid.isEmpty) throw Exception('No hay sesión activa.');
@@ -322,6 +352,8 @@ class _PerfilPageState extends State<PerfilPage>
     if (_error != null)  return _ErrorPage(error: _error!, onRetry: _cargarPerfil);
 
     final isWide = MediaQuery.of(context).size.width >= 720;
+    final bool puedeEditar = false; // El usuario pidió quitar el botón de editar perfil completamente.
+
     return FadeTransition(
       opacity: _fadeAnim,
       child: isWide
@@ -330,12 +362,14 @@ class _PerfilPageState extends State<PerfilPage>
               guardando:    _guardando,
               onEditar:     _abrirEdicion,
               onCerrarSesion: _cerrarSesion,
+              puedeEditar:  puedeEditar,
             )
           : _MobileLayout(
               perfil:       _perfil!,
               guardando:    _guardando,
               onEditar:     _abrirEdicion,
               onCerrarSesion: _cerrarSesion,
+              puedeEditar:  puedeEditar,
             ),
     );
   }
@@ -349,18 +383,19 @@ class _DesktopLayout extends StatelessWidget {
   final bool guardando;
   final VoidCallback onEditar;
   final VoidCallback onCerrarSesion;
+  final bool puedeEditar;
 
   const _DesktopLayout({
     required this.perfil,
     required this.guardando,
     required this.onEditar,
     required this.onCerrarSesion,
+    required this.puedeEditar,
   });
 
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -371,6 +406,7 @@ class _DesktopLayout extends StatelessWidget {
               perfil:         perfil,
               onEditar:       onEditar,
               onCerrarSesion: onCerrarSesion,
+              puedeEditar:    puedeEditar,
             ),
           ),
 
@@ -391,7 +427,7 @@ class _DesktopLayout extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w900,
-                              color: _kDarkBg,
+                              color: Theme.of(context).textTheme.bodyLarge?.color,
                               letterSpacing: -0.5,
                             )),
                           const SizedBox(height: 4),
@@ -403,7 +439,7 @@ class _DesktopLayout extends StatelessWidget {
                       const Spacer(),
                       if (guardando)
                         const _LoadingBadge()
-                      else
+                      else if (puedeEditar)
                         _PrimaryButton(
                           icon: Icons.edit_outlined,
                           label: 'Editar perfil',
@@ -443,7 +479,7 @@ class _DesktopLayout extends StatelessWidget {
                     icon: Icons.apps_rounded,
                     iconColor: Colors.purple.shade600,
                     iconBg: Colors.purple.shade50,
-                    child: _ServiciosGrid(context: context),
+                    child: _ServiciosGrid(context: context, rol: perfil.rol),
                   ),
                 ],
               ),
@@ -460,11 +496,13 @@ class _Sidebar extends StatelessWidget {
   final EmpleadoPerfil perfil;
   final VoidCallback onEditar;
   final VoidCallback onCerrarSesion;
+  final bool puedeEditar;
 
   const _Sidebar({
     required this.perfil,
     required this.onEditar,
     required this.onCerrarSesion,
+    required this.puedeEditar,
   });
 
   @override
@@ -524,9 +562,7 @@ class _Sidebar extends StatelessWidget {
           const Divider(color: Colors.white12, indent: 24, endIndent: 24),
 
           // Acciones
-          _SidebarAction(Icons.edit_outlined, 'Editar perfil', onEditar),
-          _SidebarAction(Icons.lock_outline,  'Cambiar contraseña', () => _cambiarPassword(context)),
-          _SidebarAction(Icons.logout,        'Cerrar sesión', onCerrarSesion, danger: true),
+          if (puedeEditar) _SidebarAction(Icons.edit_outlined, 'Editar perfil', onEditar),
           const SizedBox(height: 16),
 
           Text(
@@ -566,18 +602,19 @@ class _MobileLayout extends StatelessWidget {
   final bool guardando;
   final VoidCallback onEditar;
   final VoidCallback onCerrarSesion;
+  final bool puedeEditar;
 
   const _MobileLayout({
     required this.perfil,
     required this.guardando,
     required this.onEditar,
     required this.onCerrarSesion,
+    required this.puedeEditar,
   });
 
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -587,7 +624,7 @@ class _MobileLayout extends StatelessWidget {
             pinned: true,
             stretch: true,
             backgroundColor: _kDarkBg,
-            leading: const BackButton(color: Colors.white),
+            automaticallyImplyLeading: false,
             actions: [
               if (guardando)
                 const Padding(
@@ -596,7 +633,7 @@ class _MobileLayout extends StatelessWidget {
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2)),
                 )
-              else
+              else if (puedeEditar)
                 IconButton(
                   icon: const Icon(Icons.edit_outlined, color: Colors.white),
                   onPressed: onEditar,
@@ -643,21 +680,9 @@ class _MobileLayout extends StatelessWidget {
                   icon: Icons.apps_rounded,
                   iconColor: Colors.purple.shade600,
                   iconBg: Colors.purple.shade50,
-                  child: _ServiciosGrid(context: context),
+                  child: _ServiciosGrid(context: context, rol: perfil.rol),
                 ),
                 const SizedBox(height: 14),
-
-                // Cuenta
-                _Card(
-                  title: 'Cuenta',
-                  icon: Icons.settings_outlined,
-                  iconColor: Colors.grey.shade600,
-                  iconBg: Colors.grey.shade100,
-                  child: _CuentaSection(
-                    onCerrarSesion: onCerrarSesion,
-                    correo: perfil.correo,
-                  ),
-                ),
               ]),
             ),
           ),
@@ -917,11 +942,11 @@ class _Card extends StatelessWidget {
     required this.child,
   });
 
-  @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withOpacity(0.05),
@@ -942,8 +967,8 @@ class _Card extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Text(title,
-            style: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.bold, color: _kDarkBg)),
+            style: TextStyle(
+              fontSize: 15, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
         ]),
       ),
       const Divider(height: 22, indent: 20, endIndent: 20),
@@ -976,8 +1001,9 @@ class _StatsRow extends StatelessWidget {
             margin: EdgeInsets.only(right: isLast ? 0 : 16),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
               boxShadow: [
                 BoxShadow(color: Colors.black.withOpacity(0.04),
                           blurRadius: 12, offset: const Offset(0, 4)),
@@ -994,9 +1020,8 @@ class _StatsRow extends StatelessWidget {
                   child: Icon(s.icon, color: s.color, size: 20),
                 ),
                 const SizedBox(height: 14),
-                Text(s.value,
-                  style: const TextStyle(
-                    fontSize: 26, fontWeight: FontWeight.w900, color: _kDarkBg)),
+                Text(s.value, style: TextStyle(
+                  fontSize: 28, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
                 const SizedBox(height: 4),
                 Text(s.label,
                   style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
@@ -1036,7 +1061,7 @@ class _MobileStatsRow extends StatelessWidget {
             margin: EdgeInsets.only(right: i < stats.length - 1 ? 10 : 0),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(color: Colors.black.withOpacity(0.04),
@@ -1054,8 +1079,8 @@ class _MobileStatsRow extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(s.value,
-                style: const TextStyle(fontSize: 20,
-                                       fontWeight: FontWeight.w900, color: _kDarkBg)),
+                style: TextStyle(fontSize: 20,
+                                 fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
               Text(s.label,
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 10)),
             ]),
@@ -1162,8 +1187,8 @@ class _ContactoGrid extends StatelessWidget {
                                    fontSize: 10, letterSpacing: 0.5)),
                 const SizedBox(height: 2),
                 Text(item.$3,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                         color: _kDarkBg),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                         color: Theme.of(context).textTheme.bodyLarge?.color),
                   overflow: TextOverflow.ellipsis),
               ],
             )),
@@ -1190,13 +1215,14 @@ class _ContactoGrid extends StatelessWidget {
 // ── Servicios / accesos rápidos ───────────────────────────────────────────
 class _ServiciosGrid extends StatelessWidget {
   final BuildContext context;
-  const _ServiciosGrid({required this.context});
+  final String rol;
+  const _ServiciosGrid({required this.context, required this.rol});
 
   static const _servicios = [
-    (Icons.receipt_long_outlined, Colors.teal,   'Boletas de Pago',      'Ver historial de nómina'),
-    (Icons.event_available_outlined, Colors.indigo,'Solicitudes',         'Permisos y ausencias'),
-    (Icons.school_outlined,       Colors.purple,  'Capacitaciones',      'Cursos disponibles'),
-    (Icons.calendar_month_outlined, Colors.blue,  'Asistencia',          'Registro de entradas/salidas'),
+    (Icons.receipt_long_outlined, Colors.teal,   'Boletas de Pago',      'Ver historial de nómina', 0),
+    (Icons.event_available_outlined, Colors.indigo,'Solicitudes',         'Permisos y ausencias', 1),
+    (Icons.school_outlined,       Colors.purple,  'Capacitaciones',      'Cursos disponibles', 2),
+    (Icons.calendar_month_outlined, Colors.blue,  'Asistencia',          'Registro de entradas/salidas', 3),
   ];
 
   @override
@@ -1206,10 +1232,17 @@ class _ServiciosGrid extends StatelessWidget {
       child: Column(
         children: _servicios.map((s) => _ServicioTile(
           icon: s.$1, color: s.$2, title: s.$3, subtitle: s.$4,
-          onTap: () => ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-            content: Text('Próximamente: ${s.$3}'),
-            behavior: SnackBarBehavior.floating,
-          )),
+          onTap: () {
+            Widget page;
+            switch(s.$5) {
+              case 0: page = const BoletasPage(); break;
+              case 1: page = const SolicitudesPage(); break;
+              case 2: page = CapacitacionesPage(rol: rol); break;
+              case 3: page = const AsistenciaPage(); break;
+              default: return;
+            }
+            Navigator.push(ctx, MaterialPageRoute(builder: (_) => page));
+          },
         )).toList(),
       ),
     );
@@ -1246,8 +1279,8 @@ class _ServicioTile extends StatelessWidget {
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(
-              fontWeight: FontWeight.bold, fontSize: 13, color: _kDarkBg)),
+            Text(title, style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 13, color: Theme.of(context).textTheme.bodyLarge?.color)),
             Text(subtitle, style: TextStyle(
               color: Colors.grey.shade400, fontSize: 11)),
           ])),

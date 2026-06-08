@@ -282,14 +282,14 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "Dashboard",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark,
+                  Text(
+                    "Dashboard",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
                   ),
-                ),
                 Row(
                   children: [
                     IconButton(
@@ -320,9 +320,9 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: Theme.of(context).dividerColor),
                         ),
                         child: Row(
                           children: [
@@ -332,14 +332,14 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                               color: AppColors.accent,
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              etiquetaFiltro,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: AppColors.primaryDark,
+                              Text(
+                                etiquetaFiltro,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                                ),
                               ),
-                            ),
                             const SizedBox(width: 5),
                             const Icon(Icons.arrow_drop_down, size: 20),
                           ],
@@ -421,7 +421,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: activo ? Colors.white : Colors.transparent,
+          color: activo ? Theme.of(context).cardColor : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           boxShadow: activo
               ? [
@@ -476,19 +476,19 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
         const SizedBox(height: 20),
 
         if (volumenPorMixer.isNotEmpty) ...[
-          const Text(
+          Text(
             "Rendimiento por Mixer",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 10),
           Container(
             height: 260,
             padding: const EdgeInsets.all(20),
-            decoration: cardDecoration(),
+            decoration: cardDecoration(context),
             child: Row(
               children: [
                 Expanded(
@@ -530,10 +530,10 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                           ),
                           Text(
                             "${totalDespachado.toStringAsFixed(1)} m³",
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 14,
-                              color: AppColors.primaryDark,
+                              color: Theme.of(context).textTheme.bodyLarge?.color,
                             ),
                           ),
                         ],
@@ -564,22 +564,22 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  e.key,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primaryDark,
+                                    e.key,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                                    ),
                                   ),
-                                ),
                               ),
                               Text(
-                                "${e.value.toStringAsFixed(1)} m³",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: AppColors.primaryDark,
+                                  "${e.value.toStringAsFixed(1)} m³",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -594,18 +594,18 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
         ],
 
         if (operadoresOrdenados.isNotEmpty) ...[
-          const Text(
+          Text(
             "Ranking Global de Operadores",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: cardDecoration(),
+            decoration: cardDecoration(context),
             child: Column(
               children: operadoresOrdenados.asMap().entries.map((entry) {
                 int idx = entry.key;
@@ -632,8 +632,8 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                     backgroundColor: Colors.grey.shade100,
                     child: Text(
                       '${idx + 1}',
-                      style: const TextStyle(
-                        color: AppColors.primaryDark,
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -659,7 +659,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                       style: TextStyle(
                         fontWeight: idx < 3 ? FontWeight.w900 : FontWeight.w600,
                         fontSize: idx < 3 ? 16 : 14,
-                        color: AppColors.primaryDark,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
                       ),
                     ),
                     trailing: Text(
@@ -707,18 +707,18 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
         const SizedBox(height: 20),
 
         if (listaObrasCanceladas.isNotEmpty) ...[
-          const Text(
+          Text(
             "Detalle de Cancelaciones",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.primaryDark,
+              color: Theme.of(context).textTheme.bodyLarge?.color,
             ),
           ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: cardDecoration(),
+            decoration: cardDecoration(context),
             child: Column(
               children: listaObrasCanceladas.map((obra) {
                 double vol = limpiarYExtraerNumero(obra["volumen"]);
@@ -822,7 +822,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: cardDecoration(),
+        decoration: cardDecoration(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

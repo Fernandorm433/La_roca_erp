@@ -259,7 +259,7 @@ class PdfGenerator {
                 ),
               ],
             ),
-            pw.SizedBox(height: 14),
+            pw.SizedBox(height: 60), // ESPACIO GIGANTE PARA FIRMAR
 
             // ── 7. FIRMAS ──────────────────────────────────────
             pw.Row(
@@ -380,21 +380,30 @@ class PdfGenerator {
 
     final slump = d['slump']?.toString() ?? '';
     final huso = d['huso']?.toString() ?? '';
-    final aditivo = d['aditivo']?.toString() ?? '';
     final bomba = d['bomba']?.toString() ?? '';
     final hora = d['hora_salida']?.toString() ?? '';
     final precinto = d['nro_precinto']?.toString() ?? '';
+
+    String cemento = (d['cemento']?.toString() ?? 'CEMENTO YURA HE').toUpperCase();
+    if (!cemento.contains('CEMENTO YURA') && cemento.isNotEmpty && cemento != '-') {
+      cemento = 'CEMENTO YURA $cemento';
+    }
+
+    String aditivo = (d['aditivo']?.toString() ?? '').toUpperCase();
+    if (!aditivo.contains('ADITIVO') && aditivo.isNotEmpty && aditivo != '-') {
+      aditivo = 'ADITIVO $aditivo';
+    }
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text(
-          'CONCRETO PRE-MEZCLADO FC=$diseno',
+          'CONCRETO PRE-MEZCLADO FC=$diseno KG/CM2',
           style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
         ),
         pw.SizedBox(height: 4),
         pw.Text(
-          (d['cemento']?.toString() ?? 'CEMENTO YURA HE').toUpperCase(),
+          cemento,
           style: const pw.TextStyle(fontSize: 8.5),
         ),
         pw.SizedBox(height: 4),
@@ -406,7 +415,7 @@ class PdfGenerator {
         pw.SizedBox(height: 4),
         if (aditivo.isNotEmpty && aditivo != '-')
           pw.Text(
-            aditivo.toUpperCase(),
+            aditivo,
             style: const pw.TextStyle(fontSize: 8.5),
           ),
 

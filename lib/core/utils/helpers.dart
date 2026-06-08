@@ -6,8 +6,9 @@ double limpiarYExtraerNumero(dynamic valorRaw) {
   return double.tryParse(texto) ?? 0.0;
 }
 
-BoxDecoration cardDecoration() => BoxDecoration(
-  color: Colors.white, 
+BoxDecoration cardDecoration(BuildContext context) => BoxDecoration(
+  color: Theme.of(context).cardColor, 
   borderRadius: BorderRadius.circular(16), 
+  border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 4))]
 );

@@ -274,7 +274,7 @@ class _GestorBombasPageState extends State<GestorBombasPage>
                   ),
 
                   DropdownButtonFormField<String>(
-                    initialValue: estadoActual,
+                    value: estadoActual,
                     decoration: const InputDecoration(
                       labelText: 'Estado (Color)',
                     ),
