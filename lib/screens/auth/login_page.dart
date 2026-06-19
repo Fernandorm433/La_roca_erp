@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../home/home_page.dart';
+import 'change_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -82,23 +83,36 @@ class _LoginPageState extends State<LoginPage> {
 
         final data = await supabase
             .from('usuarios')
-            .select('rol, nombre')
+            .select('rol, nombre, requiere_cambio_password')
             .eq('id', user.id) 
             .single();
 
         final String rolString = data['rol'] ?? 'operador';
         final String nombreDB = data['nombre'] ?? 'Usuario';
+        final bool requiereCambio = data['requiere_cambio_password'] ?? false;
 
         final RolUsuario rolAsignado = _obtenerRolDesdeString(rolString);
 
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  HomePage(rol: rolAsignado, nombreUsuario: nombreDB),
-            ),
-          );
+          if (requiereCambio) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChangePasswordPage(
+                  rolAsignado: rolAsignado,
+                  nombreUsuario: nombreDB,
+                ),
+              ),
+            );
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    HomePage(rol: rolAsignado, nombreUsuario: nombreDB),
+              ),
+            );
+          }
         }
       }
     } on AuthException catch (e) {

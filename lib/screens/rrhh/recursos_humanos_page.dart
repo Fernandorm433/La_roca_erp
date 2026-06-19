@@ -1708,6 +1708,8 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       'ventas' => (const Color(0xFF2563EB), const Color(0xFFEFF6FF)),
       'asesor' => (const Color(0xFFDB2777), const Color(0xFFFDF2F8)),
       'operador' => (const Color(0xFF059669), const Color(0xFFF0FDF4)),
+      'logistica' => (const Color(0xFFC026D3), const Color(0xFFFDF4FF)),
+      'rrhh' => (const Color(0xFF0284C7), const Color(0xFFF0F9FF)),
       _ => (const Color(0xFF64748B), const Color(0xFFF8FAFC)),
     };
   }
@@ -1904,9 +1906,21 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
     String area = (empleado?.area != null && empleado!.area != '—')
         ? empleado.area
         : _estructuraEmpresa.keys.first;
+    
+    // Ensure the area exists to prevent crashes
+    if (!_estructuraEmpresa.containsKey(area)) {
+      _estructuraEmpresa[area] = [];
+    }
+        
     String cargo = (empleado?.cargo != null && empleado!.cargo != '—')
         ? empleado.cargo
-        : _estructuraEmpresa[area]!.first;
+        : (_estructuraEmpresa[area]!.isNotEmpty ? _estructuraEmpresa[area]!.first : '');
+        
+    // Ensure the cargo exists in the area to prevent Dropdown crash
+    if (cargo.isNotEmpty && !_estructuraEmpresa[area]!.contains(cargo)) {
+      _estructuraEmpresa[area]!.add(cargo);
+    }
+    
     bool activo = empleado?.activo ?? true;
     bool guardando = false;
     final formKey = GlobalKey<FormState>();
@@ -2713,6 +2727,8 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
     const roles = [
       'admin',
       'programacion',
+      'logistica',
+      'rrhh',
       'calidad',
       'ventas',
       'asesor',
@@ -2856,9 +2872,8 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                         .eq('id', usuario['id']);
                                   } else {
                                     final tempClient = SupabaseClient(
-                                      // ⚠️ REEMPLAZA con tus propias credenciales si cambian
-                                      "https://rppchistprnodthwtuxt.supabase.co",
-                                      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwcGNoaXN0cHJub2R0aHd0dXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2MzkzODIsImV4cCI6MjA4ODIxNTM4Mn0.w-6cx-VTGPs-y5rlLh48nrPlQtVoo2FMF6KwfH52YeE",
+                                      "http://91.98.135.205:8000",
+                                      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
                                       authOptions: const AuthClientOptions(
                                         authFlowType: AuthFlowType.implicit,
                                       ),
