@@ -1,7 +1,7 @@
-// lib/screens/ventas/cotizacion_detalle_page.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/cotizacion_pdf_generator.dart';
@@ -85,6 +85,148 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error PDF: $e'), backgroundColor: Colors.red),
       );
+    }
+  }
+
+  void _mostrarBottomEdicion() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditRequerimientoModal(
+        cotizacion: _cot,
+        onGuardar: (DateTime nuevaFecha, double nuevoVolumen) async {
+          await _actualizarRequerimiento(nuevaFecha, nuevoVolumen);
+        },
+      ),
+    );
+  }
+
+  Future<void> _actualizarRequerimiento(DateTime nuevaFecha, double nuevoVolumen) async {
+    setState(() => _loading = true);
+    try {
+      final cotId = _cot['id'];
+      
+      // Update cotizacion_items (only 'Concreto')
+      final concretoItem = _items.firstWhere((i) => i['tipo'] == 'Concreto', orElse: () => null);
+      if (concretoItem != null) {
+        await _sb.from('cotizacion_items').update({
+          'cantidad': nuevoVolumen,
+        }).eq('id', concretoItem['id']);
+      }
+      
+      // Recalculate totals
+      double subtotal = 0;
+      for (var item in _items) {
+        if (item['tipo'] == 'Concreto') {
+          double pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
+          subtotal += nuevoVolumen * pUnit;
+        } else {
+          double cant = double.tryParse(item['cantidad'].toString()) ?? 0;
+          double pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
+          subtotal += cant * pUnit;
+        }
+      }
+      double igvPct = double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18;
+      double igvMonto = subtotal * (igvPct / 100);
+      double total = subtotal + igvMonto;
+
+      // Update cotizaciones
+      await _sb.from('cotizaciones').update({
+        'hora_entrega': nuevaFecha.toIso8601String(),
+        'subtotal': subtotal,
+        'igv_monto': igvMonto,
+        'total': total,
+      }).eq('id', cotId);
+      
+      // Update ventas_programacion if exists
+      final oldFechaStr = DateTime.tryParse(_cot['hora_entrega'] ?? '')?.toIso8601String().split('T')[0];
+      
+      if (oldFechaStr != null) {
+        final ventas = await _sb.from('ventas_programacion')
+            .select()
+            .eq('fecha_entrega', oldFechaStr)
+            .ilike('nombre_razon_social', _cot['cliente_nombre'] ?? '')
+            .limit(1);
+            
+        if (ventas.isNotEmpty) {
+           final idVenta = ventas[0]['id'];
+           final horaStr = DateFormat('HH:mm:ss').format(nuevaFecha);
+           final fechaStr = DateFormat('yyyy-MM-dd').format(nuevaFecha);
+           await _sb.from('ventas_programacion').update({
+             'fecha_entrega': fechaStr,
+             'hora_entrega': horaStr,
+             'volumen': nuevoVolumen,
+           }).eq('id', idVenta);
+        }
+      }
+
+      // Send to Drive
+      try {
+        final params = {
+          'asesor': _cot['asesor_nombre'] ?? '',
+          'day': DateFormat('dd/MM/yyyy').format(nuevaFecha),
+          'hour': DateFormat('HH:mm').format(nuevaFecha),
+          'client': (_cot['cliente_nombre'] ?? '').toString().toUpperCase(),
+          'tipoDocumento': _cot['tipo_comprobante'] ?? 'Factura',
+          'document': _cot['cliente_documento'] ?? '',
+          'address': _cot['obra_direccion'] ?? '',
+          'phone': _cot['cliente_telefono'] ?? '',
+          'distrito': _cot['obra_distrito'] ?? '',
+          'volumen': nuevoVolumen.toString(),
+          'fuerza': concretoItem != null ? (concretoItem['resistencia']?.toString().isNotEmpty == true ? "F'c=${concretoItem['resistencia']}" : concretoItem['descripcion'] ?? '') : '',
+          'elemento': concretoItem?['elemento'] ?? '',
+          'huso': concretoItem?['huso'] ?? '',
+          'slump': concretoItem?['slump'] ?? '',
+          'aditivo': concretoItem?['aditivo'] ?? '',
+          'cemento': concretoItem?['tipo_cemento'] ?? '',
+          'bombas': '',
+          'extensiones': '',
+          'selectedMixer': '',
+          'selectedCapacity': '',
+          'time': DateFormat('HH:mm').format(nuevaFecha),
+          'quality': '',
+          'commentReturn': 'MODIFICADO DESDE APP',
+          'location': _cot['obra_maps_link'] ?? '',
+          'urlVoucher': '',
+          'emisionReq': DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
+          'observaciones': 'EDICIÓN',
+        };
+
+        final body = params.entries
+            .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+            .join('&');
+
+        const gasUrl = 'https://script.google.com/macros/s/AKfycbzKlmfOBqCQSewWueYIdBwvjj_RP7uUty2qGRjGeS3i1XrS3a0qiLeUMl8I8SfT3ut2Fg/exec';
+        
+        await http.post(Uri.parse(gasUrl),
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body);
+      } catch (e) {
+        debugPrint('Error enviando a Drive: $e');
+      }
+      
+      // Reload
+      final d = await _sb.from('cotizaciones')
+          .select('*, cotizacion_items(*)')
+          .eq('id', cotId)
+          .single();
+      if (mounted) setState(() => _cot = d);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Requerimiento actualizado correctamente ✅'),
+          backgroundColor: Colors.green,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error al actualizar: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -235,21 +377,21 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
                 Container(
                   color: Colors.white,
                   padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
-                  child: Container(
+                  child: SizedBox(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF81C784)),
-                    ),
-                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.check_circle, color: AppColors.primaryDark, size: 20),
-                      SizedBox(width: 8),
-                      Text('Requerimiento ya enviado',
-                          style: TextStyle(color: AppColors.primaryDark,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF39C12), // Accent orange for edit
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.edit_calendar, color: Colors.white),
+                      label: const Text('MODIFICAR REQUERIMIENTO',
+                          style: TextStyle(color: Colors.white,
                               fontWeight: FontWeight.bold, fontSize: 15)),
-                    ]),
+                      onPressed: _mostrarBottomEdicion,
+                    ),
                   ),
                 ),
             ]),
@@ -329,6 +471,185 @@ class _ItemTile extends StatelessWidget {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
         ]),
       ]),
+    );
+  }
+}
+
+// ─── BOTTOM SHEET EDICIÓN REQUERIMIENTO ──────────────────────────────────────────
+class _EditRequerimientoModal extends StatefulWidget {
+  final Map<String, dynamic> cotizacion;
+  final Future<void> Function(DateTime, double) onGuardar;
+
+  const _EditRequerimientoModal({required this.cotizacion, required this.onGuardar});
+
+  @override
+  State<_EditRequerimientoModal> createState() => _EditRequerimientoModalState();
+}
+
+class _EditRequerimientoModalState extends State<_EditRequerimientoModal> {
+  DateTime? _fechaEntrega;
+  final _volCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fechaEntrega = DateTime.tryParse(widget.cotizacion['hora_entrega'] ?? '')?.toLocal();
+    final items = widget.cotizacion['cotizacion_items'] as List? ?? [];
+    final concretoItem = items.firstWhere((i) => i['tipo'] == 'Concreto', orElse: () => null);
+    if (concretoItem != null) {
+      _volCtrl.text = concretoItem['cantidad']?.toString() ?? '0';
+    }
+  }
+
+  @override
+  void dispose() {
+    _volCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _seleccionarFechaHora() async {
+    final f = await showDatePicker(
+      context: context,
+      initialDate: _fechaEntrega ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (ctx, child) => Theme(
+        data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryDark)),
+        child: child!,
+      ),
+    );
+    if (f == null || !mounted) return;
+    
+    final h = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_fechaEntrega ?? DateTime.now()),
+      builder: (ctx, child) => Theme(
+        data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primaryDark)),
+        child: child!,
+      ),
+    );
+    if (h == null || !mounted) return;
+    
+    setState(() {
+      _fechaEntrega = DateTime(f.year, f.month, f.day, h.hour, h.minute);
+    });
+  }
+
+  Future<void> _guardar() async {
+    final vol = double.tryParse(_volCtrl.text) ?? 0;
+    if (_fechaEntrega == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione la fecha y hora.')));
+      return;
+    }
+    if (vol <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El volumen debe ser mayor a 0.')));
+      return;
+    }
+
+    setState(() => _saving = true);
+    await widget.onGuardar(_fechaEntrega!, vol);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+      child: Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          top: 24, left: 24, right: 24,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Modificar Requerimiento',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Fecha y hora
+            const Text('Nueva Fecha y Hora de Entrega', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _seleccionarFechaHora,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.calendar_month, color: AppColors.primaryDark, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    _fechaEntrega != null ? DateFormat('dd MMM yyyy · HH:mm').format(_fechaEntrega!) : 'Seleccione...',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.edit, color: Colors.grey, size: 16),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Volumen
+            const Text('Nuevo Volumen (m³)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: TextField(
+                controller: _volCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  suffixText: 'm³',
+                ),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+            
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: _saving ? null : _guardar,
+                child: _saving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('GUARDAR CAMBIOS', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

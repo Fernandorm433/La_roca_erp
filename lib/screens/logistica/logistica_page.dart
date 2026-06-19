@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'comparativa_consumos_page.dart' as comparativa_consumos_page;
 
 // ─────────────────────────────────────────────────────────────
 // MODELO — tabla: recepcion_materiales
@@ -129,14 +130,14 @@ class _LogisticaPageState extends State<LogisticaPage> {
     _cargar();
   }
 
-  void _abrirFormulario([RecepcionMaterial? reg]) {
+  void _abrirFormulario({RecepcionMaterial? reg, String? categoriaBase}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: _FormularioSheet(onGuardado: _cargar, registro: reg),
+        child: _FormularioSheet(onGuardado: _cargar, registro: reg, categoriaBase: categoriaBase),
       ),
     );
   }
@@ -151,6 +152,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildHeader(),
+                _buildAccionesRapidas(),
                 _buildKpis(),
                 _buildFilterRow(),
                 Expanded(child: _buildTabla()),
@@ -161,8 +163,9 @@ class _LogisticaPageState extends State<LogisticaPage> {
 
   // ── HEADER ──────────────────────────────────────────────────
   Widget _buildHeader() => Container(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('RECEPCIÓN DE MATERIALES',
@@ -171,22 +174,66 @@ class _LogisticaPageState extends State<LogisticaPage> {
               Text('Registro diario de áridos y agregados',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
             ]),
-            const Spacer(),
             ElevatedButton.icon(
-              onPressed: () => _abrirFormulario(),
-              icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
-              label: const Text('NUEVO REGISTRO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F172A),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
+              icon: const Icon(Icons.analytics_outlined, color: Colors.white, size: 18),
+              label: const Text('Comparativa Mensual', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const comparativa_consumos_page.ComparativaConsumosPage()));
+              },
             ),
           ],
         ),
       ).animate().fade().slideY(begin: -0.02);
+
+  Widget _buildAccionesRapidas() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('NUEVO REGISTRO RÁPIDO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _btnRapido('Piedra Chancada', Icons.terrain, const Color(0xFF64748B), 'PIEDRA'),
+                const SizedBox(width: 12),
+                _btnRapido('Arena', Icons.grain, const Color(0xFFD97706), 'ARENA'),
+                const SizedBox(width: 12),
+                _btnRapido('Cemento', Icons.shopping_bag, const Color(0xFF0284C7), 'CEMENTO'),
+                const SizedBox(width: 12),
+                _btnRapido('Otro', Icons.add_box_outlined, const Color(0xFF0F172A), ''),
+              ],
+            ),
+          )
+        ],
+      ),
+    ).animate().fade(delay: 50.ms).slideX(begin: 0.05);
+  }
+
+  Widget _btnRapido(String texto, IconData icono, Color color, String categoria) {
+    return InkWell(
+      onTap: () => _abrirFormulario(categoriaBase: categoria),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Row(
+          children: [
+            Icon(icono, color: color, size: 20),
+            const SizedBox(width: 8),
+            Text(texto, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
 
   // ── KPI CARDS ───────────────────────────────────────────────
   Widget _buildKpis() => Padding(
@@ -375,7 +422,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
         SizedBox(width: 70, child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: TextButton(
-            onPressed: () => _abrirFormulario(r),
+            onPressed: () => _abrirFormulario(reg: r),
             style: TextButton.styleFrom(foregroundColor: const Color(0xFF475569), backgroundColor: const Color(0xFFF1F5F9), padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
             child: const Text('Editar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
           ),
@@ -427,7 +474,8 @@ class _ColDef { final String label; final double width; const _ColDef(this.label
 class _FormularioSheet extends StatefulWidget {
   final VoidCallback onGuardado;
   final RecepcionMaterial? registro;
-  const _FormularioSheet({required this.onGuardado, this.registro});
+  final String? categoriaBase;
+  const _FormularioSheet({required this.onGuardado, this.registro, this.categoriaBase});
   @override
   State<_FormularioSheet> createState() => _FormularioSheetState();
 }
@@ -448,7 +496,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
 
   // Sugerencias rápidas de descripción
   final List<String> _sugerencias = [
-    'PUESTO EN OBRA 1/2', 'PUESTO EN OBRA 3/4', 'PUESTO EN OBRA 3/8',
+    'BIG BAG DE CEMENTO YURA', 'CEMENTO WARI',
     'ARENA CANTERA 3 PASTORCITOS', 'ARENA TEJADA (L Y M)',
     'PIEDRA 1/2"', 'PIEDRA 3/4"', 'PIEDRA 3/8"',
   ];
@@ -459,7 +507,14 @@ class _FormularioSheetState extends State<_FormularioSheet> {
     final r = widget.registro;
     _fecha = r?.fecha ?? DateTime.now();
     _volCtrl = TextEditingController(text: r?.volumenM3.toStringAsFixed(0) ?? '');
-    _descCtrl = TextEditingController(text: r?.descripcion ?? '');
+    
+    // Si hay una categoría base y no estamos editando, usarla como inicio de descripción
+    String descText = r?.descripcion ?? '';
+    if (widget.registro == null && widget.categoriaBase != null && widget.categoriaBase!.isNotEmpty) {
+      descText = widget.categoriaBase!;
+    }
+    _descCtrl = TextEditingController(text: descText);
+    
     _provCtrl = TextEditingController(text: r?.proveedor ?? '');
     _rucCtrl = TextEditingController(text: r?.ruc ?? '');
     _puCtrl = TextEditingController(text: r?.precioUnitario.toStringAsFixed(2) ?? '');
@@ -545,7 +600,9 @@ class _FormularioSheetState extends State<_FormularioSheet> {
               _label('Descripción del Material'),
               _field('Ej: PUESTO EN OBRA 1/2', _descCtrl, required: true),
               const SizedBox(height: 8),
-              Wrap(spacing: 6, runSpacing: 6, children: _sugerencias.map((s) => GestureDetector(
+              Wrap(spacing: 6, runSpacing: 6, children: _sugerencias
+                  .where((s) => widget.categoriaBase == null || widget.categoriaBase!.isEmpty || s.contains(widget.categoriaBase!))
+                  .map((s) => GestureDetector(
                 onTap: () => setState(() => _descCtrl.text = s),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -558,7 +615,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
               // Row: volumen + precio
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _label('Volumen (m³)'),
+                  _label(widget.categoriaBase == 'CEMENTO' ? 'Cantidad (Big Bags)' : (widget.categoriaBase == 'ARENA' || widget.categoriaBase == 'PIEDRA' ? 'Volumen (KG)' : 'Volumen / Cantidad')),
                   _numField('Ej: 25', _volCtrl, onChanged: (_) => setState((){})),
                 ])),
                 const SizedBox(width: 12),

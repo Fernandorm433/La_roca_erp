@@ -26,6 +26,9 @@ import '../comercial/liquidaciones_page.dart';
 // ── [NUEVO] Módulo de Costos ────────────────────────────────────
 import '../costos/costos_page.dart';
 
+// ── [NUEVO] Módulo de Tesorería ─────────────────────────────────
+import '../tesoreria/tesoreria_page.dart';
+
 // ── [NUEVO] Módulo de Carguíos (Mixers) ───────────────────────
 import '../logistica/gestor_mixers_page.dart';
 import '../planta/mis_carguios_page.dart';
@@ -34,6 +37,10 @@ import '../planta/mis_carguios_page.dart';
 import '../ventas/ventas_page.dart';
 import '../ventas/asesores_page.dart';
 import '../ventas/cotizaciones_list_page.dart';
+import '../ventas/requerimientos_list_page.dart'; // <-- [NUEVO]
+
+// ── [NUEVO] Módulo de Clientes ──────────────────────────────────
+import '../clientes/clientes_page.dart';
 
 // ── Módulos Empleados ──────────────────────────────────────────
 import '../empleados/perfil_page.dart';
@@ -157,6 +164,11 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.request_quote_outlined,
             pagina: const CotizacionesListPage(),
           ),
+          AppMenuItem(
+            titulo: 'Requerimientos',
+            icono: Icons.precision_manufacturing_outlined,
+            pagina: const RequerimientosListPage(),
+          ),
         ];
         break;
 
@@ -211,9 +223,19 @@ class _HomePageState extends State<HomePage> {
             pagina: const ComercialPage(),
           ),
           AppMenuItem(
+            titulo: 'Clientes',
+            icono: Icons.people_alt_outlined,
+            pagina: const ClientesPage(),
+          ),
+          AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
             pagina: const CotizacionesListPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Requerimientos',
+            icono: Icons.precision_manufacturing_outlined,
+            pagina: const RequerimientosListPage(),
           ),
         ];
         break;
@@ -240,6 +262,11 @@ class _HomePageState extends State<HomePage> {
             titulo: 'Prog.',
             icono: Icons.table_chart_outlined,
             pagina: const ProgramacionPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Requerimientos',
+            icono: Icons.precision_manufacturing_outlined,
+            pagina: const RequerimientosListPage(),
           ),
           AppMenuItem(
             titulo: 'Bombas',
@@ -325,6 +352,12 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.attach_money_rounded,
             pagina: const CostosPage(),
           ),
+          // [NUEVO] Tesorería: control financiero, legal, caja chica
+          AppMenuItem(
+            titulo: 'Tesorería',
+            icono: Icons.account_balance_outlined,
+            pagina: const TesoreriaPage(),
+          ),
           
 
           // ── VENTAS ──────────────────────────────────────────
@@ -349,9 +382,19 @@ class _HomePageState extends State<HomePage> {
             pagina: const ComercialPage(),
           ),
           AppMenuItem(
+            titulo: 'Clientes',
+            icono: Icons.people_alt_outlined,
+            pagina: const ClientesPage(),
+          ),
+          AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
             pagina: const CotizacionesListPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Requerimientos',
+            icono: Icons.precision_manufacturing_outlined,
+            pagina: const RequerimientosListPage(),
           ),
 
           // ── OPERACIONES ─────────────────────────────────────

@@ -151,6 +151,12 @@ class _LiquidacionesPageState extends State<LiquidacionesPage> {
   double _gDescuentos = 0;
   double _gNeto = 0;
   double _gM3 = 0;
+  
+  double _gDesOperador = 0;
+  double _gDesMantto = 0;
+  double _gCochera = 0;
+  double _gBonoComb = 0;
+  int _gDiasLiq = 0;
 
   // ── Controladores Empresa ────────────────────────
   final _empresaCtrl = TextEditingController();
@@ -265,6 +271,8 @@ Future<void> _cargarMixers() async {
 
       final List<_Fila> resultado = [];
       double gSub = 0, gDesc = 0, gM3 = 0;
+      double gDesOp = 0, gDesMant = 0, gCoch = 0, gBono = 0;
+      int gDias = 0;
 
       DateTime dia = DateTime(_inicio.year, _inicio.month, _inicio.day);
       final diaFin = DateTime(_fin.year, _fin.month, _fin.day);
@@ -283,6 +291,9 @@ Future<void> _cargarMixers() async {
           // ─ SIN ATENCIÓN: cobra cochera + mantto ─
           final desc = _cfg.cochera + _cfg.descMantto;
           gDesc += desc;
+          gCoch += _cfg.cochera;
+          gDesMant += _cfg.descMantto;
+          gDias++;
           resultado.add(_Fila(
             fechaObj: dia,
             fechaLabel: fmtLabel,
@@ -329,7 +340,14 @@ Future<void> _cargarMixers() async {
 
             gSub += sub;
             gDesc += desOp + mant + coch;
-            gSub += bonoComb; // sum to global sub or we subtract it? A bonus adds to total. We'll add it to net, wait. If we add it to gSub, gNeto increases. Correct.
+            
+            if (esPrimero) {
+              gDias++;
+              gDesOp += desOp;
+              gDesMant += mant;
+              gCoch += coch;
+              gBono += bonoComb;
+            }
             
             gM3 += volReal;
 
@@ -368,7 +386,7 @@ Future<void> _cargarMixers() async {
         dia = dia.add(const Duration(days: 1));
       }
 
-      final neto = gSub - gDesc;
+      final neto = gSub - gDesc + gBono;
 
       setState(() {
         _filas = resultado;
@@ -376,6 +394,11 @@ Future<void> _cargarMixers() async {
         _gDescuentos = gDesc;
         _gNeto = neto;
         _gM3 = gM3;
+        _gDesOperador = gDesOp;
+        _gDesMantto = gDesMant;
+        _gCochera = gCoch;
+        _gBonoComb = gBono;
+        _gDiasLiq = gDias;
         _cargando = false;
       });
     } catch (e, st) {
@@ -624,22 +647,22 @@ Future<void> _cargarMixers() async {
   Widget _buildHeaderTabla() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF59E0B),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+        color: const Color(0xFF1E293B),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
       child: Row(
         children: List.generate(_headers.length, (i) {
           return SizedBox(
             width: _colW[i],
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
               child: Text(
                 _headers[i],
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 9.5,
-                  color: Colors.black87,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
                   height: 1.25,
                 ),
                 textAlign: TextAlign.center,
@@ -655,13 +678,11 @@ Future<void> _cargarMixers() async {
     // Colores de fila según el formato Excel
     final Color bg;
     if (f.sinAtencion) {
-      bg = const Color(0xFFFEF3C7); // amarillo claro = sin atención
-    } else if (f.tieneOptimizacion) {
-      bg = const Color(0xFFFFF7ED); // naranja muy claro = con optimización
+      bg = const Color(0xFFF1F5F9); // gris claro = sin atención
     } else if (idx % 2 == 0) {
       bg = Colors.white;
     } else {
-      bg = const Color(0xFFF0FDF4); // verde muy claro = filas alternadas con actividad
+      bg = const Color(0xFFF8FAFC); // gris muy claro = alternadas
     }
 
     final Color totalColor = f.total < 0 ? Colors.red.shade700 : const Color(0xFF15803D);
@@ -778,35 +799,7 @@ Future<void> _cargarMixers() async {
                           ? Colors.blue.shade700
                           : const Color(0xFF1E293B),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-if (f.tieneOptimizacion) ...[
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Icon(Icons.auto_graph, size: 9, color: Colors.orange.shade700),
-                          const SizedBox(width: 3),
-                          Text(
-                            'Tuvo opt. Prod: ${f.volumenOriginal.toStringAsFixed(2)} m³',
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: Colors.orange.shade700,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -879,14 +872,16 @@ if (f.tieneOptimizacion) ...[
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text('DATOS DE FACTURACIÓN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: 300,
                   height: 30,
                   child: TextField(
                     controller: _empresaCtrl,
                     onChanged: (v) => _cfg.empresa = v,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E293B)),
-                    decoration: const InputDecoration(hintText: 'Ingresar Empresa...', border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
+                    decoration: InputDecoration(hintText: 'Ingresar Empresa...', hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
                   ),
                 ),
                 SizedBox(
@@ -935,62 +930,110 @@ if (f.tieneOptimizacion) ...[
             ),
           ),
           // Tabla de totales
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _filaTotal('TOTAL', _gSubTotal, const Color(0xFFFEF08A)),
-              const SizedBox(height: 2),
-              _filaTotal('DESCUENTOS', _gDescuentos, const Color(0xFFFEF08A), textColor: Colors.blue.shade700),
-              const SizedBox(height: 2),
-              _filaTotal('TOTAL', _gNeto, const Color(0xFFFEF08A), bold: true),
-              const SizedBox(height: 2),
-              _filaTotal('DETRACCIÓN (${_cfg.detraccionPct.toStringAsFixed(0)}%)', detraccion, const Color(0xFFFEF08A)),
-              const SizedBox(height: 2),
-              _filaTotal('TOTAL DEPÓSITO', deposito, const Color(0xFFA7F3D0),
-                  bold: true, textColor: const Color(0xFF065F46)),
-            ],
+          Container(
+            width: 360,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildResumenRow('SUB TOTAL', _gSubTotal, isHeader: true),
+                if (_gDesOperador > 0) _buildResumenRow('Descuento Operador ($_gDiasLiq x S/.${_cfg.descOperador.toStringAsFixed(0)})', -_gDesOperador, isDesglose: true),
+                if (_gDesMantto > 0) _buildResumenRow('Descuento Mantto ($_gDiasLiq x S/.${_cfg.descMantto.toStringAsFixed(0)})', -_gDesMantto, isDesglose: true),
+                if (_gCochera > 0) _buildResumenRow('Cochera ($_gDiasLiq x S/.${_cfg.cochera.toStringAsFixed(0)})', -_gCochera, isDesglose: true),
+                if (_gDescuentos > 0) ...[
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  _buildResumenRow('TOTAL DESCUENTOS', -_gDescuentos, isSubHeader: true, textColor: Colors.red.shade700),
+                ],
+                if (_gBonoComb > 0) _buildResumenRow('Bono Combustible ($_gDiasLiq x S/.${_cfg.bonoCombustible.toStringAsFixed(0)})', _gBonoComb, isDesglose: true, isBonus: true),
+                
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                _buildResumenRow('NETO A PAGAR', _gNeto, isSubHeader: true),
+                _buildResumenRow('Detracción (${_cfg.detraccionPct.toStringAsFixed(0)}%)', -detraccion, isDesglose: true),
+                
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF10B981),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(11)),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('TOTAL DEPÓSITO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text('S/. ${deposito.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _filaTotal(String label, double monto, Color bg, {bool bold = false, Color? textColor}) {
-    return Container(
-      width: 270,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: const Color(0xFFD1D5DB), width: 0.8),
+
+  Widget _buildResumenRow(String label, double monto, {
+    bool isHeader = false,
+    bool isSubHeader = false,
+    bool isDesglose = false,
+    bool isBonus = false,
+    Color? textColor,
+  }) {
+    final bool isNegative = monto < 0;
+    final double absMonto = monto.abs();
+    final String sign = isNegative ? '- ' : (isBonus ? '+ ' : '');
+    
+    Color valColor = const Color(0xFF1E293B);
+    if (textColor != null) valColor = textColor;
+    else if (isNegative && isDesglose) valColor = Colors.red.shade600;
+    else if (isBonus) valColor = Colors.green.shade600;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: 16, 
+        vertical: isHeader || isSubHeader ? 12 : 6,
       ),
       child: Row(
         children: [
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Text(label,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E293B))),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Text(
-              'S/. ${monto.toStringAsFixed(2)}',
+              label,
               style: TextStyle(
-                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                fontSize: 13,
-                color: textColor ?? const Color(0xFF1E293B),
+                fontSize: isHeader ? 13 : (isSubHeader ? 12 : 11),
+                fontWeight: isHeader || isSubHeader ? FontWeight.bold : FontWeight.w500,
+                color: isHeader || isSubHeader ? const Color(0xFF1E293B) : const Color(0xFF64748B),
               ),
             ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$sign S/. ${absMonto.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontSize: isHeader ? 14 : (isSubHeader ? 13 : 12),
+              fontWeight: isHeader || isSubHeader ? FontWeight.bold : FontWeight.w600,
+              color: valColor,
+            ),
+            textAlign: TextAlign.right,
           ),
         ],
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // ACCIONES: Fechas, Configuración, PDF
+
   // ═══════════════════════════════════════════════════════════════
   Future<void> _seleccionarRango() async {
     final picked = await showDateRangePicker(
@@ -1074,9 +1117,9 @@ if (f.tieneOptimizacion) ...[
                 pw.SizedBox(width: 80),
               pw.Expanded(
                 child: pw.Text(
-                  'LIQUIDACION ALQUILER DE MIXER - BOMBAS / $_mixerSel -',
+                  'LIQUIDACIÓN DE MIXER - $_mixerSel',
                   textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, letterSpacing: 1.2),
                 ),
               ),
               pw.SizedBox(width: 80),
@@ -1102,8 +1145,8 @@ if (f.tieneOptimizacion) ...[
           // Tabla de despachos
           pw.TableHelper.fromTextArray(
             border: pw.TableBorder.all(color: PdfColor.fromHex('#E2E8F0'), width: 0.5),
-            headerDecoration: pw.BoxDecoration(color: ambarHeader),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5),
+            headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#1E293B')),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5, color: PdfColors.white),
             cellStyle: const pw.TextStyle(fontSize: 7),
             cellAlignment: pw.Alignment.center,
             columnWidths: {
@@ -1130,7 +1173,7 @@ if (f.tieneOptimizacion) ...[
             ],
             data: _filas.map((f) {
               final cantLabel = f.volumenReal > 0
-                  ? '${f.volumenReal.toStringAsFixed(2)}${f.tieneOptimizacion ? " *" : ""}'
+                  ? f.volumenReal.toStringAsFixed(2)
                   : '';
               return [
                 f.fechaLabel,
@@ -1149,23 +1192,9 @@ if (f.tieneOptimizacion) ...[
                 f.sinAtencion ? 'SIN ATENCION' : f.direccionLabel,
               ];
             }).toList(),
-            // Filas alternadas con color
             rowDecoration: const pw.BoxDecoration(color: PdfColors.white),
             oddRowDecoration: pw.BoxDecoration(color: grisClaro),
           ),
-
-          if (_filas.any((f) => f.tieneOptimizacion))
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 4),
-              child: pw.Text(
-                '* Esta fila tuvo optimizacion de volumen (se desconto el volumen combinado con otro viaje).',
-                style: pw.TextStyle(
-                  fontSize: 6.5,
-                  color: PdfColors.orange,
-                  fontStyle: pw.FontStyle.italic,
-                ),
-              ),
-            ),
 
           pw.SizedBox(height: 14),
 
@@ -1197,16 +1226,43 @@ if (f.tieneOptimizacion) ...[
                 ],
               ),
               pw.SizedBox(width: 20),
-              pw.SizedBox(
-                width: 210,
-                child: pw.Table(
-                  border: pw.TableBorder.all(color: PdfColor.fromHex('#D1D5DB'), width: 0.5),
+              pw.Container(
+                width: 280,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColor.fromHex('#CBD5E1'), width: 0.5),
+                  borderRadius: pw.BorderRadius.circular(6),
+                ),
+                child: pw.Column(
                   children: [
-                    _pdfFilaTotal('TOTAL', _gSubTotal, amarillo, fontBold),
-                    _pdfFilaTotal('DESCUENTOS', _gDescuentos, amarillo, fontBold, textColor: PdfColors.blue),
-                    _pdfFilaTotal('TOTAL', _gNeto, amarillo, fontBold, isBold: true),
-                    _pdfFilaTotal('DETRACCION (${_cfg.detraccionPct.toStringAsFixed(0)}%)', detraccion, amarillo, fontBold),
-                    _pdfFilaTotal('TOTAL DEPOSITO', deposito, verde, fontBold, isBold: true, textColor: PdfColor.fromHex('#065F46')),
+                    _buildPdfResumenRow('SUB TOTAL', _gSubTotal, fontReg, fontBold, isHeader: true),
+                    pw.Divider(color: PdfColor.fromHex('#E2E8F0'), thickness: 0.5, height: 0),
+                    if (_gDesOperador > 0) _buildPdfResumenRow('Descuento Operador ($_gDiasLiq x S/.${_cfg.descOperador.toStringAsFixed(0)})', -_gDesOperador, fontReg, fontBold, isDesglose: true),
+                    if (_gDesMantto > 0) _buildPdfResumenRow('Descuento Mantto ($_gDiasLiq x S/.${_cfg.descMantto.toStringAsFixed(0)})', -_gDesMantto, fontReg, fontBold, isDesglose: true),
+                    if (_gCochera > 0) _buildPdfResumenRow('Cochera ($_gDiasLiq x S/.${_cfg.cochera.toStringAsFixed(0)})', -_gCochera, fontReg, fontBold, isDesglose: true),
+                    if (_gDescuentos > 0) ...[
+                      pw.Divider(color: PdfColor.fromHex('#F1F5F9'), thickness: 0.5, height: 0),
+                      _buildPdfResumenRow('TOTAL DESCUENTOS', -_gDescuentos, fontReg, fontBold, isSubHeader: true, textColor: PdfColors.red800),
+                    ],
+                    if (_gBonoComb > 0) _buildPdfResumenRow('Bono Combustible ($_gDiasLiq x S/.${_cfg.bonoCombustible.toStringAsFixed(0)})', _gBonoComb, fontReg, fontBold, isDesglose: true, isBonus: true),
+                    
+                    pw.Divider(color: PdfColor.fromHex('#E2E8F0'), thickness: 0.5, height: 0),
+                    _buildPdfResumenRow('NETO A PAGAR', _gNeto, fontReg, fontBold, isSubHeader: true),
+                    _buildPdfResumenRow('Detracción (${_cfg.detraccionPct.toStringAsFixed(0)}%)', -detraccion, fontReg, fontBold, isDesglose: true),
+                    
+                    pw.Container(
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor.fromHex('#10B981'),
+                        borderRadius: pw.BorderRadius.vertical(bottom: pw.Radius.circular(5.5)),
+                      ),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('TOTAL DEPÓSITO', style: pw.TextStyle(color: PdfColors.white, font: fontBold, fontSize: 10)),
+                          pw.Text('S/. ${deposito.toStringAsFixed(2)}', style: pw.TextStyle(color: PdfColors.white, font: fontBold, fontSize: 11)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1219,41 +1275,56 @@ if (f.tieneOptimizacion) ...[
     return await pdf.save();
   }
 
-  pw.TableRow _pdfFilaTotal(
-    String label,
-    double monto,
-    PdfColor bg,
-    pw.Font fontBold, {
-    bool isBold = false,
+  pw.Widget _buildPdfResumenRow(String label, double monto, pw.Font fontReg, pw.Font fontBold, {
+    bool isHeader = false,
+    bool isSubHeader = false,
+    bool isDesglose = false,
+    bool isBonus = false,
     PdfColor? textColor,
   }) {
-    return pw.TableRow(
-      decoration: pw.BoxDecoration(color: bg),
-      children: [
-        pw.Padding(
-          padding: const pw.EdgeInsets.all(5),
-          child: pw.Text(label, style: pw.TextStyle(font: fontBold, fontSize: 8.5)),
-        ),
-        pw.Padding(
-          padding: const pw.EdgeInsets.all(5),
-          child: pw.Text(
-            'S/. ${monto.toStringAsFixed(2)}',
-            textAlign: pw.TextAlign.right,
-            style: pw.TextStyle(
-              font: fontBold,
-              fontSize: 9,
-              fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal,
-              color: textColor ?? PdfColors.black,
+    final bool isNegative = monto < 0;
+    final double absMonto = monto.abs();
+    final String sign = isNegative ? '- ' : (isBonus ? '+ ' : '');
+    
+    PdfColor valColor = PdfColors.black;
+    if (textColor != null) valColor = textColor;
+    else if (isNegative && isDesglose) valColor = PdfColors.red800;
+    else if (isBonus) valColor = PdfColors.green800;
+
+    return pw.Padding(
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: 10, 
+        vertical: isHeader || isSubHeader ? 7 : 4,
+      ),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                font: isHeader || isSubHeader ? fontBold : fontReg,
+                fontSize: isHeader ? 9.5 : (isSubHeader ? 8.5 : 8),
+                color: isHeader || isSubHeader ? PdfColors.black : PdfColor.fromHex('#475569'),
+              ),
             ),
           ),
-        ),
-      ],
+          pw.SizedBox(width: 8),
+          pw.Text(
+            '$sign S/. ${absMonto.toStringAsFixed(2)}',
+            style: pw.TextStyle(
+              font: isHeader || isSubHeader ? fontBold : (isBonus || isNegative ? fontBold : fontReg),
+              fontSize: isHeader ? 10 : (isSubHeader ? 9 : 8.5),
+              color: valColor,
+            ),
+            textAlign: pw.TextAlign.right,
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// WIDGET: Dropdown de mixer
+
 // ══════════════════════════════════════════════════════════════════════════
 class _DropdownMixer extends StatelessWidget {
   final String? value;
@@ -1547,3 +1618,27 @@ class _SheetConfigState extends State<_SheetConfig> {
     );
   }
 }
+  pw.TableRow _pdfFilaDesglose(String label, double monto, pw.Font fontReg, {bool isBonus = false}) {
+    return pw.TableRow(
+      decoration: const pw.BoxDecoration(color: PdfColors.white),
+      children: [
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          child: pw.Text(label, style: pw.TextStyle(font: fontReg, fontSize: 7, color: PdfColor.fromHex('#475569'))),
+        ),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          child: pw.Text(
+            'S/. ${monto.toStringAsFixed(2)}',
+            textAlign: pw.TextAlign.right,
+            style: pw.TextStyle(
+              font: fontReg,
+              fontSize: 7.5,
+              fontWeight: pw.FontWeight.bold,
+              color: isBonus ? PdfColor.fromHex('#15803D') : PdfColor.fromHex('#DC2626'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
