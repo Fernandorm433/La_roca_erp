@@ -10,6 +10,9 @@ set(BINARY_NAME "la_roca_erp")
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# Fix for firebase_core extracting a CMakeLists.txt with <3.5 minimum version
+set(CMAKE_POLICY_VERSION_MINIMUM "3.5" CACHE STRING "Minimum CMake version policy" FORCE)
+
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)
