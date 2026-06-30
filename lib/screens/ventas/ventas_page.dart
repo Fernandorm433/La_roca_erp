@@ -118,51 +118,43 @@ class _VentasPageState extends State<VentasPage> {
   }
 
   Future<void> _seleccionarRangoPersonalizado() async {
-    final DateTime? fechaInicio = await showDatePicker(
+    final DateTimeRange? rango = await showDateRangePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDateRange: DateTimeRange(
+        start: fechaInicioFiltro ?? DateTime.now(),
+        end: fechaFinFiltro ?? DateTime.now(),
+      ),
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
-      helpText: 'FECHA INICIAL (1/2)',
+      helpText: 'SELECCIONA EL RANGO DE FECHAS',
       cancelText: 'Cancelar',
-      confirmText: 'Siguiente',
+      confirmText: 'Aplicar Filtro',
+      saveText: 'Aplicar',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.primaryDark),
+          colorScheme: ColorScheme.light(
+            primary: AppColors.primaryDark,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: Colors.indigo.shade900,
+          ),
+          dialogBackgroundColor: Colors.white,
         ),
         child: child!,
       ),
     );
 
-    if (fechaInicio == null) return;
-
-    final DateTime? fechaFin = await showDatePicker(
-      context: context,
-      initialDate: fechaInicio,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      helpText: 'FECHA FINAL (2/2)',
-      cancelText: 'Atrás',
-      confirmText: 'Aplicar',
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.primaryDark),
-        ),
-        child: child!,
-      ),
-    );
-
-    if (fechaFin != null) {
+    if (rango != null) {
       setState(() {
         filtroTiempo = 'Personalizado';
-        fechaInicioFiltro = fechaInicio;
-        fechaFinFiltro = fechaFin;
+        fechaInicioFiltro = rango.start;
+        fechaFinFiltro = rango.end;
 
-        if (fechaInicio.isAtSameMomentAs(fechaFin)) {
-          etiquetaFiltro = "${fechaInicio.day}/${fechaInicio.month}";
+        if (rango.start.isAtSameMomentAs(rango.end)) {
+          etiquetaFiltro = "${rango.start.day}/${rango.start.month}";
         } else {
           etiquetaFiltro =
-              "${fechaInicio.day}/${fechaInicio.month} - ${fechaFin.day}/${fechaFin.month}";
+              "${rango.start.day}/${rango.start.month} - ${rango.end.day}/${rango.end.month}";
         }
       });
       cargarDatos();
@@ -239,11 +231,14 @@ class _VentasPageState extends State<VentasPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 15,
+              runSpacing: 15,
               children: [
                 Text(
-                  "Ventas & Asesores",
+                  "RESUMEN VENTAS",
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -270,6 +265,7 @@ class _VentasPageState extends State<VentasPage> {
                       border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
                           Icons.date_range,
@@ -320,22 +316,56 @@ class _VentasPageState extends State<VentasPage> {
 
             const SizedBox(height: 20),
 
-            Row(
-              children: [
-                _buildModernKPI(
-                  "Volumen Vendido",
-                  "${totalProgramado.toStringAsFixed(1)} m³",
-                  Icons.monetization_on_rounded,
-                  AppColors.success,
-                ),
-                const SizedBox(width: 15),
-                _buildModernKPI(
-                  "Clientes/Atenciones",
-                  "$totalClientesGenerados",
-                  Icons.groups_rounded,
-                  const Color(0xFFD97706),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                bool isMobile = constraints.maxWidth < 600;
+                if (isMobile) {
+                  return Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: _buildModernKPI(
+                          "Volumen Vendido",
+                          "${totalProgramado.toStringAsFixed(1)} m³",
+                          Icons.monetization_on_rounded,
+                          AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      SizedBox(
+                        width: double.infinity,
+                        child: _buildModernKPI(
+                          "Clientes/Atenciones",
+                          "$totalClientesGenerados",
+                          Icons.groups_rounded,
+                          const Color(0xFFD97706),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _buildModernKPI(
+                        "Volumen Vendido",
+                        "${totalProgramado.toStringAsFixed(1)} m³",
+                        Icons.monetization_on_rounded,
+                        AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: _buildModernKPI(
+                        "Clientes/Atenciones",
+                        "$totalClientesGenerados",
+                        Icons.groups_rounded,
+                        const Color(0xFFD97706),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 20),
 
@@ -530,36 +560,34 @@ class _VentasPageState extends State<VentasPage> {
     IconData icon,
     Color color,
   ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: cardDecoration(context),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 28),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 15),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
-            Text(
-              title,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -625,6 +653,16 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
           ),
         )
         .toList();
+
+    // Ordenar de manera ascendente (del 1ro al final del mes)
+    int sortPorFecha(a, b) {
+      String f1 = a["fecha_entrega"]?.toString() ?? "";
+      String f2 = b["fecha_entrega"]?.toString() ?? "";
+      return f1.compareTo(f2); 
+    }
+
+    validos.sort(sortPorFecha);
+    cancelados.sort(sortPorFecha);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
@@ -795,13 +833,50 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
         String nombreCliente = v["nombre_razon_social"] ?? "Sin Cliente";
         String bombaAsignadaApp = v["bomba_asignada_real"] ?? "POR ASIGNAR";
 
+        // Extraer solo la fecha (YYYY-MM-DD) de la venta
+        String fechaVentaRaw = v["fecha_entrega"]?.toString() ?? "";
+        String fechaVenta = fechaVentaRaw.contains("T") 
+            ? fechaVentaRaw.split("T").first 
+            : (fechaVentaRaw.contains(" ") ? fechaVentaRaw.split(" ").first : fechaVentaRaw);
+        
+        // Normalizar nombre del cliente para comparación
+        String clienteNorm = nombreCliente.toUpperCase().trim();
+        
         List despachosReales = widget.despachosFiltrados
             .where(
-              (d) =>
-                  (d["cliente"]?.toString().toUpperCase() ??
-                      d["nombre_razon_social"]?.toString().toUpperCase() ??
-                      "") ==
-                  nombreCliente.toUpperCase(),
+              (d) {
+                // Normalizar fecha del despacho
+                String fechaDespachoRaw = d["fecha"]?.toString() ?? "";
+                String fechaDespacho = fechaDespachoRaw.contains("T") 
+                    ? fechaDespachoRaw.split("T").first 
+                    : (fechaDespachoRaw.contains(" ") ? fechaDespachoRaw.split(" ").first : fechaDespachoRaw);
+                
+                // Normalizar nombre del cliente del despacho
+                String clienteDespacho = (d["cliente"]?.toString() ?? 
+                    d["nombre_razon_social"]?.toString() ?? "").toUpperCase().trim();
+                
+                // Match por fecha
+                bool matchFecha = fechaDespacho.isNotEmpty &&
+                    fechaVenta.isNotEmpty &&
+                    fechaDespacho == fechaVenta;
+                
+                // Match por cliente: exacto o contenido parcial
+                bool matchCliente = clienteDespacho == clienteNorm ||
+                    clienteDespacho.contains(clienteNorm) ||
+                    clienteNorm.contains(clienteDespacho);
+
+                // Match por diseño de mezcla (F'c)
+                String disenoVenta = (v["diseno"]?.toString() ?? "").toUpperCase().replaceAll("F'C=", "").replaceAll("F'C =", "").trim();
+                String disenoDespacho = (d["diseno"]?.toString() ?? "").toUpperCase().replaceAll("F'C=", "").replaceAll("F'C =", "").trim();
+                
+                bool matchDiseno = true; // Por defecto true si alguno está vacío para no romper info incompleta
+                if (disenoVenta.isNotEmpty && disenoDespacho.isNotEmpty) {
+                  // Verificamos si uno contiene al otro (ej. "210" en "CMX 210" o "175" en "175")
+                  matchDiseno = disenoDespacho.contains(disenoVenta) || disenoVenta.contains(disenoDespacho);
+                }
+                
+                return matchCliente && matchFecha && matchDiseno;
+              },
             )
             .toList();
 
@@ -830,7 +905,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 6.0),
               child: Text(
-                "📅 Fecha: ${v["fecha_entrega"] ?? '-'}\n🏗️ Obra: ${v["direccion"] ?? 'S/D'} \n⚙️ F'c: ${v["diseno"] ?? '-'} | Prog: ${volProgramado.toStringAsFixed(1)} m³",
+                "📅 Fecha: ${v["fecha_entrega"] ?? '-'}\n🏗️ Obra: ${v["direccion"] ?? 'S/D'} \n⚙️ ${v["diseno"] ?? '-'} | Prog: ${volProgramado.toStringAsFixed(1)} m³",
                 style: const TextStyle(height: 1.4),
               ),
             ),

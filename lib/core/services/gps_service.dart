@@ -22,21 +22,8 @@ class GpsService {
   String? _currentStopDocId;
 
   Future<void> inicializarRastreoSiEsOperador() async {
-    final client = Supabase.instance.client;
-    final user = client.auth.currentUser;
-    if (user == null) return;
-
-    // Verificar rol
-    final userData = await client.from('usuarios').select('rol').eq('id', user.id).single();
-    if (userData['rol'] != 'operador') return;
-
-    // Obtener datos del conductor
-    final conductorData = await client.from('conductores').select('id, nombre, marca').eq('usuario_id', user.id).maybeSingle();
-    if (conductorData == null) return;
-
-    _conductorDocId = conductorData['id'].toString();
-    _conductorNombre = conductorData['nombre'].toString();
-    _iniciarStreamGps(conductorData['nombre'], conductorData['marca']);
+    // DESHABILITADO: Ahora usamos GPS físico de Teltonika/TLT-2H en Hetzner
+    return;
   }
 
   void _iniciarTimerParada() {

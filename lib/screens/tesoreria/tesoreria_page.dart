@@ -4,6 +4,7 @@ import 'caja_page.dart';
 import 'caja_chica_page.dart';
 import 'legal_page.dart';
 import 'ganancias_page.dart';
+import 'facturacion_sunat_page.dart';
 
 class TesoreriaPage extends StatefulWidget {
   const TesoreriaPage({super.key});
@@ -18,7 +19,7 @@ class _TesoreriaPageState extends State<TesoreriaPage> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -51,6 +52,7 @@ class _TesoreriaPageState extends State<TesoreriaPage> with SingleTickerProvider
           isScrollable: true,
           labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5),
           tabs: const [
+            Tab(text: 'FACTURACIÓN'),
             Tab(text: 'GANANCIAS'),
             Tab(text: 'CAJA GENERAL'),
             Tab(text: 'CAJA CHICA'),
@@ -61,6 +63,7 @@ class _TesoreriaPageState extends State<TesoreriaPage> with SingleTickerProvider
       body: TabBarView(
         controller: _tabController,
         children: [
+          const FacturacionSunatPage().animate().fade(),
           const GananciasPage().animate().fade(),
           const CajaPage().animate().fade(),
           const CajaChicaPage().animate().fade(),

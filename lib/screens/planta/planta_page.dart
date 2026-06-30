@@ -149,13 +149,13 @@ class _ControlPlantaPageState extends State<ControlPlantaPage> {
                     horizontal: 16,
                   ),
                   color: Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 15,
+                    runSpacing: 10,
                     children: [
                       _leyendaColor(AppColors.mixerCargando, "Cargando"),
-                      const SizedBox(width: 15),
                       _leyendaColor(AppColors.mixerRegulando, "Regulando"),
-                      const SizedBox(width: 15),
                       _leyendaColor(AppColors.mixerSalio, "Salió de Planta"),
                     ],
                   ),

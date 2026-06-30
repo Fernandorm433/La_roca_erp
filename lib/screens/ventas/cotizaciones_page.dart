@@ -217,23 +217,61 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
     setState(() => _buscandoCliente = true);
     try {
       final q2 = q.trim();
-      final byNombre = await _sb.from('ventas_programacion')
-          .select('nombre_razon_social, dni_ruc, telefono, direccion')
+      
+      // Buscar en cotizaciones (tiene más datos de obra)
+      final byNombreCot = await _sb.from('cotizaciones')
+          .select('cliente_nombre, cliente_documento, cliente_telefono, cliente_direccion, obra_direccion, obra_maps_link, obra_distrito')
+          .ilike('cliente_nombre', '%$q2%')
+          .order('cliente_nombre')
+          .limit(6);
+      final byDocCot = await _sb.from('cotizaciones')
+          .select('cliente_nombre, cliente_documento, cliente_telefono, cliente_direccion, obra_direccion, obra_maps_link, obra_distrito')
+          .ilike('cliente_documento', '%$q2%')
+          .order('cliente_nombre')
+          .limit(4);
+
+      // Buscar en ventas_programacion por si es un cliente antiguo que no tiene cotización
+      final byNombreVP = await _sb.from('ventas_programacion')
+          .select('nombre_razon_social, dni_ruc, telefono, direccion, distrito')
           .ilike('nombre_razon_social', '%$q2%')
           .order('nombre_razon_social')
           .limit(6);
-      final byDoc = await _sb.from('ventas_programacion')
-          .select('nombre_razon_social, dni_ruc, telefono, direccion')
+      final byDocVP = await _sb.from('ventas_programacion')
+          .select('nombre_razon_social, dni_ruc, telefono, direccion, distrito')
           .ilike('dni_ruc', '%$q2%')
           .order('nombre_razon_social')
           .limit(4);
-      // Merge y deduplicar por dni_ruc
-      final merged = <Map<String, dynamic>>[...List.from(byNombre), ...List.from(byDoc)];
+
+      // Normalizar datos de cotizaciones
+      final listCot = <Map<String, dynamic>>[...List.from(byNombreCot), ...List.from(byDocCot)].map((c) => {
+        'nombre_razon_social': c['cliente_nombre'],
+        'dni_ruc': c['cliente_documento'],
+        'telefono': c['cliente_telefono'],
+        'direccion': c['cliente_direccion'],
+        'obra_direccion': c['obra_direccion'],
+        'obra_maps_link': c['obra_maps_link'],
+        'obra_distrito': c['obra_distrito'],
+      }).toList();
+
+      // Normalizar datos de ventas_programacion
+      final listVP = <Map<String, dynamic>>[...List.from(byNombreVP), ...List.from(byDocVP)].map((c) => {
+        'nombre_razon_social': c['nombre_razon_social'],
+        'dni_ruc': c['dni_ruc'],
+        'telefono': c['telefono'],
+        'direccion': c['direccion'],
+        'obra_direccion': c['direccion'],
+        'obra_maps_link': '',
+        'obra_distrito': c['distrito'] ?? '',
+      }).toList();
+
+      // Merge y deduplicar por dni_ruc (dando prioridad a cotizaciones porque tiene más datos)
+      final merged = <Map<String, dynamic>>[...listCot, ...listVP];
       final seen = <String>{};
       final unique = merged.where((c) {
         final key = '${c['dni_ruc']}_${c['nombre_razon_social']}';
         return seen.add(key);
       }).toList();
+
       setState(() {
         _sugerencias = unique;
         _mostrarNuevo = unique.isEmpty;
@@ -252,6 +290,9 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
       _docCtrl.text = c['dni_ruc'] ?? '';
       _telCtrl.text = c['telefono'] ?? '';
       _dirClienteCtrl.text = c['direccion'] ?? '';
+      _dirObraCtrl.text = c['obra_direccion'] ?? '';
+      _mapsCtrl.text = c['obra_maps_link'] ?? '';
+      _distritoCtrl.text = c['obra_distrito'] ?? '';
       _clienteSeleccionado = true;
       _sugerencias = [];
       _mostrarNuevo = false;

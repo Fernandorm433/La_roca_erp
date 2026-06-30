@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-enum FiltroTiempo { dia, semana, mes, ano }
+enum FiltroTiempo { dia, semana, mes, ano, personalizado }
 
 class ComparativaConsumosPage extends StatefulWidget {
   const ComparativaConsumosPage({super.key});
@@ -17,6 +17,8 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
   final _sb = Supabase.instance.client;
   bool _loading = true;
   FiltroTiempo _filtroActual = FiltroTiempo.dia;
+  DateTime? _fechaInicioCustom;
+  DateTime? _fechaFinCustom;
 
   // Totales
   double _ingresoCementoBags = 0, _consumoCementoBags = 0;
@@ -65,6 +67,10 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
         inicio = DateTime(now.year, 1, 1);
         fin = DateTime(now.year + 1, 1, 1);
         break;
+      case FiltroTiempo.personalizado:
+        inicio = _fechaInicioCustom ?? now;
+        fin = _fechaFinCustom != null ? _fechaFinCustom!.add(const Duration(days: 1)) : now.add(const Duration(days: 1));
+        break;
     }
 
     final String fechaInicioStr = inicio.toIso8601String().split('T')[0];
@@ -84,9 +90,9 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
         if (desc.contains('CEMENTO')) {
           _ingresoCementoBags += cant; 
         } else if (desc.contains('ARENA')) {
-          _ingresoArena += cant; 
+          _ingresoArena += cant * 1600; // Conversión: 1 m3 = 1600 kg
         } else if (desc.contains('PIEDRA')) {
-          _ingresoPiedra += cant; 
+          _ingresoPiedra += cant * 1600; // Conversión: 1 m3 = 1600 kg
         } else if (desc.contains('ADITIVO')) {
           _ingresoAditivo += cant; 
         }
@@ -187,10 +193,75 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
             _buildFiltroBtn('ESTE MES', FiltroTiempo.mes),
             const SizedBox(width: 12),
             _buildFiltroBtn('ESTE AÑO', FiltroTiempo.ano),
+            const SizedBox(width: 12),
+            _buildCalendarBtn(),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildCalendarBtn() {
+    final act = _filtroActual == FiltroTiempo.personalizado;
+    return InkWell(
+      onTap: _seleccionarRangoFechas,
+      borderRadius: BorderRadius.circular(30),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: act ? const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]) : null,
+          color: act ? null : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: act ? [const BoxShadow(color: Color(0x330F172A), blurRadius: 8, offset: Offset(0, 4))] : [],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_month, size: 16, color: act ? Colors.white : const Color(0xFF64748B)),
+            if (act && _fechaInicioCustom != null && _fechaFinCustom != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                '${DateFormat('dd/MM/yy').format(_fechaInicioCustom!)} - ${DateFormat('dd/MM/yy').format(_fechaFinCustom!)}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.5),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _seleccionarRangoFechas() async {
+    final result = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: _fechaInicioCustom != null && _fechaFinCustom != null
+          ? DateTimeRange(start: _fechaInicioCustom!, end: _fechaFinCustom!)
+          : null,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF0F172A),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Color(0xFF0F172A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (result != null) {
+      setState(() {
+        _fechaInicioCustom = result.start;
+        _fechaFinCustom = result.end;
+        _filtroActual = FiltroTiempo.personalizado;
+      });
+      _cargarDatos();
+    }
   }
 
   Widget _buildFiltroBtn(String label, FiltroTiempo filtro) {
@@ -216,80 +287,167 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
   }
 
   Widget _buildChartSection() {
-    // Normalizar datos para el gráfico (porcentajes de salud de stock)
-    double percCemento = _ingresoCementoBags > 0 ? (_consumoCementoBags / _ingresoCementoBags) : 0;
-    double percArena = _ingresoArena > 0 ? (_consumoArena / _ingresoArena) : 0;
-    double percPiedra = _ingresoPiedra > 0 ? (_consumoPiedra / _ingresoPiedra) : 0;
-    double percAditivo = _ingresoAditivo > 0 ? (_consumoAditivo / _ingresoAditivo) : 0;
+    double _calcPerc(double ing, double cons) {
+      if (ing > 0) return cons / ing;
+      if (cons > 0) return 1.2; // Si no hay ingreso pero hay consumo, es déficit máximo visual
+      return 0.0;
+    }
+
+    double percCemento = _calcPerc(_ingresoCementoBags, _consumoCementoBags);
+    double percArena = _calcPerc(_ingresoArena, _consumoArena);
+    double percPiedra = _calcPerc(_ingresoPiedra, _consumoPiedra);
+    double percAditivo = _calcPerc(_ingresoAditivo, _consumoAditivo);
 
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 20, offset: Offset(0, 10))],
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 24, offset: Offset(0, 12))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.insights, color: Color(0xFF2563EB), size: 20)),
-              const SizedBox(width: 12),
-              const Text('Nivel de Consumo vs Ingreso', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0F172A))),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: const Color(0xFF0F172A).withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                    ),
+                    child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Nivel de Consumo vs Ingreso', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF0F172A), letterSpacing: -0.5)),
+                      Text('Porcentaje de uso del stock en planta', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 40),
           SizedBox(
-            height: 200,
+            height: 260,
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 1.2, // Dejar espacio arriba para que el 100% no toque el techo
-                barTouchData: BarTouchData(enabled: false),
+                maxY: 1.2,
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (group) => const Color(0xFF0F172A),
+                    tooltipBorderRadius: BorderRadius.circular(12),
+                    tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    tooltipMargin: 8,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      String material = ['CEMENTO', 'ARENA', 'PIEDRA', 'ADITIVO'][group.x];
+                      double ing = [_ingresoCementoBags, _ingresoArena, _ingresoPiedra, _ingresoAditivo][group.x];
+                      double cons = [_consumoCementoBags, _consumoArena, _consumoPiedra, _consumoAditivo][group.x];
+                      
+                      String textVal;
+                      if (ing <= 0 && cons > 0) {
+                        textVal = 'DÉFICIT';
+                      } else {
+                        double perc = ing > 0 ? cons / ing : 0;
+                        textVal = '${(perc * 100).toStringAsFixed(1)}%';
+                      }
+                      
+                      bool isDeficit = cons > ing;
+
+                      return BarTooltipItem(
+                        '$material\n',
+                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.0),
+                        children: <TextSpan>[
+                          TextSpan(
+                            text: textVal,
+                            style: TextStyle(color: isDeficit ? const Color(0xFFF87171) : const Color(0xFF34D399), fontSize: 16, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
                 titlesData: FlTitlesData(
                   show: true,
                   bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: true, getTitlesWidget: (double value, TitleMeta meta) {
-                      const style = TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.bold, fontSize: 10);
-                      String text;
-                      switch (value.toInt()) {
-                        case 0: text = 'CEM'; break;
-                        case 1: text = 'ARE'; break;
-                        case 2: text = 'PIE'; break;
-                        case 3: text = 'ADI'; break;
-                        default: text = ''; break;
+                    sideTitles: SideTitles(
+                      showTitles: true, 
+                      reservedSize: 36,
+                      getTitlesWidget: (double value, TitleMeta meta) {
+                        const style = TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 0.5);
+                        String text = ['CEMENTO', 'ARENA', 'PIEDRA', 'ADITIVO'][value.toInt() % 4];
+                        return SideTitleWidget(
+                          meta: meta, 
+                          space: 10, 
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(text, style: style)
+                          )
+                        );
                       }
-                      return SideTitleWidget(meta: meta, space: 10, child: Text(text, style: style));
-                    }),
+                    ),
                   ),
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 44,
+                      interval: 0.25,
+                      getTitlesWidget: (value, meta) {
+                        if (value > 1.0 || value <= 0) return const SizedBox.shrink();
+                        return SideTitleWidget(
+                          meta: meta,
+                          child: Text('${(value * 100).toInt()}%', style: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w800, fontSize: 11)),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 gridData: FlGridData(
                   show: true, 
                   drawVerticalLine: false, 
-                  horizontalInterval: 0.5,
-                  getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade200, strokeWidth: 1, dashArray: [5, 5])
+                  horizontalInterval: 0.25,
+                  getDrawingHorizontalLine: (value) => const FlLine(color: Color(0xFFF1F5F9), strokeWidth: 1.5)
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: [
-                  _makeBarGroup(0, percCemento, const Color(0xFF0F172A)),
-                  _makeBarGroup(1, percArena, const Color(0xFFD97706)),
-                  _makeBarGroup(2, percPiedra, const Color(0xFF475569)),
-                  _makeBarGroup(3, percAditivo, const Color(0xFF8B5CF6)),
+                  _makeBarGroup(0, percCemento, const [Color(0xFF64748B), Color(0xFF0F172A)]),
+                  _makeBarGroup(1, percArena, const [Color(0xFFFBBF24), Color(0xFFD97706)]),
+                  _makeBarGroup(2, percPiedra, const [Color(0xFF94A3B8), Color(0xFF475569)]),
+                  _makeBarGroup(3, percAditivo, const [Color(0xFFA78BFA), Color(0xFF7C3AED)]),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: Colors.grey.shade200, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              const Text('Área gris = Ingreso total (Capacidad)', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+              Container(width: 14, height: 14, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFFE2E8F0)))),
+              const SizedBox(width: 8),
+              const Text('Capacidad Total', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+              const SizedBox(width: 24),
+              Container(width: 14, height: 14, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF64748B), Color(0xFF0F172A)]), borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 8),
+              const Text('Consumo Activo', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
+              const SizedBox(width: 24),
+              Container(width: 14, height: 14, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFF87171), Color(0xFFDC2626)]), borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 8),
+              const Text('Déficit', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.bold)),
             ],
           )
         ],
@@ -297,22 +455,26 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
     );
   }
 
-  BarChartGroupData _makeBarGroup(int x, double y, Color color) {
-    // Si consumo es mayor a 1, clamp a 1.2 para el gráfico pero pintar de rojo oscuro para alertar
+  BarChartGroupData _makeBarGroup(int x, double y, List<Color> gradientColors) {
     double val = y > 1.1 ? 1.1 : y; 
-    Color barColor = y > 1.0 ? const Color(0xFFEF4444) : color; // Rojo si consumió más de lo que ingresó
+    
+    // Si consumió más de lo que ingresó, usar rojo
+    LinearGradient barGradient = y > 1.0 
+        ? const LinearGradient(colors: [Color(0xFFF87171), Color(0xFFDC2626)], begin: Alignment.bottomCenter, end: Alignment.topCenter)
+        : LinearGradient(colors: gradientColors, begin: Alignment.bottomCenter, end: Alignment.topCenter);
+
     return BarChartGroupData(
       x: x,
       barRods: [
         BarChartRodData(
           toY: val,
-          color: barColor,
-          width: 22,
-          borderRadius: BorderRadius.circular(6),
+          gradient: barGradient,
+          width: 36, // barras más gruesas
+          borderRadius: BorderRadius.circular(8),
           backDrawRodData: BackgroundBarChartRodData(
             show: true,
-            toY: 1.0, // Representa el Ingreso Total
-            color: const Color(0xFFF1F5F9),
+            toY: 1.0, 
+            color: const Color(0xFFF8FAFC),
           ),
         ),
       ],
@@ -400,11 +562,15 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
                 children: [
                   Container(height: 12, color: const Color(0xFFF1F5F9)),
                   FractionallySizedBox(
-                    widthFactor: ingreso <= 0 ? 0 : (consumo / ingreso).clamp(0.0, 1.0),
+                    widthFactor: ingreso <= 0 
+                        ? (consumo > 0 ? 1.0 : 0.0) 
+                        : (consumo / ingreso).clamp(0.0, 1.0),
                     child: Container(
                       height: 12,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [colorMain.withValues(alpha: 0.6), colorMain]),
+                        gradient: balanceNegativo 
+                            ? const LinearGradient(colors: [Color(0xFFF87171), Color(0xFFDC2626)])
+                            : LinearGradient(colors: [colorMain.withValues(alpha: 0.6), colorMain]),
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),

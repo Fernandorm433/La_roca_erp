@@ -584,10 +584,11 @@ Future<void> _cargarMixers() async {
 
   // ── Contenido con tabla + footer ──────────────────────────────
   Widget _buildContenido() {
-    return Column(
-      children: [
-        // Barra de info
-        Padding(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        bool isMobile = constraints.maxWidth < 800 || constraints.maxHeight < 700;
+        
+        Widget barraInfo = Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
           child: Row(
             children: [
@@ -609,12 +610,28 @@ Future<void> _cargarMixers() async {
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
             ],
           ),
-        ),
-        // Tabla con scroll horizontal + vertical
-        Expanded(child: _buildTabla()),
-        // Footer totales
-        _buildFooter(),
-      ],
+        );
+
+        if (isMobile) {
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                barraInfo,
+                SizedBox(height: 400, child: _buildTabla()),
+                _buildFooter(),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            barraInfo,
+            Expanded(child: _buildTabla()),
+            _buildFooter(),
+          ],
+        );
+      }
     );
   }
 
@@ -864,18 +881,20 @@ Future<void> _cargarMixers() async {
         border: const Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -3))],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Wrap(
+        spacing: 24,
+        runSpacing: 24,
         children: [
           // Datos empresa + total m3
-          Expanded(
+          Container(
+            width: 300,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('DATOS DE FACTURACIÓN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 0.5)),
                 const SizedBox(height: 8),
                 SizedBox(
-                  width: 300,
+                  width: double.infinity,
                   height: 30,
                   child: TextField(
                     controller: _empresaCtrl,

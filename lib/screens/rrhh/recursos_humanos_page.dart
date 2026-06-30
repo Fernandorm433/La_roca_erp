@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:file_picker/file_picker.dart' as official_picker;
 import '../../core/theme/app_colors.dart';
+import '../../core/services/notificacion_service.dart';
 
 // ──────────────────────────────────────────────────────────────────
 // MODELO
@@ -471,16 +472,41 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     ],
                   ),
                   const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF818CF8)),
-                      const SizedBox(width: 12),
-                      _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF34D399)),
-                      const SizedBox(width: 12),
-                      _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFFBBF24)),
-                      const SizedBox(width: 12),
-                      _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFFF472B6)),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 600) {
+                        return Column(
+                          children: [
+                            Row(
+                              children: [
+                                _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF818CF8)),
+                                const SizedBox(width: 12),
+                                _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF34D399)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFFBBF24)),
+                                const SizedBox(width: 12),
+                                _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFFF472B6)),
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF818CF8)),
+                          const SizedBox(width: 12),
+                          _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF34D399)),
+                          const SizedBox(width: 12),
+                          _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFFBBF24)),
+                          const SizedBox(width: 12),
+                          _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFFF472B6)),
+                        ],
+                      );
+                    },
                   ).animate().fade(delay: 300.ms).slideY(begin: 0.1),
                 ],
               ),
@@ -2660,6 +2686,13 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                     Navigator.pop(ctx);
                                   }
                                   _cargarComunicados();
+
+                                  // Notificar a todos en absoluto
+                                  await NotificationService().notificarATodos(
+                                    titulo: '📢 Nuevo Comunicado: ${tituloCtrl.text.trim()}',
+                                    cuerpo: mensajeCtrl.text.trim(),
+                                  );
+
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -2732,6 +2765,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       'calidad',
       'ventas',
       'asesor',
+      'jefe_operadores',
       'operador',
       'empleados',
     ];
@@ -2883,9 +2917,13 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                         .signUp(
                                           email: emailCtrl.text.trim(),
                                           password: passCtrl.text.trim(),
+                                          data: {
+                                            'nombre': nombreCtrl.text.trim(),
+                                            'rol': rol,
+                                          },
                                         );
                                     if (res.user != null) {
-                                      await supabase.from('usuarios').insert({
+                                      await supabase.from('usuarios').upsert({
                                         'id': res.user!.id,
                                         'nombre': nombreCtrl.text.trim(),
                                         'rol': rol,

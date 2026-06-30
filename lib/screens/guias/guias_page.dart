@@ -542,12 +542,9 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
           // GUIA
           SizedBox(
             width: 140,
-            child: TextField(
-              controller: f.numCtrl,
-              focusNode: f.numFocus,
-              enabled: !isReadOnly,
+            child: Text(
+              f.numCtrl.text.isEmpty ? 'Sin Guía' : f.numCtrl.text,
               style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 14),
-              decoration: _softInput().copyWith(hintText: 'N° Guía'),
             ),
           ),
           const SizedBox(width: 16),
@@ -574,25 +571,26 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
           // PRECINTO
           SizedBox(
             width: 120,
-            child: TextField(
-              controller: f.precCtrl,
-              focusNode: f.precFocus,
-              enabled: !isReadOnly,
-              decoration: _softInput().copyWith(hintText: 'Precinto...'),
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            child: Text(
+              f.precCtrl.text.isEmpty ? '---' : f.precCtrl.text,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
             ),
           ),
           const SizedBox(width: 12),
           // HORA SALIDA
           SizedBox(
             width: 90,
-            child: TextField(
-              controller: f.hsCtrl,
-              focusNode: f.hsFocus,
-              enabled: !isReadOnly,
-              textAlign: TextAlign.center,
-              decoration: _softInput().copyWith(hintText: '00:00'),
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.shade50,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                f.hsCtrl.text.isEmpty ? '--:--' : f.hsCtrl.text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -601,7 +599,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
             decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
             child: IconButton(
               icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.red, size: 22),
-              tooltip: 'Imprimir Guía',
+              tooltip: 'Imprimir Guía Interna',
               onPressed: () => _abrirPdfGuia(venta, f),
             ),
           ),

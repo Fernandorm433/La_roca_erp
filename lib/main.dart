@@ -6,10 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:app_database/core/services/notificacion_service.dart';
+import 'core/utils/map_utils.dart';
 
 // NUEVOS IMPORTS PARA EL GPS EN SEGUNDO PLANO Y FIRESTORE
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // ← Agregado para escribir en Firebase
 
@@ -91,6 +93,11 @@ Future<bool> onIosBackground(ServiceInstance service) async {
   return true;
 }
 
+// Variables globales para el isolate del GPS (Geofencing)
+String? _currentCarguioId;
+Map<String, double>? _obraCoords;
+bool _notifiedArrival = false;
+
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
@@ -162,6 +169,63 @@ void onStart(ServiceInstance service) async {
                   'online': true,
                 }, SetOptions(merge: true));
 
+                // ✅ GEOFENCING: Verificar proximidad a la obra
+                try {
+                  final viajeActivo = await client
+                      .from('carguios_mixers')
+                      .select()
+                      .eq('operador_id', user.id)
+                      .eq('estado', 'Salio de Planta')
+                      .maybeSingle();
+
+                  if (viajeActivo != null) {
+                     final carguioId = viajeActivo['id'].toString();
+                     if (_currentCarguioId != carguioId) {
+                        _currentCarguioId = carguioId;
+                        _notifiedArrival = false;
+                        _obraCoords = null;
+                        
+                        final venta = await client
+                            .from('ventas_programacion')
+                            .select('obra_maps_link')
+                            .eq('id', viajeActivo['id_venta'])
+                            .maybeSingle();
+                        
+                        if (venta != null && venta['obra_maps_link'] != null) {
+                            _obraCoords = await MapUtils.extractCoordinates(venta['obra_maps_link'].toString());
+                        }
+                     }
+
+                     if (!_notifiedArrival && _obraCoords != null) {
+                        final distancia = Geolocator.distanceBetween(
+                          position.latitude, position.longitude,
+                          _obraCoords!['lat']!, _obraCoords!['lng']!
+                        );
+                        
+                        if (distancia < 500) { // 500 metros
+                          _notifiedArrival = true;
+                          
+                          FlutterLocalNotificationsPlugin().show(
+                            889,
+                            '📍 Llegando a Obra',
+                            'Estás a menos de 500m del destino.',
+                            const NotificationDetails(
+                              android: AndroidNotificationDetails(
+                                'gps_service', 'Geofencing',
+                                importance: Importance.max, priority: Priority.high,
+                                playSound: true,
+                              ),
+                            )
+                          );
+                        }
+                     }
+                  } else {
+                     _currentCarguioId = null;
+                  }
+                } catch(e) {
+                   debugPrint('Error Geofencing: $e');
+                }
+
                 if (service is AndroidServiceInstance) {
                   service.setForegroundNotificationInfo(
                     title: "Ruta La Roca: ${conductor['marca']}",
@@ -188,6 +252,16 @@ const bool kModoDemo = false; // ← CAMBIA A false PARA VOLVER AL LOGIN REAL
 const String kDemoRol = 'admin'; // ← CAMBIA EL ROL AQUÍ PARA PROBAR
 const String kDemoNombre = 'Usuario Demo';
 
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -198,6 +272,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: "ERP Operaciones",
+      scrollBehavior: AppScrollBehavior(), // ✅ Habilita arrastrar con mouse en PC
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -261,32 +336,20 @@ class _AuthGateState extends State<AuthGate> {
             .from('usuarios')
             .select('rol, nombre')
             .eq('id', session.user.id) 
-            .single();
+            .maybeSingle();
 
         debugPrint("🔍 [AuthGate] Datos recibidos: $data");
-        final String rolString = data['rol'] ?? 'operador';
-        final String nombreDB = data['nombre'] ?? 'Usuario'; 
+        final String rolString = data?['rol'] ?? 'operador';
+        final String nombreDB = data?['nombre'] ?? 'Usuario'; 
 
         final RolUsuario rolAsignado = _obtenerRolDesdeString(rolString);
  
         if (Platform.isAndroid || Platform.isIOS) {
           final service = FlutterBackgroundService();
           if (rolAsignado == RolUsuario.operador) {
-            // 🚨 SOLUCIÓN AL CRASHEO: Pedir permisos ANTES de iniciar el servicio
-            LocationPermission permission = await Geolocator.checkPermission();
-            if (permission == LocationPermission.denied) {
-              permission = await Geolocator.requestPermission();
-            }
-            
-            // Solo iniciamos si el usuario dio permiso
-            if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
-              bool isRunning = await service.isRunning();
-              if (!isRunning) {
-                await service.startService();
-              }
-            } else {
-              debugPrint("⚠️ Permiso de ubicación denegado. No se puede rastrear.");
-            }
+            // Ya no usamos el GPS del celular para el operador (se usa Teltonika físico).
+            // Apagamos el servicio por si quedó encendido.
+            service.invoke("stopService");
           } else {
             // Si entra un admin, nos aseguramos de apagar el servicio
             service.invoke("stopService");

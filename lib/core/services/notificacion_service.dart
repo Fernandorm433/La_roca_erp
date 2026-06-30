@@ -1,6 +1,7 @@
 // Archivo: lib/core/services/notification_service.dart
 // Maneja FCM: permisos, token, notificaciones locales y envío a la jefa.
 
+import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -104,6 +105,16 @@ class NotificationService {
   // Llamar al hacer login (tanto asesor como jefa)
   Future<void> guardarToken(String userId) async {
     try {
+      // En iOS y macOS, requerimos obtener primero el APNS Token.
+      // Si estamos en simulador o sin la capacidad Push configurada, esto evitará el crasheo.
+      if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) {
+        final apnsToken = await _messaging.getAPNSToken();
+        if (apnsToken == null) {
+          debugPrint('⚠️ [FCM] APNS token no disponible (¿simulador o falta capacidad Push?). Saltando FCM.');
+          return;
+        }
+      }
+
       final token = await _messaging.getToken();
       if (token == null) return;
 
@@ -127,28 +138,26 @@ class NotificationService {
     }
   }
 
-  // ─── Enviar notificación a todos los jefes/admins ─────────────
-  // Llama a la Supabase Edge Function 'send-notification'
-  Future<void> notificarJefes({
+  // ─── Enviar notificación por Roles Específicos ─────────────
+  Future<void> notificarPorRoles({
+    required List<String> roles,
     required String titulo,
     required String cuerpo,
     Map<String, String>? datos,
   }) async {
     try {
-      // Obtener tokens de todos los usuarios con rol jefe/admin/ventas
-      final jefes = await _supabase
+      final destinatarios = await _supabase
           .from('usuarios')
           .select('fcm_token')
-          .inFilter('rol', ['ventas', 'admin', 'jefe'])
+          .inFilter('rol', roles)
           .not('fcm_token', 'is', null);
 
-      for (final jefe in jefes) {
-        final token = jefe['fcm_token'] as String?;
+      for (final dest in destinatarios) {
+        final token = dest['fcm_token'] as String?;
         if (token == null || token.isEmpty) continue;
 
-        // Invocar Edge Function de Supabase (ella llama a FCM)
         await _supabase.functions.invoke(
-          'enviar-notification',
+          'send-notification',
           body: {
             'token': token,
             'title': titulo,
@@ -157,9 +166,88 @@ class NotificationService {
           },
         );
       }
-      debugPrint('📤 Notificación enviada: $titulo');
+      debugPrint('📤 Notificación enviada a roles $roles: $titulo');
     } catch (e) {
-      debugPrint('Error enviando notificación a jefes: $e');
+      debugPrint('Error enviando notificación a roles $roles: $e');
     }
+  }
+
+  // ─── Enviar notificación a todos los usuarios ─────────────
+  Future<void> notificarATodos({
+    required String titulo,
+    required String cuerpo,
+    Map<String, String>? datos,
+  }) async {
+    try {
+      final destinatarios = await _supabase
+          .from('usuarios')
+          .select('fcm_token')
+          .not('fcm_token', 'is', null);
+
+      for (final dest in destinatarios) {
+        final token = dest['fcm_token'] as String?;
+        if (token == null || token.isEmpty) continue;
+
+        await _supabase.functions.invoke(
+          'send-notification',
+          body: {
+            'token': token,
+            'title': titulo,
+            'body': cuerpo,
+            'data': datos ?? {},
+          },
+        );
+      }
+      debugPrint('📤 Notificación enviada a TODOS: $titulo');
+    } catch (e) {
+      debugPrint('Error enviando notificación a todos: $e');
+    }
+  }
+
+  // ─── Enviar notificación a un usuario específico ─────────────
+  Future<void> notificarUsuario({
+    required String userId,
+    required String titulo,
+    required String cuerpo,
+    Map<String, String>? datos,
+  }) async {
+    try {
+      final dest = await _supabase
+          .from('usuarios')
+          .select('fcm_token')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (dest == null) return;
+      final token = dest['fcm_token'] as String?;
+      if (token == null || token.isEmpty) return;
+
+      await _supabase.functions.invoke(
+        'send-notification',
+        body: {
+          'token': token,
+          'title': titulo,
+          'body': cuerpo,
+          'data': datos ?? {},
+        },
+      );
+      debugPrint('📤 Notificación enviada al usuario $userId: $titulo');
+    } catch (e) {
+      debugPrint('Error enviando notificación a usuario $userId: $e');
+    }
+  }
+
+  // Wrapper para compatibilidad hacia atrás
+  Future<void> notificarJefes({
+    required String titulo,
+    required String cuerpo,
+    Map<String, String>? datos,
+  }) async {
+    await notificarPorRoles(
+      roles: ['ventas', 'admin', 'jefe'],
+      titulo: titulo,
+      cuerpo: cuerpo,
+      datos: datos,
+    );
   }
 }

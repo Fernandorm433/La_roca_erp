@@ -7,7 +7,7 @@ import '../../core/theme/app_colors.dart';
 
 // ── Módulos existentes ──────────────────────────────────────────
 import '../dashboard/dashboard_page.dart';
-import '../guias/guias_page.dart';
+import '../guias/guias_main_page.dart';
 import '../programacion/programacion_page.dart';
 import '../bombas/bombas_page.dart';
 import '../calidad/calidad_page.dart';
@@ -38,6 +38,10 @@ import '../ventas/ventas_page.dart';
 import '../ventas/asesores_page.dart';
 import '../ventas/cotizaciones_list_page.dart';
 import '../ventas/requerimientos_list_page.dart'; // <-- [NUEVO]
+import '../ventas/ordenes_pedido_page.dart'; // <-- [NUEVO] Órdenes de pedido externas
+// ── [NUEVO] Módulo Diseños de Mezcla y Registro Carguío ─────────
+import '../calidad/disenos_mezcla_page.dart';
+import '../calidad/registro_carguio_page.dart';
 
 // ── [NUEVO] Módulo de Clientes ──────────────────────────────────
 import '../clientes/clientes_page.dart';
@@ -62,6 +66,7 @@ enum RolUsuario {
   ventas,
   asesor,
   operador, // Personal de planta / mixer
+  jefe_operadores, // Jefe de operadores
   empleados, // Personal administrativo general / otros
 }
 
@@ -190,6 +195,46 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.checklist_outlined,
             pagina: const ChecklistPage(),
           ),
+          AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
+          ),
+        ];
+        break;
+
+      // ─────────────────────────────────────────────────────────
+      // ROL: JEFE DE OPERADORES
+      // ─────────────────────────────────────────────────────────
+      case RolUsuario.jefe_operadores:
+        itemsPermitidos = [
+          ...modulosBaseEmpleado,
+          AppMenuItem(
+            titulo: 'GPS Flota',
+            icono: Icons.satellite_alt_outlined,
+            pagina: const MapaPage(),
+            seccion: 'OPERACIONES',
+          ),
+          AppMenuItem(
+            titulo: 'Despachos',
+            icono: Icons.local_shipping_outlined,
+            pagina: const GestorMixersPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Bombas',
+            icono: Icons.fire_truck_outlined,
+            pagina: const GestorBombasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Prog.',
+            icono: Icons.table_chart_outlined,
+            pagina: const ProgramacionPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Guías',
+            icono: Icons.description_outlined,
+            pagina: const GuiasMainPage(),
+          ),
         ];
         break;
 
@@ -256,7 +301,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Guías',
             icono: Icons.description_outlined,
-            pagina: const GuiasDespachoPage(),
+            pagina: const GuiasMainPage(),
           ),
           AppMenuItem(
             titulo: 'Prog.',
@@ -299,6 +344,16 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.history_edu,
             pagina: const ControlCalidadPage(),
             seccion: 'LABORATORIO',
+          ),
+          AppMenuItem(
+            titulo: 'Diseños de Mezcla',
+            icono: Icons.science_outlined,
+            pagina: const DisenosMezclaPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
           ),
           AppMenuItem(
             titulo: 'Granulometría',
@@ -344,7 +399,13 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Guías',
             icono: Icons.description_outlined,
-            pagina: const GuiasDespachoPage(),
+            pagina: const GuiasMainPage(),
+          ),
+          // [NUEVO] Órdenes de Pedido (externas)
+          AppMenuItem(
+            titulo: 'Órdenes de Pedido',
+            icono: Icons.list_alt_rounded,
+            pagina: const OrdenesPedidoPage(),
           ),
           // [NUEVO] Costos: control de gastos y presupuestos
           AppMenuItem(
@@ -430,6 +491,16 @@ class _HomePageState extends State<HomePage> {
             pagina: const ControlCalidadPage(),
             seccion: 'CALIDAD',
           ),
+          AppMenuItem(
+            titulo: 'Diseños de Mezcla',
+            icono: Icons.science_outlined,
+            pagina: const DisenosMezclaPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
+          ),
           // [NUEVO] Granulometría: antes solo visible para rol calidad
           AppMenuItem(
             titulo: 'Granulometría',
@@ -448,12 +519,6 @@ class _HomePageState extends State<HomePage> {
             titulo: 'RRHH',
             icono: Icons.people_outline,
             pagina: const RecursosHumanosPage(),
-          ),
-          // [NUEVO] Facturación: ya estaba importado pero no asignado a ningún rol
-          AppMenuItem(
-            titulo: 'Facturación',
-            icono: Icons.receipt_long_outlined,
-            pagina: const FacturacionPage(),
           ),
           AppMenuItem(
             titulo: 'Liquidaciones',
@@ -722,195 +787,230 @@ class _HomePageState extends State<HomePage> {
     final esEscritorio = MediaQuery.of(context).size.width >= 800;
     final esExtendido = MediaQuery.of(context).size.width >= 1100;
     final necesitaMenuExtra = itemsPermitidos.length > 4;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Colores dinámicos
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final sidebarColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final sidebarTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final sidebarIconColor = isDark ? Colors.blueGrey.shade300 : Colors.blueGrey.shade700;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-          Image.asset('assets/images/LOGO2023.png',height: 30, // Altura del logo
-          fit: BoxFit.contain,
-        ),
-],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              widget.rol.name.toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, child) {
-              return IconButton(
-                icon: Icon(
-                  themeProvider.isDarkMode
-                      ? Icons.light_mode_outlined
-                      : Icons.dark_mode_outlined,
-                  color: themeProvider.isDarkMode ? Colors.yellow : AppColors.primaryDark,
-                  size: 20,
-                ),
-                tooltip: themeProvider.isDarkMode ? 'Modo Claro' : 'Modo Oscuro',
-                onPressed: () {
-                  themeProvider.toggleTheme(!themeProvider.isDarkMode);
-                },
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(
-              Icons.logout_outlined,
-              color: Colors.redAccent,
-              size: 20,
-            ),
-            tooltip: 'Cerrar Sesión',
-            onPressed: () => _cerrarSesion(context),
-          ),
-          const SizedBox(width: 4),
-        ],
-        elevation: 0,
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
-        surfaceTintColor: Colors.transparent,
-      ),
+      backgroundColor: bgColor,
       body: SafeArea(
-        child: esEscritorio
-            ? Row(
-                children: [
-                  _buildNavigationRail(esExtendido),
-                  const VerticalDivider(
-                    thickness: 1,
-                    width: 1,
-                    color: Colors.black12,
-                  ),
-                  Expanded(child: itemsPermitidos[indiceActual].pagina),
-                ],
-              )
-            : itemsPermitidos[indiceActual].pagina,
-      ),
-      bottomNavigationBar: esEscritorio
-          ? null
-          : itemsPermitidos.length <= 1
-          ? null
-          : Container(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // TOP HEADER CUSTOMIZADO (Ultra Premium)
+            Container(
+              height: 70,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
+                color: sidebarColor,
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))
+                ]
+              ),
+              child: Row(
+                children: [
+                  if (!esEscritorio)
+                    Image.asset('assets/images/LOGO2023.png', height: 32, fit: BoxFit.contain)
+                  else
+                    const SizedBox.shrink(),
+                  const Spacer(),
+                  
+                  // Role Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.2))
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.shield_outlined, size: 14, color: AppColors.accent),
+                        const SizedBox(width: 6),
+                        Text(
+                          widget.rol.name.toUpperCase(),
+                          style: const TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  
+                  // Theme Toggle
+                  Consumer<ThemeProvider>(
+                    builder: (context, themeProvider, child) {
+                      return InkWell(
+                        onTap: () => themeProvider.toggleTheme(!themeProvider.isDarkMode),
+                        borderRadius: BorderRadius.circular(50),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: isDark ? Colors.white24 : Colors.grey.shade200),
+                            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade50
+                          ),
+                          child: Icon(
+                            themeProvider.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                            color: themeProvider.isDarkMode ? Colors.yellow.shade600 : AppColors.primaryDark,
+                            size: 20,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  
+                  // Logout
+                  InkWell(
+                    onTap: () => _cerrarSesion(context),
+                    borderRadius: BorderRadius.circular(50),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.red.withValues(alpha: 0.05),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.1))
+                      ),
+                      child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                    ),
                   ),
                 ],
-              ),
-              child: NavigationBar(
-                selectedIndex: necesitaMenuExtra && indiceActual >= 3
-                    ? 3
-                    : indiceActual,
-                onDestinationSelected: (i) {
-                  if (necesitaMenuExtra && i == 3) {
-                    _mostrarMenuExtra(context);
-                  } else {
-                    setState(() => indiceActual = i);
-                  }
-                },
-                backgroundColor: Theme.of(context).cardColor,
-                indicatorColor: AppColors.accent.withOpacity(0.1),
-                destinations: _construirDestinosMovil(necesitaMenuExtra),
               ),
             ),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // NAVIGATION RAIL con secciones visuales
-  // ─────────────────────────────────────────────────────────────
-
-  Widget _buildNavigationRail(bool extendido) {
-    return SizedBox(
-      width: extendido ? 220 : 72,
-      child: Container(
-        color: Theme.of(context).cardColor,
-        child: Column(
-          children: [
-            if (extendido)
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryDark,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.business_outlined,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'La Roca',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            
+            // CONTENIDO PRINCIPAL
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.symmetric(
-                  vertical: extendido ? 0 : 8,
-                  horizontal: 6,
-                ),
-                children: _buildRailItems(extendido),
+              child: Row(
+                children: [
+                  if (esEscritorio)
+                    _buildCustomNavigationRail(esExtendido, sidebarColor, sidebarTextColor, sidebarIconColor),
+                  
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: esEscritorio ? const BorderRadius.only(topLeft: Radius.circular(20)) : BorderRadius.zero,
+                      child: Container(
+                        color: bgColor,
+                        child: itemsPermitidos[indiceActual].pagina,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
+      bottomNavigationBar: esEscritorio || itemsPermitidos.length <= 1
+          ? null
+          : _buildFloatingBottomBar(necesitaMenuExtra),
     );
   }
 
-  List<Widget> _buildRailItems(bool extendido) {
+  // ─────────────────────────────────────────────────────────────
+  // FLOATING BOTTOM BAR (Móvil)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildFloatingBottomBar(bool necesitaMenuExtra) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      color: Colors.transparent, // Flotante real
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: NavigationBar(
+            height: 65,
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            indicatorColor: AppColors.accent.withValues(alpha: 0.15),
+            selectedIndex: necesitaMenuExtra && indiceActual >= 3 ? 3 : indiceActual,
+            onDestinationSelected: (i) {
+              if (necesitaMenuExtra && i == 3) {
+                _mostrarMenuExtra(context);
+              } else {
+                setState(() => indiceActual = i);
+              }
+            },
+            destinations: _construirDestinosMovil(necesitaMenuExtra),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CUSTOM NAVIGATION RAIL (PC)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildCustomNavigationRail(bool extendido, Color bgColor, Color textColor, Color iconColor) {
+    return Container(
+      width: extendido ? 240 : 80,
+      decoration: BoxDecoration(
+        color: bgColor,
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 15, offset: const Offset(5, 0))
+        ]
+      ),
+      child: Column(
+        children: [
+          if (extendido)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              alignment: Alignment.centerLeft,
+              child: Image.asset(
+                'assets/images/LOGO2023.png',
+                height: 40,
+                width: 170, // Constraints para evitar overflow
+                fit: BoxFit.contain,
+                alignment: Alignment.centerLeft,
+              ),
+            )
+          else 
+            const SizedBox(height: 24),
+            
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.symmetric(vertical: extendido ? 8 : 12, horizontal: 16),
+              physics: const BouncingScrollPhysics(),
+              children: _buildCustomRailItems(extendido, textColor, iconColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildCustomRailItems(bool extendido, Color textColor, Color iconColor) {
     final widgets = <Widget>[];
     String? lastSeccion;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     for (int i = 0; i < itemsPermitidos.length; i++) {
       final item = itemsPermitidos[i];
       final esSeleccionado = indiceActual == i;
 
       if (extendido && item.seccion != null && item.seccion != lastSeccion) {
-        if (widgets.isNotEmpty) {
-          widgets.add(
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 12, 10, 0),
-              child: Divider(color: Colors.grey.shade200, height: 1),
-            ),
-          );
-        }
+        if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 16));
         widgets.add(
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
             child: Text(
               item.seccion!,
               style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade400,
-                letterSpacing: 1.2,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade300,
+                letterSpacing: 1.5,
               ),
             ),
           ),
@@ -918,85 +1018,58 @@ class _HomePageState extends State<HomePage> {
         lastSeccion = item.seccion;
       }
 
+      final colorHover = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03);
+      final colorSelectedBg = isDark ? AppColors.accent.withValues(alpha: 0.15) : AppColors.accent.withValues(alpha: 0.1);
+
       widgets.add(
         Tooltip(
           message: extendido ? '' : item.titulo,
           preferBelow: false,
-          child: Material(
-            color: esSeleccionado
-                ? AppColors.accent.withOpacity(0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => setState(() => indiceActual = i),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: extendido ? 12 : 0,
-                  vertical: 10,
-                ),
-                child: extendido
-                    ? Row(
-                        children: [
-                          Icon(
-                            item.icono,
-                            size: 20,
-                            color: esSeleccionado
-                                ? AppColors.accent
-                                : Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            child: Material(
+              color: esSeleccionado ? colorSelectedBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                hoverColor: colorHover,
+                onTap: () => setState(() => indiceActual = i),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: extendido ? 12 : 0, vertical: extendido ? 12 : 14),
+                  child: extendido
+                      ? Row(
+                          children: [
+                            Icon(item.icono, size: 22, color: esSeleccionado ? AppColors.accent : iconColor),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                item.titulo,
+                                style: TextStyle(
+                                  fontWeight: esSeleccionado ? FontWeight.w800 : FontWeight.w600,
+                                  fontSize: 14,
+                                  color: esSeleccionado ? AppColors.accent : textColor.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(item.icono, size: 24, color: esSeleccionado ? AppColors.accent : iconColor),
+                            const SizedBox(height: 6),
+                            Text(
                               item.titulo,
                               style: TextStyle(
-                                fontWeight: esSeleccionado
-                                    ? FontWeight.bold
-                                    : FontWeight.w600,
-                                fontSize: 14,
-                                color: esSeleccionado
-                                    ? AppColors.accent
-                                    : Theme.of(context).textTheme.bodyLarge?.color,
+                                fontSize: 9,
+                                color: esSeleccionado ? AppColors.accent : iconColor,
+                                fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.normal,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          if (esSeleccionado)
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: const BoxDecoration(
-                                color: AppColors.accent,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            item.icono,
-                            size: 22,
-                            color: esSeleccionado
-                                ? AppColors.accent
-                                : Colors.grey.shade600,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            item.titulo,
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: esSeleccionado
-                                  ? AppColors.accent
-                                  : Colors.grey.shade600,
-                              fontWeight: esSeleccionado
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                ),
               ),
             ),
           ),

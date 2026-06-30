@@ -216,8 +216,9 @@ class _CajaPageState extends State<CajaPage> {
                   const SizedBox(height: 24),
                   _buildStatsRow().animate().fade(delay: 100.ms).slideY(begin: 0.1),
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Text('HISTORIAL DE MOVIMIENTOS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF64748B), letterSpacing: 1.0)),
                       ElevatedButton.icon(

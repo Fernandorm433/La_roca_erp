@@ -279,18 +279,22 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 15,
+              runSpacing: 15,
               children: [
-                  Text(
-                    "Dashboard",
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                    ),
+                Text(
+                  "Dashboard",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
                   ),
+                ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(
@@ -325,6 +329,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                           border: Border.all(color: Theme.of(context).dividerColor),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
                               Icons.date_range,
@@ -332,14 +337,14 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                               color: AppColors.accent,
                             ),
                             const SizedBox(width: 8),
-                              Text(
-                                etiquetaFiltro,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                                ),
+                            Text(
+                              etiquetaFiltro,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Theme.of(context).textTheme.bodyLarge?.color,
                               ),
+                            ),
                             const SizedBox(width: 5),
                             const Icon(Icons.arrow_drop_down, size: 20),
                           ],
@@ -456,22 +461,56 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
       key: const ValueKey(0),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            _buildModernKPI(
-              "Programado",
-              "${totalProgramado.toStringAsFixed(1)} m³",
-              Icons.insert_chart,
-              AppColors.accent,
-            ),
-            const SizedBox(width: 15),
-            _buildModernKPI(
-              "Despachado",
-              "${totalDespachado.toStringAsFixed(1)} m³",
-              Icons.local_shipping,
-              const Color(0xFF0D9488),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            bool isMobile = constraints.maxWidth < 600;
+            if (isMobile) {
+              return Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildModernKPI(
+                      "Programado",
+                      "${totalProgramado.toStringAsFixed(1)} m³",
+                      Icons.insert_chart,
+                      AppColors.accent,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildModernKPI(
+                      "Despachado",
+                      "${totalDespachado.toStringAsFixed(1)} m³",
+                      Icons.local_shipping,
+                      const Color(0xFF0D9488),
+                    ),
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: _buildModernKPI(
+                    "Programado",
+                    "${totalProgramado.toStringAsFixed(1)} m³",
+                    Icons.insert_chart,
+                    AppColors.accent,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: _buildModernKPI(
+                    "Despachado",
+                    "${totalDespachado.toStringAsFixed(1)} m³",
+                    Icons.local_shipping,
+                    const Color(0xFF0D9488),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
 
@@ -485,110 +524,26 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
             ),
           ),
           const SizedBox(height: 10),
-          Container(
-            height: 260,
-            padding: const EdgeInsets.all(20),
-            decoration: cardDecoration(context),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      PieChart(
-                        PieChartData(
-                          sectionsSpace: 4,
-                          centerSpaceRadius: 45,
-                          startDegreeOffset: 180,
-                          sections: volumenPorMixer.entries.map((e) {
-                            int idx = volumenPorMixer.keys.toList().indexOf(
-                              e.key,
-                            );
-                            return PieChartSectionData(
-                              color: mixerColors[idx % mixerColors.length],
-                              value: e.value,
-                              title: e.value.toStringAsFixed(1),
-                              radius: 40,
-                              titleStyle: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              badgePositionPercentageOffset: .98,
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.fire_truck,
-                            size: 18,
-                            color: Colors.grey,
-                          ),
-                          Text(
-                            "${totalDespachado.toStringAsFixed(1)} m³",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              color: Theme.of(context).textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              bool isMobile = constraints.maxWidth < 600;
+              return Container(
+                padding: const EdgeInsets.all(20),
+                decoration: cardDecoration(context),
+                child: Flex(
+                  direction: isMobile ? Axis.vertical : Axis.horizontal,
+                  children: [
+                    SizedBox(
+                      height: 220,
+                      width: isMobile ? double.infinity : null,
+                      child: isMobile ? _buildPieChartMixer() : Expanded(flex: 5, child: _buildPieChartMixer()),
+                    ),
+                    if (isMobile) const SizedBox(height: 20),
+                    isMobile ? SizedBox(height: 200, child: _buildListMixer()) : Expanded(flex: 5, child: SizedBox(height: 220, child: _buildListMixer())),
+                  ],
                 ),
-                Expanded(
-                  flex: 5,
-                  child: ListView(
-                    children: volumenPorMixer.entries.map((e) {
-                      int idx = volumenPorMixer.keys.toList().indexOf(e.key);
-                      Color c = mixerColors[idx % mixerColors.length];
-                      return InkWell(
-                        onTap: () => _mostrarViajesDelMixer(e.key),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: c,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                    e.key,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                                    ),
-                                  ),
-                              ),
-                              Text(
-                                  "${e.value.toStringAsFixed(1)} m³",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
           const SizedBox(height: 20),
         ],
@@ -687,22 +642,56 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
       key: const ValueKey(2),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            _buildModernKPI(
-              "Volumen Caído",
-              "${totalVolumenCancelado.toStringAsFixed(1)} m³",
-              Icons.trending_down,
-              AppColors.error,
-            ),
-            const SizedBox(width: 15),
-            _buildModernKPI(
-              "Obras Canceladas",
-              "$totalObrasCanceladas",
-              Icons.warning_amber_rounded,
-              const Color(0xFFC2410C),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            bool isMobile = constraints.maxWidth < 600;
+            if (isMobile) {
+              return Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildModernKPI(
+                      "Volumen Caído",
+                      "${totalVolumenCancelado.toStringAsFixed(1)} m³",
+                      Icons.trending_down,
+                      Colors.red.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildModernKPI(
+                      "Clientes Cancelados",
+                      "$totalObrasCanceladas",
+                      Icons.person_off,
+                      Colors.orange.shade800,
+                    ),
+                  ),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Flexible(
+                  child: _buildModernKPI(
+                    "Volumen Caído",
+                    "${totalVolumenCancelado.toStringAsFixed(1)} m³",
+                    Icons.trending_down,
+                    Colors.red.shade600,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Flexible(
+                  child: _buildModernKPI(
+                    "Clientes Cancelados",
+                    "$totalObrasCanceladas",
+                    Icons.person_off,
+                    Colors.orange.shade800,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
 
@@ -819,37 +808,125 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
     IconData icon,
     Color color,
   ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: cardDecoration(context),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPieChartMixer() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        PieChart(
+          PieChartData(
+            sectionsSpace: 4,
+            centerSpaceRadius: 45,
+            startDegreeOffset: 180,
+            sections: volumenPorMixer.entries.map((e) {
+              int idx = volumenPorMixer.keys.toList().indexOf(e.key);
+              return PieChartSectionData(
+                color: mixerColors[idx % mixerColors.length],
+                value: e.value,
+                title: e.value.toStringAsFixed(1),
+                radius: 40,
+                titleStyle: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                badgePositionPercentageOffset: .98,
+              );
+            }).toList(),
+          ),
+        ),
+        Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(height: 15),
+            const Icon(Icons.fire_truck, size: 18, color: Colors.grey),
             Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-            Text(
-              title,
+              "${totalDespachado.toStringAsFixed(1)} m³",
               style: TextStyle(
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
           ],
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildListMixer() {
+    return ListView(
+      children: volumenPorMixer.entries.map((e) {
+        int idx = volumenPorMixer.keys.toList().indexOf(e.key);
+        Color c = mixerColors[idx % mixerColors.length];
+        return InkWell(
+          onTap: () => _mostrarViajesDelMixer(e.key),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: c,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    e.key,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                ),
+                Text(
+                  "${e.value.toStringAsFixed(1)} m³",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

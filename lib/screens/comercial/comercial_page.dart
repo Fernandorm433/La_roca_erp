@@ -271,40 +271,49 @@ class _ComercialPageState extends State<ComercialPage>
       ),
       borderRadius: BorderRadius.circular(16),
     ),
-    child: Row(
+    child: Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 16,
+      runSpacing: 16,
       children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(
-            Icons.storefront_outlined,
-            color: Colors.white,
-            size: 24,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Comercial',
-              style: TextStyle(
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.storefront_outlined,
                 color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+                size: 24,
               ),
             ),
-            Text(
-              '${_clientes.length} clientes · ${_cotizaciones.length} cotizaciones',
-              style: const TextStyle(color: Colors.white60, fontSize: 12),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Comercial',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${_clientes.length} clientes · ${_cotizaciones.length} cotizaciones',
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+              ],
             ),
           ],
         ),
-        const Spacer(),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _kpiMini('Precios', '${_precios.length}', Colors.white),
             const SizedBox(width: 16),

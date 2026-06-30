@@ -145,39 +145,79 @@ class _LogisticaPageState extends State<LogisticaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF1F5F9),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(),
-                _buildAccionesRapidas(),
-                _buildKpis(),
-                _buildFilterRow(),
-                Expanded(child: _buildTabla()),
-              ],
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                bool isMobile = constraints.maxWidth < 800 || constraints.maxHeight < 800;
+                if (isMobile) {
+                  return SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildHeader(),
+                        _buildAccionesRapidas(),
+                        _buildKpis(),
+                        _buildFilterRow(),
+                        SizedBox(height: 550, child: _buildTabla()),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(),
+                    _buildAccionesRapidas(),
+                    _buildKpis(),
+                    _buildFilterRow(),
+                    Expanded(child: _buildTabla()),
+                  ],
+                );
+              },
             ),
     );
   }
 
   // ── HEADER ──────────────────────────────────────────────────
   Widget _buildHeader() => Container(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 12),
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 16,
           children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('RECEPCIÓN DE MATERIALES',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.5)),
-              const SizedBox(height: 2),
-              Text('Registro diario de áridos y agregados',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF334155)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: const Color(0xFF0F172A).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: const Icon(Icons.inventory_2_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Recepción de Materiales',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.8)),
+                const SizedBox(height: 4),
+                const Text('Gestión diaria de agregados',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+              ]),
             ]),
             ElevatedButton.icon(
-              icon: const Icon(Icons.analytics_outlined, color: Colors.white, size: 18),
-              label: const Text('Comparativa Mensual', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              icon: const Icon(Icons.analytics_rounded, color: Colors.white, size: 18),
+              label: const Text('Comparativa Mensual', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A), 
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 4,
+                shadowColor: const Color(0xFF0F172A).withOpacity(0.4),
+              ),
               onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const comparativa_consumos_page.ComparativaConsumosPage()));
               },
@@ -188,23 +228,30 @@ class _LogisticaPageState extends State<LogisticaPage> {
 
   Widget _buildAccionesRapidas() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('NUEVO REGISTRO RÁPIDO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.bolt_rounded, color: Color(0xFFD97706), size: 18),
+              const SizedBox(width: 6),
+              const Text('ACCIONES RÁPIDAS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 1.0)),
+            ],
+          ),
+          const SizedBox(height: 12),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
             child: Row(
               children: [
-                _btnRapido('Piedra Chancada', Icons.terrain, const Color(0xFF64748B), 'PIEDRA'),
-                const SizedBox(width: 12),
-                _btnRapido('Arena', Icons.grain, const Color(0xFFD97706), 'ARENA'),
-                const SizedBox(width: 12),
-                _btnRapido('Cemento', Icons.shopping_bag, const Color(0xFF0284C7), 'CEMENTO'),
-                const SizedBox(width: 12),
-                _btnRapido('Otro', Icons.add_box_outlined, const Color(0xFF0F172A), ''),
+                _btnRapido('Piedra Chancada', Icons.terrain_rounded, const [Color(0xFF475569), Color(0xFF334155)], 'PIEDRA'),
+                const SizedBox(width: 14),
+                _btnRapido('Arena', Icons.grain_rounded, const [Color(0xFFD97706), Color(0xFFB45309)], 'ARENA'),
+                const SizedBox(width: 14),
+                _btnRapido('Cemento', Icons.shopping_bag_rounded, const [Color(0xFF0284C7), Color(0xFF0369A1)], 'CEMENTO'),
+                const SizedBox(width: 14),
+                _btnRapido('Otro', Icons.add_box_rounded, const [Color(0xFF0F172A), Color(0xFF000000)], ''),
               ],
             ),
           )
@@ -213,131 +260,241 @@ class _LogisticaPageState extends State<LogisticaPage> {
     ).animate().fade(delay: 50.ms).slideX(begin: 0.05);
   }
 
-  Widget _btnRapido(String texto, IconData icono, Color color, String categoria) {
+  Widget _btnRapido(String texto, IconData icono, List<Color> grad, String categoria) {
     return InkWell(
       onTap: () => _abrirFormulario(categoriaBase: categoria),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.15)),
+          boxShadow: [
+            BoxShadow(color: grad[0].withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
         ),
         child: Row(
           children: [
-            Icon(icono, color: color, size: 20),
-            const SizedBox(width: 8),
-            Text(texto, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: grad, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: grad[0].withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))],
+              ),
+              child: Icon(icono, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Text(texto, style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2)),
+            const SizedBox(width: 4),
           ],
         ),
       ),
-    );
+    ).animate().scale(duration: 200.ms, curve: Curves.easeOut);
   }
 
   // ── KPI CARDS ───────────────────────────────────────────────
   Widget _buildKpis() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-        child: Row(children: [
-          _kpi('VOLUMEN HOY', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_outlined, const Color(0xFFE2E8F0), const Color(0xFF475569)),
-          const SizedBox(width: 12),
-          _kpi('TOTAL FACTURADO', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_outlined, const Color(0xFFDCFCE7), const Color(0xFF16A34A)),
-          const SizedBox(width: 12),
-          _kpi('ENTRADAS HOY', '${_registros.length}', Icons.local_shipping_outlined, const Color(0xFFE0F2FE), const Color(0xFF0284C7)),
-          const SizedBox(width: 12),
-          _kpi('SIN OP', '$_pendientesOp', Icons.pending_actions_outlined, const Color(0xFFFEF3C7), const Color(0xFFD97706)),
-        ]),
-      ).animate().fade(delay: 50.ms);
-
-  Widget _kpi(String t, String v, IconData icon, Color bg, Color ic) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Row(children: [
-            CircleAvatar(radius: 20, backgroundColor: bg, child: Icon(icon, color: ic, size: 18)),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(t, style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
-              const SizedBox(height: 2),
-              Text(v, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1E293B))),
-            ])),
-          ]),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            bool isMobile = constraints.maxWidth < 800;
+            if (isMobile) {
+              return Column(
+                children: [
+                  Row(children: [
+                    Expanded(child: _kpiSolidInternal('VOLUMEN HOY', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_rounded, const [Color(0xFF0F172A), Color(0xFF1E293B)])),
+                    const SizedBox(width: 16),
+                    Expanded(child: _kpiSolidInternal('FACTURADO', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_rounded, const [Color(0xFF059669), Color(0xFF047857)])),
+                  ]),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Expanded(child: _kpiSolidInternal('ENTRADAS', '${_registros.length}', Icons.local_shipping_rounded, const [Color(0xFF0284C7), Color(0xFF0369A1)])),
+                    const SizedBox(width: 16),
+                    Expanded(child: _kpiSolidInternal('SIN OP', '$_pendientesOp', Icons.pending_actions_rounded, const [Color(0xFFEA580C), Color(0xFFC2410C)])),
+                  ]),
+                ],
+              );
+            }
+            return Row(children: [
+              Expanded(child: _kpiSolidInternal('VOLUMEN HOY', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_rounded, const [Color(0xFF0F172A), Color(0xFF1E293B)])),
+              const SizedBox(width: 16),
+              Expanded(child: _kpiSolidInternal('FACTURADO', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_rounded, const [Color(0xFF059669), Color(0xFF047857)])),
+              const SizedBox(width: 16),
+              Expanded(child: _kpiSolidInternal('ENTRADAS', '${_registros.length}', Icons.local_shipping_rounded, const [Color(0xFF0284C7), Color(0xFF0369A1)])),
+              const SizedBox(width: 16),
+              Expanded(child: _kpiSolidInternal('SIN OP', '$_pendientesOp', Icons.pending_actions_rounded, const [Color(0xFFEA580C), Color(0xFFC2410C)])),
+            ]);
+          },
         ),
+      ).animate().fade(delay: 100.ms).slideY(begin: 0.05);
+
+  Widget _kpiSolidInternal(String t, String v, IconData icon, List<Color> grad) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: grad, begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [BoxShadow(color: grad[0].withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, color: Colors.white, size: 20)
+              ),
+              Icon(Icons.show_chart_rounded, color: Colors.white.withOpacity(0.3), size: 28),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(t, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(v, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+          ),
+        ]),
       );
 
   // ── FILA DE FILTROS ──────────────────────────────────────────
   Widget _buildFilterRow() => Padding(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 10),
-        child: Row(children: [
-          // Búsqueda
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
-              child: TextField(
-                onChanged: (v) => setState(() => _busqueda = v),
-                decoration: const InputDecoration(
-                  hintText: 'Buscar por descripción, proveedor, guía...',
-                  hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            bool isMobile = constraints.maxWidth < 600;
+            if (isMobile) {
+              return Column(
+                children: [
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                    child: TextField(
+                      onChanged: (v) => setState(() => _busqueda = v),
+                      decoration: const InputDecoration(
+                        hintText: 'Buscar...',
+                        hintStyle: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                        prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final s = await showDatePicker(context: context, initialDate: _fechaFiltro, firstDate: DateTime(2025), lastDate: DateTime(2030));
+                            if (s != null) { setState(() => _fechaFiltro = s); _cargar(); }
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                            child: Row(children: [
+                              const Icon(Icons.calendar_today_outlined, size: 15, color: Color(0xFF475569)),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_fechaFiltro.day.toString().padLeft(2,'0')}/${_fechaFiltro.month.toString().padLeft(2,'0')}/${_fechaFiltro.year}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B), fontSize: 13),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        height: 48,
+                        width: 48,
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                        child: IconButton(
+                          onPressed: _cargar,
+                          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF475569)),
+                          tooltip: 'Actualizar',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+            return Row(children: [
+              // Búsqueda
+              Expanded(
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                  child: TextField(
+                    onChanged: (v) => setState(() => _busqueda = v),
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar por descripción, proveedor, guía...',
+                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+                      prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Selector de fecha
-          InkWell(
-            onTap: () async {
-              final s = await showDatePicker(context: context, initialDate: _fechaFiltro, firstDate: DateTime(2025), lastDate: DateTime(2030));
-              if (s != null) { setState(() => _fechaFiltro = s); _cargar(); }
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
-              child: Row(children: [
-                const Icon(Icons.calendar_today_outlined, size: 15, color: Color(0xFF475569)),
-                const SizedBox(width: 8),
-                Text(
-                  '${_fechaFiltro.day.toString().padLeft(2,'0')}/${_fechaFiltro.month.toString().padLeft(2,'0')}/${_fechaFiltro.year}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B), fontSize: 13),
+              const SizedBox(width: 12),
+              // Selector de fecha
+              InkWell(
+                onTap: () async {
+                  final s = await showDatePicker(context: context, initialDate: _fechaFiltro, firstDate: DateTime(2025), lastDate: DateTime(2030));
+                  if (s != null) { setState(() => _fechaFiltro = s); _cargar(); }
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                  child: Row(children: [
+                    const Icon(Icons.calendar_today_outlined, size: 15, color: Color(0xFF475569)),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_fechaFiltro.day.toString().padLeft(2,'0')}/${_fechaFiltro.month.toString().padLeft(2,'0')}/${_fechaFiltro.year}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B), fontSize: 13),
+                    ),
+                  ]),
                 ),
-              ]),
-            ),
-          ),
-          const SizedBox(width: 10),
-          IconButton(
-            onPressed: _cargar,
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF475569)),
-            tooltip: 'Actualizar',
-            style: IconButton.styleFrom(backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Color(0xFFE2E8F0)))),
-          ),
-        ]),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                height: 48,
+                width: 48,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                child: IconButton(
+                  onPressed: _cargar,
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF475569)),
+                  tooltip: 'Actualizar',
+                ),
+              ),
+            ]);
+          },
+        ),
       );
 
-  // ── TABLA PRINCIPAL (estilo Excel) ───────────────────────────
+  // ── TABLA PRINCIPAL (Modern UI) ──────────────────────────────
   Widget _buildTabla() {
     final cols = [
-      _ColDef('FECHA', 90),
-      _ColDef('VOL. (m³)', 70),
-      _ColDef('DESCRIPCIÓN', 200),
-      _ColDef('PROVEEDOR / RUC', 160),
+      _ColDef('FECHA', 100),
+      _ColDef('VOL.', 80),
+      _ColDef('DESCRIPCIÓN', 210),
+      _ColDef('PROVEEDOR', 170),
       _ColDef('P. UNIT.', 80),
       _ColDef('TOTAL', 90),
-      _ColDef('GUÍA', 70),
-      _ColDef('FACTURA', 80),
-      _ColDef('DEPÓSITOS', 120),
-      _ColDef('DIA', 44),
-      _ColDef('ERP', 44),
-      _ColDef('OP', 44),
-      _ColDef('', 70), // acciones
+      _ColDef('GUÍA', 80),
+      _ColDef('FACTURA', 90),
+      _ColDef('DEPÓSITOS', 130),
+      _ColDef('DIA', 50),
+      _ColDef('ERP', 50),
+      _ColDef('OP', 50),
+      _ColDef('', 50), // acciones
     ];
 
     return Padding(
@@ -345,122 +502,269 @@ class _LogisticaPageState extends State<LogisticaPage> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 20, offset: Offset(0, 10))],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // Cabecera tabla
-            Container(
-              color: const Color(0xFF0F172A),
-              child: Row(
-                children: cols.map((c) => SizedBox(
-                  width: c.width,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                    child: Text(c.label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+          borderRadius: BorderRadius.circular(20),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: SizedBox(
+                    width: 1230,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      // Cabecera tabla
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF8FAFC),
+                          border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1.5))
+                        ),
+                        child: Row(
+                          children: cols.map((c) => SizedBox(
+                            width: c.width,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                              child: Text(c.label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                            ),
+                          )).toList(),
+                        ),
+                      ),
+                      // Filas
+                      if (_filtrados.isEmpty)
+                        Expanded(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade300),
+                          const SizedBox(height: 10),
+                          Text('Sin registros para esta fecha', style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
+                        ])))
+                      else
+                        Expanded(
+                          child: ListView.builder(
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _filtrados.length,
+                            itemBuilder: (_, i) => _buildFila(_filtrados[i], i),
+                          ),
+                        ),
+                    ]),
                   ),
-                )).toList(),
-              ),
-            ),
-            // Filas
-            if (_filtrados.isEmpty)
-              Expanded(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade300),
-                const SizedBox(height: 10),
-                Text('Sin registros para esta fecha', style: TextStyle(color: Colors.grey.shade400, fontSize: 14)),
-              ])))
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _filtrados.length,
-                  itemBuilder: (_, i) => _buildFila(_filtrados[i], i),
                 ),
-              ),
-          ]),
+              );
+            }
+          ),
         ),
       ),
     ).animate().fade(delay: 80.ms);
   }
 
   Widget _buildFila(RecepcionMaterial r, int i) {
-    final bg = i.isOdd ? const Color(0xFFFAFAFA) : Colors.white;
-    // Color de fila según descripción (como el Excel)
     Color? rowColor;
     final d = r.descripcion.toLowerCase();
-    if (d.contains('cancelado') || d.contains('cancelado')) rowColor = const Color(0xFFFFF9C4);
-    else if (r.factura.isNotEmpty) rowColor = const Color(0xFFE8F5E9);
+    if (d.contains('cancelado')) rowColor = const Color(0xFFFEF9C3).withOpacity(0.3);
+    else if (r.factura.isNotEmpty) rowColor = const Color(0xFFF0FDF4).withOpacity(0.4);
 
     return Container(
-      color: rowColor ?? bg,
-      child: Row(children: [
-        _celda('${r.fecha.day.toString().padLeft(2,'0')}/${r.fecha.month.toString().padLeft(2,'0')}/${r.fecha.year}', 90,
-            bold: true, color: _colorFecha(i)),
-        _celda('${r.volumenM3.toStringAsFixed(0)}', 70, center: true),
-        _celda(r.descripcion, 200, bold: true, color: const Color(0xFF334155)),
-        _celda('${r.proveedor}\n${r.ruc}', 160, small: true),
-        _celda('S/ ${r.precioUnitario.toStringAsFixed(2)}', 80, center: true),
-        _celda('S/ ${r.total.toStringAsFixed(2)}', 90, bold: true, center: true, color: const Color(0xFF16A34A)),
-        _celdaGuia(r.guia, 70),
-        _celda(r.factura.isNotEmpty ? r.factura : 'PAGADO', 80,
-            bold: r.factura.isEmpty, color: r.factura.isEmpty ? const Color(0xFF0284C7) : null),
-        _celda(r.depositos, 120, small: true),
-        // Checkboxes DIA / ERP / OP
-        SizedBox(width: 44, child: Checkbox(
-          value: r.dia, onChanged: (v) => _toggleBool(r, 'dia', v ?? false),
-          activeColor: const Color(0xFF0F172A), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        )),
-        SizedBox(width: 44, child: Checkbox(
-          value: r.erp, onChanged: (v) => _toggleBool(r, 'erp', v ?? false),
-          activeColor: const Color(0xFF0F172A), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        )),
-        SizedBox(width: 44, child: Checkbox(
-          value: r.op, onChanged: (v) => _toggleBool(r, 'op', v ?? false),
-          activeColor: const Color(0xFF0F172A), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        )),
-        SizedBox(width: 70, child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: TextButton(
-            onPressed: () => _abrirFormulario(reg: r),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFF475569), backgroundColor: const Color(0xFFF1F5F9), padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
-            child: const Text('Editar', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+      decoration: BoxDecoration(
+        color: rowColor ?? Colors.white,
+        border: const Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {},
+          hoverColor: const Color(0xFFF8FAFC),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(children: [
+              _celdaFecha(r.fecha, 100),
+              _celdaVolumen(r.volumenM3, 80),
+              _celdaDesc(r.descripcion, 210),
+              _celdaProveedor(r.proveedor, r.ruc, 170),
+              _celdaText('S/ ${r.precioUnitario.toStringAsFixed(2)}', 80, color: const Color(0xFF64748B)),
+              _celdaTotal(r.total, 90),
+              _celdaBadge(r.guia, 80, isGuia: true),
+              _celdaBadge(r.factura.isNotEmpty ? r.factura : 'PAGADO', 90, isFactura: true, pagado: r.factura.isEmpty),
+              _celdaText(r.depositos, 130, color: const Color(0xFF64748B)),
+              
+              // Checkboxes
+              _celdaCheck(r.dia, (v) => _toggleBool(r, 'dia', v), 50),
+              _celdaCheck(r.erp, (v) => _toggleBool(r, 'erp', v), 50),
+              _celdaCheck(r.op, (v) => _toggleBool(r, 'op', v), 50),
+              
+              // Botón Editar
+              SizedBox(width: 50, child: Center(
+                child: IconButton(
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  color: const Color(0xFF94A3B8),
+                  splashRadius: 20,
+                  hoverColor: const Color(0xFFE2E8F0),
+                  onPressed: () => _abrirFormulario(reg: r),
+                  tooltip: 'Editar',
+                ),
+              )),
+            ]),
           ),
-        )),
-      ]),
+        ),
+      ),
     );
   }
 
-  // Simula el color de fecha del Excel (verde/cian/blanco alternado)
-  Color? _colorFecha(int i) {
-    if (i % 4 == 0) return const Color(0xFF16A34A);
-    if (i % 4 == 2) return const Color(0xFF0891B2);
-    return null;
+  Widget _celdaFecha(DateTime f, double w) {
+    return SizedBox(
+      width: w,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
+            const SizedBox(width: 6),
+            Text('${f.day.toString().padLeft(2,'0')}/${f.month.toString().padLeft(2,'0')}', 
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+          ],
+        ),
+      ),
+    );
   }
 
-  Widget _celda(String txt, double w, {bool bold = false, Color? color, bool center = false, bool small = false}) => SizedBox(
-        width: w,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Text(txt,
-              textAlign: center ? TextAlign.center : TextAlign.start,
-              style: TextStyle(fontSize: small ? 10 : 12, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: color ?? const Color(0xFF334155), height: 1.3)),
-        ),
-      );
-
-  Widget _celdaGuia(String guia, double w) => SizedBox(
-        width: w,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: guia.isNotEmpty ? const Color(0xFFFFF9C4) : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-              border: guia.isNotEmpty ? Border.all(color: const Color(0xFFF59E0B)) : null,
-            ),
-            child: Text(guia, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+  Widget _celdaVolumen(double vol, double w) {
+    return SizedBox(
+      width: w,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(6),
           ),
+          child: Text('${vol.toStringAsFixed(0)}', 
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+        ),
+      ),
+    );
+  }
+
+  Widget _celdaDesc(String desc, double w) {
+    return SizedBox(
+      width: w,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Text(desc, 
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A), height: 1.2)),
+      ),
+    );
+  }
+
+  Widget _celdaProveedor(String prov, String ruc, double w) {
+    return SizedBox(
+      width: w,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(prov.isEmpty ? '-' : prov, 
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+            if (ruc.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(ruc, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _celdaTotal(double total, double w) {
+    return SizedBox(
+      width: w,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Text('S/ ${total.toStringAsFixed(2)}', 
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
+      ),
+    );
+  }
+
+  Widget _celdaBadge(String text, double w, {bool isGuia = false, bool isFactura = false, bool pagado = false}) {
+    Color bg = Colors.transparent;
+    Color tc = const Color(0xFF64748B);
+    Color? borderColor;
+    
+    if (text.isEmpty || text == '-') {
+      text = '-';
+    } else {
+      if (isGuia) {
+        bg = const Color(0xFFFFF7ED);
+        tc = const Color(0xFFC2410C);
+        borderColor = const Color(0xFFFDBA74);
+      } else if (isFactura) {
+        if (pagado) {
+          bg = const Color(0xFFDCFCE7);
+          tc = const Color(0xFF15803D);
+          borderColor = const Color(0xFF86EFAC);
+        } else {
+          bg = const Color(0xFFEFF6FF);
+          tc = const Color(0xFF1D4ED8);
+          borderColor = const Color(0xFF93C5FD);
+        }
+      }
+    }
+
+    return SizedBox(
+      width: w,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: text == '-' 
+          ? const Center(child: Text('-', style: TextStyle(color: Color(0xFFCBD5E1), fontWeight: FontWeight.bold)))
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(6),
+                border: borderColor != null ? Border.all(color: borderColor, width: 1) : null,
+              ),
+              child: Text(text, 
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: tc, letterSpacing: 0.5)),
+            ),
+      ),
+    );
+  }
+
+  Widget _celdaCheck(bool val, Function(bool) onChanged, double w) {
+    return SizedBox(
+      width: w,
+      child: Center(
+        child: Transform.scale(
+          scale: 0.85,
+          child: Checkbox(
+            value: val,
+            onChanged: (v) => onChanged(v ?? false),
+            activeColor: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            side: const BorderSide(color: Color(0xFF94A3B8), width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _celdaText(String txt, double w, {Color? color}) => SizedBox(
+        width: w,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(txt,
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color ?? const Color(0xFF334155), height: 1.2)),
         ),
       );
 }
@@ -615,7 +919,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
               // Row: volumen + precio
               Row(children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _label(widget.categoriaBase == 'CEMENTO' ? 'Cantidad (Big Bags)' : (widget.categoriaBase == 'ARENA' || widget.categoriaBase == 'PIEDRA' ? 'Volumen (KG)' : 'Volumen / Cantidad')),
+                  _label(widget.categoriaBase == 'CEMENTO' ? 'Cantidad (Big Bags)' : (widget.categoriaBase == 'ARENA' || widget.categoriaBase == 'PIEDRA' ? 'Volumen (M3)' : 'Volumen / Cantidad')),
                   _numField('Ej: 25', _volCtrl, onChanged: (_) => setState((){})),
                 ])),
                 const SizedBox(width: 12),

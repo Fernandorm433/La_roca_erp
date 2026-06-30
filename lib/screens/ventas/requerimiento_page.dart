@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/notificacion_service.dart';
 
 const _GAS_URL =
     'https://script.google.com/macros/s/AKfycbzKlmfOBqCQSewWueYIdBwvjj_RP7uUty2qGRjGeS3i1XrS3a0qiLeUMl8I8SfT3ut2Fg/exec';
@@ -126,6 +127,14 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
           await Supabase.instance.client
               .from('cotizaciones').update({'estado': 'enviada'}).eq('id', cotId);
         }
+
+        // Notificar a Ventas
+        await NotificationService().notificarPorRoles(
+          roles: ['ventas'],
+          titulo: '📝 Nuevo Requerimiento',
+          cuerpo: 'El asesor ${_cot['asesor_nombre'] ?? ''} ha enviado un requerimiento para ${_cot['cliente_nombre'] ?? ''}.',
+        );
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Requerimiento enviado al Drive'),

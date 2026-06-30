@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import 'cierre_diario_service.dart';
+import '../../core/services/notificacion_service.dart';
+import 'guia_pdf_preview.dart';
 
 class GestorMixersPage extends StatefulWidget {
   const GestorMixersPage({super.key});
@@ -24,6 +26,8 @@ class _FilaCarguioData {
   double repVol;
   String comentario;
   String horaPlanta;
+  String precinto;
+  String horaSalida;
   bool mostrarOptRep;
   
   TextEditingController volCtrl;
@@ -32,6 +36,8 @@ class _FilaCarguioData {
   TextEditingController numCtrl; 
   TextEditingController ordCtrl; 
   TextEditingController hpCtrl; 
+  TextEditingController precCtrl;
+  TextEditingController hsCtrl;
   
   FocusNode volFocus;
   FocusNode optFocus;
@@ -39,6 +45,8 @@ class _FilaCarguioData {
   FocusNode ordFocus;
   FocusNode hpFocus;
   FocusNode numFocus;
+  FocusNode precFocus;
+  FocusNode hsFocus;
 
   _FilaCarguioData({
     this.id,
@@ -54,6 +62,8 @@ class _FilaCarguioData {
     this.repVol = 0.0,
     this.comentario = '',
     this.horaPlanta = '',
+    this.precinto = '',
+    this.horaSalida = '',
     this.mostrarOptRep = false,
   })  : volCtrl = TextEditingController(text: volumen > 0 ? volumen.toStringAsFixed(2) : ''),
         optCtrl = TextEditingController(text: optVol > 0 ? optVol.toStringAsFixed(2) : ''),
@@ -61,18 +71,24 @@ class _FilaCarguioData {
         numCtrl = TextEditingController(text: numeroGuia),
         ordCtrl = TextEditingController(text: ordenCarga),
         hpCtrl = TextEditingController(text: horaPlanta),
+        precCtrl = TextEditingController(text: precinto),
+        hsCtrl = TextEditingController(text: horaSalida),
         volFocus = FocusNode(),
         optFocus = FocusNode(),
         repFocus = FocusNode(),
         ordFocus = FocusNode(),
         hpFocus = FocusNode(),
-        numFocus = FocusNode();
+        numFocus = FocusNode(),
+        precFocus = FocusNode(),
+        hsFocus = FocusNode();
 
   void dispose() {
     volCtrl.dispose(); optCtrl.dispose(); repCtrl.dispose();
     numCtrl.dispose(); ordCtrl.dispose(); hpCtrl.dispose();
+    precCtrl.dispose(); hsCtrl.dispose();
     volFocus.dispose(); optFocus.dispose(); repFocus.dispose();
     ordFocus.dispose(); hpFocus.dispose(); numFocus.dispose();
+    precFocus.dispose(); hsFocus.dispose();
   }
 }
 
@@ -161,6 +177,8 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
           repVol: double.tryParse(c['reprocesado_vol']?.toString() ?? '0') ?? 0.0,
           comentario: c['comentario']?.toString() ?? '',
           horaPlanta: c['hora_carguio']?.toString() ?? '',
+          precinto: c['precinto']?.toString() ?? '',
+          horaSalida: c['hora_salida']?.toString() ?? '',
         ));
       }
 
@@ -246,6 +264,8 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     f.ordFocus.addListener(() { if (!f.ordFocus.hasFocus) _guardarFilaUnica(idVenta, f); });
     f.hpFocus.addListener(() { if (!f.hpFocus.hasFocus) _guardarFilaUnica(idVenta, f); });
     f.numFocus.addListener(() { if (!f.numFocus.hasFocus) _guardarFilaUnica(idVenta, f); });
+    f.precFocus.addListener(() { if (!f.precFocus.hasFocus) _guardarFilaUnica(idVenta, f); });
+    f.hsFocus.addListener(() { if (!f.hsFocus.hasFocus) _guardarFilaUnica(idVenta, f); });
   }
 
   List<_FilaCarguioData> _autoGenerarCarguiosInteligente(double volTotal) {
@@ -288,8 +308,17 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   void _agregarViajeManual(String idVenta) async {
     if (diaCerrado && !esJefeOperaciones) return;
     
+    var v = ventas.firstWhere((x) => x['id'].toString() == idVenta, orElse: () => {});
+    double volTotalOP = double.tryParse(v['volumen']?.toString() ?? '0') ?? 0.0;
+    double volAsignado = 0.0;
+    for (var c in (carguiosPorVenta[idVenta] ?? [])) {
+      volAsignado += c.volumen;
+    }
+    double remaining = volTotalOP - volAsignado;
+    if (remaining < 0) remaining = 0.0;
+    
     var nf = _FilaCarguioData(
-      ordenCarga: "", numeroGuia: "", numeroCarguioCA: "", volumen: 0.0,
+      ordenCarga: "", numeroGuia: "", numeroCarguioCA: "", volumen: double.parse(remaining.toStringAsFixed(2)),
     );
     _attachFocusListeners(idVenta, nf);
     
@@ -302,22 +331,54 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   void _eliminarViaje(String idVenta, _FilaCarguioData f) async {
     if (diaCerrado && !esJefeOperaciones) return;
     
-    setState(() {
-      carguiosPorVenta[idVenta]?.remove(f);
-    });
-    
-    if (f.id != null && f.id!.isNotEmpty) {
+    if (f.id != null) {
+      bool confirm = await showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Confirmar Eliminación'),
+          content: const Text('¿Estás seguro de eliminar este viaje?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(c, true), 
+              child: const Text('Eliminar', style: TextStyle(color: Colors.red))
+            ),
+          ],
+        ),
+      ) ?? false;
+      
+      if (!confirm) return;
+
       try {
         await supabase.from('carguios_mixers').delete().eq('id', f.id!);
-        if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Viaje eliminado'), backgroundColor: Colors.orange));
-        }
       } catch (e) {
-        debugPrint("Error eliminando viaje: $e");
+        debugPrint("Error al eliminar: $e");
       }
     }
     f.dispose();
+  }
+
+  void _abrirPdfGuia(Map<String, dynamic> venta, _FilaCarguioData carguio) {
+    if (carguio.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Este viaje aún no se ha guardado.')));
+      return;
+    }
+    
+    Map<String, dynamic> cData = {
+      'nro_guia': carguio.numCtrl.text,
+      'operador_nombre': carguio.operadorNombre,
+      'codigo_mixer': carguio.codigoMixer,
+      'volumen': carguio.volumen.toString(),
+      'hora_salida': carguio.hsCtrl.text,
+      'precinto': carguio.precCtrl.text,
+    };
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GuiaPdfPreview(venta: venta, carguio: cData),
+      ),
+    );
   }
 
   Future<void> _actualizarHoraVenta(String idVenta, String nuevaHora) async {
@@ -435,6 +496,8 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
         'estado': f.estado,
         'optimizado_vol': f.optVol,
         'reprocesado_vol': f.repVol,
+        'precinto': f.precCtrl.text,
+        'hora_salida': f.hsCtrl.text,
       };
 
       if (f.id != null) {
@@ -504,15 +567,17 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), 
       appBar: AppBar(
-        title: Row(
+        title: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
           children: [
-            const Text("PLANIFICACION, PRODUCCION Y DISTRIBUCION DE CONCRETO DIARIO", style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 22, letterSpacing: -0.5)),
+            const Text("PLANIFICACION Y DISTRIBUCION DE CONCRETO", style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 16, letterSpacing: -0.5)),
             if (diaCerrado)
               Container(
-                margin: const EdgeInsets.only(left: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.purple.shade200)),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.lock, size: 14, color: Colors.purple.shade700),
                     const SizedBox(width: 4),
@@ -621,54 +686,113 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
                 ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 80,
-                      child: TextField(
-                        controller: horaCtrls[idVenta],
-                        focusNode: horaFocus[idVenta],
-                        enabled: !isReadOnly,
-                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20, letterSpacing: -0.5),
-                        decoration: const InputDecoration(border: InputBorder.none, hintText: '00:00', isDense: true, contentPadding: EdgeInsets.zero),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
-                      child: Text(opCtrls[idVenta]?.text.isEmpty ?? true ? 'Sin OP' : opCtrls[idVenta]!.text, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      flex: 3,
-                      child: Column(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    bool isMobile = constraints.maxWidth < 600;
+                    if (isMobile) {
+                      return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 4),
-                          Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text("${volTotalMeta.toStringAsFixed(1)} m³", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20)),
-                          const SizedBox(height: 4),
                           Row(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 80,
+                                    child: TextField(
+                                      controller: horaCtrls[idVenta],
+                                      focusNode: horaFocus[idVenta],
+                                      enabled: !isReadOnly,
+                                      style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20, letterSpacing: -0.5),
+                                      decoration: const InputDecoration(border: InputBorder.none, hintText: '00:00', isDense: true, contentPadding: EdgeInsets.zero),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                                    child: Text(opCtrls[idVenta]?.text.isEmpty ?? true ? 'Sin OP' : opCtrls[idVenta]!.text, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
+                                  ),
+                                ],
                               ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text("${volTotalMeta.toStringAsFixed(1)} m³", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20)),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
+                                      ),
+                                    ],
+                                  )
+                                ],
+                              )
                             ],
-                          )
+                          ),
+                          const SizedBox(height: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 4),
+                              Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                            ],
+                          ),
                         ],
-                      ),
-                    ),
-                  ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        SizedBox(
+                          width: 80,
+                          child: TextField(
+                            controller: horaCtrls[idVenta],
+                            focusNode: horaFocus[idVenta],
+                            enabled: !isReadOnly,
+                            style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20, letterSpacing: -0.5),
+                            decoration: const InputDecoration(border: InputBorder.none, hintText: '00:00', isDense: true, contentPadding: EdgeInsets.zero),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                          child: Text(opCtrls[idVenta]?.text.isEmpty ?? true ? 'Sin OP' : opCtrls[idVenta]!.text, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 4),
+                              Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text("${volTotalMeta.toStringAsFixed(1)} m³", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
               // TRIPS
@@ -676,7 +800,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   children: [
-                    ...carguios.map((f) => _buildTripRow(f, idVenta, isReadOnly)).toList(),
+                    ...carguios.map((f) => _buildTripRow(f, v, idVenta, isReadOnly)).toList(),
                     if (!isReadOnly)
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
@@ -700,15 +824,17 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     );
   }
 
-  Widget _buildTripRow(_FilaCarguioData f, String idVenta, bool isReadOnly) {
+  Widget _buildTripRow(_FilaCarguioData f, Map<String, dynamic> v, String idVenta, bool isReadOnly) {
     Color estadoColor = _getColorEstado(f.estado);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               // ORDEN
               SizedBox(
@@ -723,10 +849,9 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                   decoration: _softInput(fillColor: Colors.green.shade50).copyWith(hintText: '#', hintStyle: TextStyle(color: Colors.green.shade200)),
                 ),
               ),
-              const SizedBox(width: 12),
               // GUIA
               SizedBox(
-                width: 120,
+                width: 140,
                 child: TextField(
                   controller: f.numCtrl,
                   enabled: false, 
@@ -734,22 +859,34 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                   decoration: _softInput(fillColor: Colors.grey.shade100).copyWith(hintText: 'Sin Guía'),
                 ),
               ),
-              const SizedBox(width: 12),
               // VOLUMEN
               SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: f.volCtrl,
-                  focusNode: f.volFocus,
-                  enabled: !isReadOnly,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF0F172A)),
-                  decoration: _softInput().copyWith(suffixText: 'm³', suffixStyle: const TextStyle(fontSize: 10, color: Colors.grey)),
+                width: 90,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: f.volCtrl,
+                      focusNode: f.volFocus,
+                      enabled: !isReadOnly,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF0F172A)),
+                      decoration: _softInput().copyWith(suffixText: 'm³', suffixStyle: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    ),
+                    if (f.optVol > 0 || f.repVol > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          "Prod: ${(f.volumen - f.optVol - f.repVol).toStringAsFixed(1)}",
+                          style: TextStyle(fontSize: 10, color: Colors.blue.shade700, fontWeight: FontWeight.bold),
+                        ),
+                      )
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
               // OPERADOR
-              Expanded(
+              SizedBox(
+                width: 180,
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
                   value: conductores.any((c) => c['id'].toString() == f.operadorId) ? f.operadorId : null,
@@ -762,17 +899,24 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                   )).toList(),
                   onChanged: isReadOnly ? null : (val) {
                     if (val != null) {
+                      bool isNew = f.operadorId != val;
                       var cond = conductores.firstWhere((e) => e['id'].toString() == val);
                       f.operadorId = val;
                       f.operadorNombre = cond['nombre'];
                       f.codigoMixer = cond['marca'];
                       setState((){});
                       _guardarFilaUnica(idVenta, f);
+                      if (isNew) {
+                         NotificationService().notificarUsuario(
+                           userId: val, 
+                           titulo: '🚚 Nueva Ruta Asignada', 
+                           cuerpo: 'Tienes un viaje a ${v['nombre_razon_social'] ?? 'obra'} en ${v['direccion'] ?? 'el destino asignado'}.'
+                         );
+                      }
                     }
                   },
                 ),
               ),
-              const SizedBox(width: 12),
               // ESTADO BADGE
               GestureDetector(
                 onTap: isReadOnly ? null : () {
@@ -800,6 +944,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                     border: Border.all(color: estadoColor.withValues(alpha: 0.3), width: 1.5)
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.local_shipping, size: 14, color: estadoColor),
                       const SizedBox(width: 6),
@@ -811,33 +956,62 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              // HORA PLANTA
+              // PRECINTO
               SizedBox(
-                width: 80,
+                width: 100,
                 child: TextField(
-                  controller: f.hpCtrl,
-                  focusNode: f.hpFocus,
+                  controller: f.precCtrl,
+                  focusNode: f.precFocus,
+                  enabled: !isReadOnly,
+                  decoration: _softInput().copyWith(hintText: 'Precinto...'),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              // HORA SALIDA
+              SizedBox(
+                width: 70,
+                child: TextField(
+                  controller: f.hsCtrl,
+                  focusNode: f.hsFocus,
                   enabled: !isReadOnly,
                   textAlign: TextAlign.center,
-                  decoration: _softInput().copyWith(hintText: '00:00', prefixIcon: const Icon(Icons.access_time, size: 14), prefixIconConstraints: const BoxConstraints(minWidth: 24)),
+                  decoration: _softInput().copyWith(hintText: '00:00'),
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
                 ),
               ),
-              const SizedBox(width: 4),
-              // DELETE ROW
-              if (!isReadOnly)
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                  tooltip: 'Eliminar este viaje',
-                  onPressed: () => _eliminarViaje(idVenta, f),
+              // PRINT PDF
+              Container(
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+                child: IconButton(
+                  icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.red, size: 22),
+                  tooltip: 'Imprimir Guía Interna',
+                  onPressed: () {
+                    // Inject orden_pedido and bomba into v before sending to PDF generator
+                    Map<String, dynamic> ventaParaPdf = Map.from(v);
+                    ventaParaPdf['orden_pedido'] = v['orden_pedido'] ?? opCtrls[idVenta]?.text ?? '';
+                    ventaParaPdf['bomba'] = bombasPorVenta[idVenta] ?? '';
+                    _abrirPdfGuia(ventaParaPdf, f);
+                  },
                 ),
-              // OPT/REP TOGGLE
-              IconButton(
-                icon: Icon(f.mostrarOptRep ? Icons.keyboard_arrow_up : Icons.more_horiz, color: Colors.grey.shade400, size: 20),
-                onPressed: () {
-                  setState(() => f.mostrarOptRep = !f.mostrarOptRep);
-                },
+              ),
+              // ACCIONES
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isReadOnly)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                      tooltip: 'Eliminar este viaje',
+                      onPressed: () => _eliminarViaje(idVenta, f),
+                    ),
+                  // OPT/REP TOGGLE
+                  IconButton(
+                    icon: Icon(f.mostrarOptRep ? Icons.keyboard_arrow_up : Icons.more_horiz, color: Colors.grey.shade400, size: 20),
+                    onPressed: () {
+                      setState(() => f.mostrarOptRep = !f.mostrarOptRep);
+                    },
+                  ),
+                ],
               ),
             ],
           ),

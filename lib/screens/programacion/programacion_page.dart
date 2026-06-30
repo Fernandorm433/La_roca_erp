@@ -377,26 +377,34 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
               horizontal: 16.0,
               vertical: 10.0,
             ),
-            child: Row(
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _buildFiltroChip("Hoy", 0, () {
-                  setState(() {
-                    fechaSeleccionada = DateTime.now();
-                    filtroActivo = 0;
-                  });
-                  cargar();
-                }),
-                const SizedBox(width: 10),
-                _buildFiltroChip("Mañana", 1, () {
-                  setState(() {
-                    fechaSeleccionada = DateTime.now().add(
-                      const Duration(days: 1),
-                    );
-                    filtroActivo = 1;
-                  });
-                  cargar();
-                }),
-                const Spacer(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildFiltroChip("Hoy", 0, () {
+                      setState(() {
+                        fechaSeleccionada = DateTime.now();
+                        filtroActivo = 0;
+                      });
+                      cargar();
+                    }),
+                    const SizedBox(width: 10),
+                    _buildFiltroChip("Mañana", 1, () {
+                      setState(() {
+                        fechaSeleccionada = DateTime.now().add(
+                          const Duration(days: 1),
+                        );
+                        filtroActivo = 1;
+                      });
+                      cargar();
+                    }),
+                  ],
+                ),
                 ElevatedButton.icon(
                   onPressed: () => _seleccionarFecha(context),
                   icon: const Icon(Icons.calendar_month, size: 18),

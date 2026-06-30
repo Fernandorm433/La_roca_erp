@@ -85,11 +85,11 @@ class _LoginPageState extends State<LoginPage> {
             .from('usuarios')
             .select('rol, nombre, requiere_cambio_password')
             .eq('id', user.id) 
-            .single();
+            .maybeSingle();
 
-        final String rolString = data['rol'] ?? 'operador';
-        final String nombreDB = data['nombre'] ?? 'Usuario';
-        final bool requiereCambio = data['requiere_cambio_password'] ?? false;
+        final String rolString = data?['rol'] ?? 'operador';
+        final String nombreDB = data?['nombre'] ?? 'Usuario';
+        final bool requiereCambio = data?['requiere_cambio_password'] ?? false;
 
         final RolUsuario rolAsignado = _obtenerRolDesdeString(rolString);
 
