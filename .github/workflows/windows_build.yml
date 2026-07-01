@@ -1,4 +1,4 @@
-name: Windows Release
+name: Build Windows App
 
 on:
   push:
@@ -8,31 +8,31 @@ on:
 
 jobs:
   build:
-    name: Build Windows App
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Build Windows App
-        run: flutter build windows --release
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
 
-      - name: Compress Build
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath app-windows.zip
+      - name: Build Windows
+        run: flutter build windows
+
+      - name: Zip the build
+        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath LaRocaERP_Windows.zip
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-windows-build
-          path: app-windows.zip
-          retention-days: 7
+          name: LaRocaERP-Windows
+          path: LaRocaERP_Windows.zip
