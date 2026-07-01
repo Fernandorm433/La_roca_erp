@@ -4,18 +4,38 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/theme/app_colors.dart';
-import '../ventas/cotizaciones/cotizaciones_page.dart';
-import '../calidad/control_calidad_page.dart';
-
-// ── Módulos existentes ──────────────────────────────────────────
 import '../dashboard/dashboard_page.dart';
 import '../guias/guias_main_page.dart';
 import '../programacion/programacion_page.dart';
 import '../bombas/bombas_page.dart';
+import '../calidad/calidad_page.dart';
+import '../calidad/granulometria_page.dart';
+import '../checklists/checklist_page.dart';
+import '../auth/login_page.dart';
+import '../rrhh/recursos_humanos_page.dart';
+import '../logistica/logistica_page.dart';
+import '../comercial/comercial_page.dart';
+import '../facturacion/facturacion_page.dart';
+import '../mapa/mapa_page.dart';
 import '../comercial/liquidaciones_page.dart';
+import '../costos/costos_page.dart';
+import '../tesoreria/tesoreria_page.dart';
+import '../logistica/gestor_mixers_page.dart';
+import '../planta/mis_carguios_page.dart';
+import '../ventas/ventas_page.dart';
+import '../ventas/asesores_page.dart';
+import '../ventas/cotizaciones_page.dart';
+import '../ventas/requerimientos_list_page.dart';
+import '../ventas/ordenes_pedido_page.dart';
+import '../calidad/disenos_mezcla_page.dart';
+import '../calidad/registro_carguio_page.dart';
+import '../clientes/clientes_page.dart';
+import '../empleados/perfil_page.dart';
+import '../empleados/comunicados_page.dart';
+
 import '../gestion/control_cochera_page.dart';
 import '../gestion/control_combustible_page.dart';
-import '../costos/costos_page.dart';
+
 import '../calidad/calidad_page.dart';
 import '../calidad/granulometria_page.dart';
 import '../checklists/checklist_page.dart';
@@ -42,7 +62,7 @@ import '../planta/mis_carguios_page.dart';
 // ── Módulos Ventas y Seguimiento ────────────────────────────────
 import '../ventas/ventas_page.dart';
 import '../ventas/asesores_page.dart';
-import '../ventas/cotizaciones_list_page.dart';
+import '../ventas/cotizaciones_page.dart';
 import '../ventas/requerimientos_list_page.dart'; // <-- [NUEVO]
 import '../ventas/ordenes_pedido_page.dart'; // <-- [NUEVO] Órdenes de pedido externas
 // ── [NUEVO] Módulo Diseños de Mezcla y Registro Carguío ─────────
@@ -188,7 +208,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesListPage(),
+            pagina: const CotizacionesPage(),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',
@@ -296,7 +316,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesListPage(),
+            pagina: const CotizacionesPage(),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',
@@ -409,7 +429,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Dashboard',
             icono: Icons.dashboard_outlined,
-            pagina: const DashboardPage(),
+            pagina: const DashboardGerencial(),
             seccion: 'GERENCIA',
           ),
           AppMenuItem(
@@ -422,7 +442,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Comercial',
             icono: Icons.storefront_outlined,
-            pagina: const ComercialMainPage(),
+            pagina: const ComercialPage(),
             seccion: 'VENTAS',
           ),
           AppMenuItem(
@@ -461,7 +481,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Checklists',
             icono: Icons.fact_check_outlined,
-            pagina: const ChecklistAdminPage(),
+            pagina: const ChecklistPage(),
           ),
           
           // CALIDAD
@@ -497,12 +517,12 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'RRHH',
             icono: Icons.people_alt_outlined,
-            pagina: const RRHHPage(),
+            pagina: const RecursosHumanosPage(),
           ),
           AppMenuItem(
             titulo: 'Facturación',
             icono: Icons.receipt_long_outlined,
-            pagina: const FacturacionMainPage(),
+            pagina: const FacturacionPage(),
           ),
           AppMenuItem(
             titulo: 'Liquidaciones',
@@ -593,7 +613,7 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesListPage(),
+            pagina: const CotizacionesPage(),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',

@@ -128,9 +128,9 @@ class _ControlCombustiblePageState extends State<ControlCombustiblePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Control de Combustible', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          Text('Control de Combustible', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
           const SizedBox(height: 4),
-          Text('Registro diario de abastecimiento', style: TextStyle(color: AppColors.textSecondary)),
+          Text('Registro diario de abastecimiento', style: TextStyle(color: Colors.black54)),
         ],
       ),
     );
@@ -197,7 +197,7 @@ class _ControlCombustiblePageState extends State<ControlCombustiblePage> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
               onPressed: _guardarRegistro,
               child: const Text('Guardar Registro', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ),

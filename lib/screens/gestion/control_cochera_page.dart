@@ -161,13 +161,13 @@ class _ControlCocheraPageState extends State<ControlCocheraPage> {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Colors.black87,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Unidades que pernoctan en la planta',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: Colors.black54),
               ),
             ],
           ),
@@ -226,7 +226,7 @@ class _ControlCocheraPageState extends State<ControlCocheraPage> {
         child: SingleChildScrollView(
           child: DataTable(
             columnSpacing: 16,
-            headingRowColor: MaterialStateProperty.all(AppColors.primary.withOpacity(0.05)),
+            headingRowColor: MaterialStateProperty.all(AppColors.primaryDark.withOpacity(0.05)),
             columns: [
               const DataColumn(label: Text('VEHÍCULO', style: TextStyle(fontWeight: FontWeight.bold))),
               const DataColumn(label: Text('RESPONSABLE', style: TextStyle(fontWeight: FontWeight.bold))),
