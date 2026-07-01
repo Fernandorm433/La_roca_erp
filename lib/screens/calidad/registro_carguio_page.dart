@@ -16,6 +16,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   final supabase = Supabase.instance.client;
   bool loading = true;
   bool guardando = false;
+  RealtimeChannel? _subscription;
 
   List ventasDelDia = [];
   Map<String, dynamic>? ventaSeleccionada;
@@ -46,10 +47,70 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   double disenoAgua = 0;
   double disenoAditivo = 0;
 
+  double optSeleccionado = 0;
+  double repSeleccionado = 0;
+
   @override
   void initState() {
     super.initState();
     _cargarDatosIniciales();
+    _suscribirseACarguios();
+  }
+
+  void _suscribirseACarguios() {
+    _subscription = supabase
+        .channel('public:carguios_mixers')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'carguios_mixers',
+          callback: (payload) {
+            _procesarActualizacionCarguio(payload);
+          },
+        )
+        .subscribe();
+  }
+
+  void _procesarActualizacionCarguio(PostgresChangePayload payload) async {
+    if (!mounted) return;
+    final newData = payload.newRecord;
+    if (newData.isNotEmpty) {
+      double vol = double.tryParse(newData['volumen_carguio']?.toString() ?? '0') ?? 0.0;
+      String idVenta = newData['id_venta']?.toString() ?? '';
+      
+      if (vol > 0 && idVenta.isNotEmpty) {
+        final vIdx = ventasDelDia.indexWhere((v) => v['id'].toString() == idVenta);
+        if (vIdx != -1) {
+          if (!guardando) {
+            _seleccionarVenta(ventasDelDia[vIdx]);
+          }
+        } else {
+          await _cargarDatosIniciales();
+          if (!mounted) return;
+          final vIdxNew = ventasDelDia.indexWhere((v) => v['id'].toString() == idVenta);
+          if (vIdxNew != -1 && !guardando) {
+            _seleccionarVenta(ventasDelDia[vIdxNew]);
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.unsubscribe();
+    cOrdenCarguio.dispose();
+    cVolumen.dispose();
+    cMixer.dispose();
+    cOperador.dispose();
+    cRealCemento.dispose();
+    cRealArena.dispose();
+    cRealPiedra12.dispose();
+    cRealPiedra34.dispose();
+    cRealPiedra38.dispose();
+    cRealAgua.dispose();
+    cRealAditivo.dispose();
+    super.dispose();
   }
 
   Future _cargarDatosIniciales() async {
@@ -149,8 +210,17 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
             cMixer.text = activo['codigo_mixer']?.toString() ?? '';
             cOperador.text = activo['operador_nombre']?.toString() ?? '';
             cOrdenCarguio.text = activo['orden_carga']?.toString() ?? '1';
-            if (activo['volumen'] != null && double.tryParse(activo['volumen'].toString()) != null && double.parse(activo['volumen'].toString()) > 0) {
-               cVolumen.text = activo['volumen'].toString();
+            
+            double volBase = double.tryParse(activo['volumen_carguio']?.toString() ?? '0') ?? 0.0;
+            double opt = double.tryParse(activo['optimizado_vol']?.toString() ?? '0') ?? 0.0;
+            double rep = double.tryParse(activo['reprocesado_vol']?.toString() ?? '0') ?? 0.0;
+            
+            optSeleccionado = opt;
+            repSeleccionado = rep;
+            
+            if (volBase > 0) {
+               double volNeto = volBase - opt - rep;
+               cVolumen.text = volNeto.toStringAsFixed(2);
             }
           });
         }
@@ -292,6 +362,8 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         'huso': ventaSeleccionada!['huso'],
         'tipo_vaciado': ventaSeleccionada!['tipo_vaciado'],
         'estado': 'programada',
+        'optimizado': optSeleccionado,
+        'reprocesado': repSeleccionado,
         
         // Pesos Reales
         'cemento': double.tryParse(cRealCemento.text) ?? 0,
@@ -530,6 +602,29 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSectionHeader("2. Detalles del Despacho", Icons.local_shipping),
+            if (optSeleccionado > 0 || repSeleccionado > 0)
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200)
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "${optSeleccionado > 0 ? 'Optimizado: ${optSeleccionado}m³ ' : ''}"
+                        "${repSeleccionado > 0 ? 'Reprocesado: ${repSeleccionado}m³' : ''}".trim(),
+                        style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 20),
             if (isMobile) ...[
               _buildModernInput("Orden N°", cOrdenCarguio, Icons.tag, true),
@@ -541,7 +636,11 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
               TextFormField(
                 controller: cVolumen,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 16,
+                  color: (optSeleccionado > 0 || repSeleccionado > 0) ? Colors.orange.shade800 : null,
+                ),
                 decoration: InputDecoration(
                   labelText: "Volumen (m³)",
                   prefixIcon: const Icon(Icons.water_drop, color: AppColors.accent),
@@ -565,7 +664,11 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
                     child: TextFormField(
                       controller: cVolumen,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16,
+                        color: (optSeleccionado > 0 || repSeleccionado > 0) ? Colors.orange.shade800 : null,
+                      ),
                       decoration: InputDecoration(
                         labelText: "Volumen (m³)",
                         prefixIcon: const Icon(Icons.water_drop, color: AppColors.accent),

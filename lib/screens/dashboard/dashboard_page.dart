@@ -533,13 +533,28 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                 child: Flex(
                   direction: isMobile ? Axis.vertical : Axis.horizontal,
                   children: [
-                    SizedBox(
-                      height: 220,
-                      width: isMobile ? double.infinity : null,
-                      child: isMobile ? _buildPieChartMixer() : Expanded(flex: 5, child: _buildPieChartMixer()),
-                    ),
+                    if (isMobile)
+                      SizedBox(
+                        height: 220,
+                        width: double.infinity,
+                        child: _buildPieChartMixer(),
+                      )
+                    else
+                      Expanded(
+                        flex: 5,
+                        child: SizedBox(
+                          height: 220,
+                          child: _buildPieChartMixer(),
+                        ),
+                      ),
                     if (isMobile) const SizedBox(height: 20),
-                    isMobile ? SizedBox(height: 200, child: _buildListMixer()) : Expanded(flex: 5, child: SizedBox(height: 220, child: _buildListMixer())),
+                    if (isMobile)
+                      SizedBox(height: 200, child: _buildListMixer())
+                    else
+                      Expanded(
+                        flex: 5,
+                        child: SizedBox(height: 220, child: _buildListMixer()),
+                      ),
                   ],
                 ),
               );

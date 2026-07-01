@@ -4,12 +4,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../ventas/cotizaciones/cotizaciones_page.dart';
+import '../calidad/control_calidad_page.dart';
 
 // ── Módulos existentes ──────────────────────────────────────────
 import '../dashboard/dashboard_page.dart';
 import '../guias/guias_main_page.dart';
 import '../programacion/programacion_page.dart';
 import '../bombas/bombas_page.dart';
+import '../comercial/liquidaciones_page.dart';
+import '../gestion/control_cochera_page.dart';
+import '../gestion/control_combustible_page.dart';
+import '../costos/costos_page.dart';
 import '../calidad/calidad_page.dart';
 import '../calidad/granulometria_page.dart';
 import '../checklists/checklist_page.dart';
@@ -68,6 +74,7 @@ enum RolUsuario {
   operador, // Personal de planta / mixer
   jefe_operadores, // Jefe de operadores
   empleados, // Personal administrativo general / otros
+  produccion, // Personal de planta/produccion
 }
 
 class AppMenuItem {
@@ -143,6 +150,20 @@ class _HomePageState extends State<HomePage> {
       // (asesor, calidad, operador, etc.) gracias al spread
       // `...modulosBaseEmpleado` que todos los demás casos incluyen.
       // ─────────────────────────────────────────────────────────
+      // ─────────────────────────────────────────────────────────
+      // ROL: PRODUCCIÓN — Personal de planta/produccion.
+      // ─────────────────────────────────────────────────────────
+      case RolUsuario.produccion:
+        itemsPermitidos = [
+          ...modulosBaseEmpleado,
+          AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
+          ),
+        ];
+        break;
+
       case RolUsuario.empleados:
         itemsPermitidos = [...modulosBaseEmpleado];
         break;
@@ -195,11 +216,6 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.checklist_outlined,
             pagina: const ChecklistPage(),
           ),
-          AppMenuItem(
-            titulo: 'Registro de Carguío',
-            icono: Icons.app_registration,
-            pagina: const RegistroCarguioPage(),
-          ),
         ];
         break;
 
@@ -219,6 +235,11 @@ class _HomePageState extends State<HomePage> {
             titulo: 'Despachos',
             icono: Icons.local_shipping_outlined,
             pagina: const GestorMixersPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
           ),
           AppMenuItem(
             titulo: 'Bombas',
@@ -324,6 +345,11 @@ class _HomePageState extends State<HomePage> {
             pagina: const GestorMixersPage(),
           ),
           AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
+          ),
+          AppMenuItem(
             titulo: 'Liquidaciones',
             icono: Icons.account_balance_wallet_outlined,
             pagina: const LiquidacionesPage(),
@@ -363,21 +389,138 @@ class _HomePageState extends State<HomePage> {
         ];
         break;
 
-      // ─────────────────────────────────────────────────────────
-      // ROL: ADMIN — Acceso total a todos los módulos del ERP.
-      // Organizado por secciones: MI ESPACIO → GERENCIA →
-      // VENTAS → OPERACIONES → CALIDAD → GESTIÓN
-      //
-      // Módulos nuevos añadidos respecto a la versión anterior:
-      //   • Costos        (sección GERENCIA)
-      //   • Comercial     (sección VENTAS)
-      //   • Programación  (sección OPERACIONES)  ← antes solo estaba
-      //   • Bombas        (sección OPERACIONES)     en rol programacion
       //   • Checklists    (sección OPERACIONES)  ← antes solo en operador
       //   • Granulometría (sección CALIDAD)      ← antes solo en calidad
       //   • Facturación   (sección GESTIÓN)      ← ya importado, ahora visible
+      //   • Control Cochera y Combustible (sección GESTIÓN)
       // ─────────────────────────────────────────────────────────
       case RolUsuario.admin:
+        itemsPermitidos = [
+          ...modulosBaseEmpleado,
+          // MI ESPACIO
+          AppMenuItem(
+            titulo: 'GPS Flota',
+            icono: Icons.satellite_alt_outlined,
+            pagina: const MapaPage(),
+            seccion: 'MI ESPACIO',
+          ),
+          
+          // GERENCIA
+          AppMenuItem(
+            titulo: 'Dashboard',
+            icono: Icons.dashboard_outlined,
+            pagina: const DashboardPage(),
+            seccion: 'GERENCIA',
+          ),
+          AppMenuItem(
+            titulo: 'Costos Generales',
+            icono: Icons.payments_outlined,
+            pagina: const CostosPage(),
+          ),
+          
+          // VENTAS
+          AppMenuItem(
+            titulo: 'Comercial',
+            icono: Icons.storefront_outlined,
+            pagina: const ComercialMainPage(),
+            seccion: 'VENTAS',
+          ),
+          AppMenuItem(
+            titulo: 'Clientes',
+            icono: Icons.people_outline,
+            pagina: const ClientesPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Cotizaciones',
+            icono: Icons.request_quote_outlined,
+            pagina: const CotizacionesPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Requerimientos',
+            icono: Icons.precision_manufacturing_outlined,
+            pagina: const RequerimientosListPage(),
+          ),
+          
+          // OPERACIONES
+          AppMenuItem(
+            titulo: 'Programación',
+            icono: Icons.table_chart_outlined,
+            pagina: const ProgramacionPage(),
+            seccion: 'OPERACIONES',
+          ),
+          AppMenuItem(
+            titulo: 'Bombas',
+            icono: Icons.fire_truck_outlined,
+            pagina: const GestorBombasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Despachos',
+            icono: Icons.local_shipping_outlined,
+            pagina: const GestorMixersPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Checklists',
+            icono: Icons.fact_check_outlined,
+            pagina: const ChecklistAdminPage(),
+          ),
+          
+          // CALIDAD
+          AppMenuItem(
+            titulo: 'Dosificación',
+            icono: Icons.history_edu,
+            pagina: const ControlCalidadPage(),
+            seccion: 'CALIDAD',
+          ),
+          AppMenuItem(
+            titulo: 'Diseños de Mezcla',
+            icono: Icons.science_outlined,
+            pagina: const DisenosMezclaPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Registro de Carguío',
+            icono: Icons.app_registration,
+            pagina: const RegistroCarguioPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Granulometría',
+            icono: Icons.grain,
+            pagina: const GranulometriaPage(),
+          ),
+          
+          // GESTIÓN
+          AppMenuItem(
+            titulo: 'Logística',
+            icono: Icons.local_shipping_outlined,
+            pagina: const LogisticaPage(),
+            seccion: 'GESTIÓN',
+          ),
+          AppMenuItem(
+            titulo: 'RRHH',
+            icono: Icons.people_alt_outlined,
+            pagina: const RRHHPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Facturación',
+            icono: Icons.receipt_long_outlined,
+            pagina: const FacturacionMainPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Liquidaciones',
+            icono: Icons.account_balance_wallet_outlined,
+            pagina: const LiquidacionesPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Control de Cochera',
+            icono: Icons.garage_outlined,
+            pagina: const ControlCocheraPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Control Combustible',
+            icono: Icons.local_gas_station_outlined,
+            pagina: const ControlCombustiblePage(),
+          ),
+        ];
+        break;
       case RolUsuario.rrhh:
       default:
         itemsPermitidos = [

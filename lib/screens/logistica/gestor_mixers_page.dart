@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
-import 'cierre_diario_service.dart';
+
 import '../../core/services/notificacion_service.dart';
 import 'guia_pdf_preview.dart';
 
@@ -29,6 +29,7 @@ class _FilaCarguioData {
   String precinto;
   String horaSalida;
   bool mostrarOptRep;
+  bool yaNotificado;
   
   TextEditingController volCtrl;
   TextEditingController optCtrl;
@@ -65,6 +66,7 @@ class _FilaCarguioData {
     this.precinto = '',
     this.horaSalida = '',
     this.mostrarOptRep = false,
+    this.yaNotificado = false,
   })  : volCtrl = TextEditingController(text: volumen > 0 ? volumen.toStringAsFixed(2) : ''),
         optCtrl = TextEditingController(text: optVol > 0 ? optVol.toStringAsFixed(2) : ''),
         repCtrl = TextEditingController(text: repVol > 0 ? repVol.toStringAsFixed(2) : ''),
@@ -95,10 +97,12 @@ class _FilaCarguioData {
 class _GestorMixersPageState extends State<GestorMixersPage> {
   final supabase = Supabase.instance.client;
   bool loading = true;
-  bool cerrando = false;
   DateTime fechaSeleccionada = DateTime.now();
-  bool diaCerrado = false;
-  bool esJefeOperaciones = true; 
+  bool esJefeOperaciones = false; 
+  bool pantallaOculta = false;
+  bool ocultoGlobal = false;
+  String currentUserId = '';
+  List<String> usuariosPermitidos = [];
 
   List<Map<String, dynamic>> ventas = [];
   Map<String, List<_FilaCarguioData>> carguiosPorVenta = {};
@@ -131,7 +135,35 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     String fechaFiltro = fechaSeleccionada.toIso8601String().split('T')[0];
 
     try {
-      diaCerrado = await CierreDiarioService.isDiaCerrado(fechaFiltro);
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        currentUserId = user.id;
+        final userData = await supabase.from('usuarios').select('rol').eq('id', user.id).maybeSingle();
+        if (userData != null) {
+          String rol = (userData['rol'] ?? '').toString().toLowerCase();
+          esJefeOperaciones = (rol == 'jefe' || rol == 'admin');
+        }
+      }
+
+      try {
+        final perm = await supabase.from('permisos_pantallas').select().eq('pantalla_id', 'despachos').maybeSingle();
+        if (perm != null) {
+          ocultoGlobal = perm['oculto_global'] == true;
+          usuariosPermitidos = List<String>.from((perm['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
+          
+          if (ocultoGlobal && !esJefeOperaciones && !usuariosPermitidos.contains(currentUserId)) {
+            setState(() {
+              pantallaOculta = true;
+              loading = false;
+            });
+            return;
+          } else {
+            pantallaOculta = false;
+          }
+        }
+      } catch (e) {
+        debugPrint("Error leyendo permisos_pantallas: $e");
+      }
 
       final ventasDataRaw = await supabase
           .from("ventas_programacion")
@@ -201,7 +233,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
           List<_FilaCarguioData> autoCreated = _autoGenerarCarguiosInteligente(volTotal);
           agrupados[idV] = autoCreated;
           
-          if (!diaCerrado || esJefeOperaciones) {
+          if (true) {
             for (var f in autoCreated) {
               await _guardarFilaUnica(idV, f, silently: true);
             }
@@ -306,7 +338,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   }
 
   void _agregarViajeManual(String idVenta) async {
-    if (diaCerrado && !esJefeOperaciones) return;
+
     
     var v = ventas.firstWhere((x) => x['id'].toString() == idVenta, orElse: () => {});
     double volTotalOP = double.tryParse(v['volumen']?.toString() ?? '0') ?? 0.0;
@@ -329,7 +361,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   }
 
   void _eliminarViaje(String idVenta, _FilaCarguioData f) async {
-    if (diaCerrado && !esJefeOperaciones) return;
+
     
     if (f.id != null) {
       bool confirm = await showDialog(
@@ -355,7 +387,14 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
         debugPrint("Error al eliminar: $e");
       }
     }
-    f.dispose();
+    
+    setState(() {
+      carguiosPorVenta[idVenta]?.remove(f);
+    });
+    
+    Future.delayed(const Duration(milliseconds: 100), () {
+      f.dispose();
+    });
   }
 
   void _abrirPdfGuia(Map<String, dynamic> venta, _FilaCarguioData carguio) {
@@ -382,7 +421,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   }
 
   Future<void> _actualizarHoraVenta(String idVenta, String nuevaHora) async {
-    if (diaCerrado && !esJefeOperaciones) return;
+
     try {
       String horaGuardar = nuevaHora.trim();
       if (horaGuardar.length == 4 && horaGuardar.contains(':')) {
@@ -465,7 +504,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   }
 
   Future<void> _guardarFilaUnica(String idVenta, _FilaCarguioData f, {bool silently = false}) async {
-    if (diaCerrado && !esJefeOperaciones) return;
+
     try {
       if (f.numeroCarguioCA.isEmpty && f.ordCtrl.text.trim().isNotEmpty) {
         f.numeroCarguioCA = await _generarCA();
@@ -507,6 +546,19 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
         f.id = res['id'].toString();
       }
       
+      if (!silently && f.volumen > 0 && !f.yaNotificado) {
+        try {
+          await NotificationService().notificarPorRoles(
+            roles: ['produccion', 'calidad'],
+            titulo: 'Nuevo Carguío Asignado',
+            cuerpo: 'Orden ${f.ordCtrl.text} - Vol: ${f.volumen} m³',
+          );
+          f.yaNotificado = true;
+        } catch (e) {
+          debugPrint("Error al enviar notificacion a produccion: $e");
+        }
+      }
+
       if (!silently && mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Viaje guardado'), duration: Duration(milliseconds: 600)));
@@ -519,27 +571,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     }
   }
 
-  Future<void> _cerrarDia() async {
-    setState(() => cerrando = true);
-    try {
-      String fechaFiltro = fechaSeleccionada.toIso8601String().split('T')[0];
-      await CierreDiarioService.cerrarDia(fechaFiltro);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Día Cerrado y enviado a Historial', style: TextStyle(color: Colors.white)), backgroundColor: Colors.purple));
-        setState(() {
-          diaCerrado = true;
-          cerrando = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error cerrando: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error al cerrar: $e"), backgroundColor: Colors.red));
-        setState(() => cerrando = false);
-      }
-    }
-  }
+
 
   Color _getColorEstado(String estado) {
     estado = estado.toUpperCase();
@@ -562,7 +594,26 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isReadOnly = diaCerrado && !esJefeOperaciones;
+    bool isReadOnly = false;
+
+    if (pantallaOculta) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF1F5F9),
+        appBar: AppBar(backgroundColor: Colors.white, title: const Text("Despachos", style: TextStyle(color: Colors.black))),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.visibility_off, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text("Vista Restringida", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.grey.shade700)),
+              const SizedBox(height: 8),
+              Text("El Jefe de Operaciones ha ocultado temporalmente esta vista.", style: TextStyle(color: Colors.grey.shade500)),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), 
@@ -572,19 +623,6 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
           spacing: 10,
           children: [
             const Text("PLANIFICACION Y DISTRIBUCION DE CONCRETO", style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 16, letterSpacing: -0.5)),
-            if (diaCerrado)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.purple.shade200)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock, size: 14, color: Colors.purple.shade700),
-                    const SizedBox(width: 4),
-                    Text("HISTORIAL CERRADO", style: TextStyle(color: Colors.purple.shade700, fontSize: 11, fontWeight: FontWeight.w800)),
-                  ],
-                ),
-              ),
           ],
         ),
         backgroundColor: Colors.white,
@@ -594,16 +632,12 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
         actions: [
-          Row(
-            children: [
-              const Text("Jefe de OP", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
-              Switch(
-                value: esJefeOperaciones,
-                activeThumbColor: Colors.purple,
-                onChanged: (val) => setState(() => esJefeOperaciones = val),
-              ),
-            ],
-          ),
+          if (esJefeOperaciones)
+            IconButton(
+              icon: Icon(ocultoGlobal ? Icons.visibility_off : Icons.visibility, color: ocultoGlobal ? Colors.red : Colors.green),
+              tooltip: "Configurar Visibilidad",
+              onPressed: _abrirDialogoVisibilidad,
+            ),
           IconButton(
             icon: const Icon(Icons.calendar_month, color: AppColors.primaryDark),
             tooltip: "Consultar Historial",
@@ -620,16 +654,6 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
               }
             },
           ),
-          if (!diaCerrado || esJefeOperaciones)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-              child: ElevatedButton.icon(
-                onPressed: cerrando ? null : _cerrarDia,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(horizontal: 16)),
-                icon: cerrando ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.archive_outlined, size: 20),
-                label: const Text("Cerrar Día", style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            )
         ],
       ),
       body: loading 
@@ -646,6 +670,79 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                   ),
                 )
               : _buildModernList(isReadOnly),
+    );
+  }
+
+  Widget _buildClientInfo(Map<String, dynamic> v, String bomba) {
+    bool hasHuso = v['huso'] != null && v['huso'].toString().trim().isNotEmpty;
+    bool hasSlump = v['slump'] != null && v['slump'].toString().trim().isNotEmpty;
+    bool hasAditivo = v['aditivo'] != null && v['aditivo'].toString().trim().isNotEmpty && v['aditivo'].toString() != '-';
+    bool hasObs = v['observaciones'] != null && v['observaciones'].toString().trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+            if (hasHuso)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                child: Text("Huso: ${v['huso']}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade700)),
+              ),
+            if (hasSlump)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                child: Text("Slump: ${v['slump']}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade700)),
+              ),
+          ],
+        ),
+        if (hasAditivo || hasObs) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              if (hasAditivo)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade200)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.science, size: 12, color: Colors.orange.shade800),
+                      const SizedBox(width: 4),
+                      Text("Aditivo: ${v['aditivo']}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orange.shade800)),
+                    ],
+                  ),
+                ),
+              if (hasObs)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.red.shade200)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 12, color: Colors.red.shade700),
+                      const SizedBox(width: 4),
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 200),
+                        child: Text("Obs: ${v['observaciones']}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.red.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 
@@ -735,9 +832,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 4),
-                              Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                              _buildClientInfo(v, bomba),
                             ],
                           ),
                         ],
@@ -766,9 +861,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 4),
-                              Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                              _buildClientInfo(v, bomba),
                             ],
                           ),
                         ),
@@ -877,7 +970,8 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          "Prod: ${(f.volumen - f.optVol - f.repVol).toStringAsFixed(1)}",
+                          (f.optVol > 0 ? "Opt: ${f.optVol.toStringAsFixed(1)} " : "") + 
+                          (f.repVol > 0 ? "Rep: ${f.repVol.toStringAsFixed(1)}" : "").trim(),
                           style: TextStyle(fontSize: 10, color: Colors.blue.shade700, fontWeight: FontWeight.bold),
                         ),
                       )
@@ -1052,6 +1146,120 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
             )
         ],
       ),
+    );
+  }
+
+  Future<void> _abrirDialogoVisibilidad() async {
+    bool tempOculto = ocultoGlobal;
+    List<String> tempPermitidos = List.from(usuariosPermitidos);
+    bool cargandoUsuarios = true;
+    List<Map<String, dynamic>> listaUsuarios = [];
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            if (cargandoUsuarios && listaUsuarios.isEmpty) {
+              supabase.from('usuarios').select('id, nombre, rol').then((res) {
+                if (mounted) {
+                  setStateDialog(() {
+                    listaUsuarios = List<Map<String, dynamic>>.from(res);
+                    cargandoUsuarios = false;
+                  });
+                }
+              }).catchError((e) {
+                if (mounted) {
+                  setStateDialog(() { cargandoUsuarios = false; });
+                }
+              });
+            }
+
+            return AlertDialog(
+              title: const Text("Control de Visibilidad"),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SwitchListTile(
+                      title: const Text("Ocultar vista para todos", style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text("Solo Admin y Jefe OP podrán ver esta pantalla."),
+                      activeColor: Colors.red,
+                      value: tempOculto,
+                      onChanged: (val) {
+                        setStateDialog(() => tempOculto = val);
+                      },
+                    ),
+                    if (tempOculto) ...[
+                      const Divider(),
+                      const Text("Excepciones (Usuarios que sí pueden ver):", style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      cargandoUsuarios
+                          ? const Center(child: CircularProgressIndicator())
+                          : Container(
+                              constraints: const BoxConstraints(maxHeight: 300),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: listaUsuarios.length,
+                                itemBuilder: (context, i) {
+                                  final u = listaUsuarios[i];
+                                  final uid = u['id'].toString();
+                                  final rol = u['rol'].toString();
+                                  if (rol == 'admin' || rol == 'jefe') return const SizedBox.shrink(); 
+
+                                  return CheckboxListTile(
+                                    title: Text(u['nombre'] ?? 'Sin nombre'),
+                                    subtitle: Text("Rol: $rol"),
+                                    value: tempPermitidos.contains(uid),
+                                    onChanged: (val) {
+                                      setStateDialog(() {
+                                        if (val == true) {
+                                          tempPermitidos.add(uid);
+                                        } else {
+                                          tempPermitidos.remove(uid);
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    setState(() => loading = true);
+                    try {
+                      await supabase.from('permisos_pantallas').upsert({
+                        'pantalla_id': 'despachos',
+                        'oculto_global': tempOculto,
+                        'usuarios_permitidos': tempPermitidos
+                      });
+                      setState(() {
+                        ocultoGlobal = tempOculto;
+                        usuariosPermitidos = tempPermitidos;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Visibilidad guardada."), backgroundColor: Colors.green));
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+                    } finally {
+                      setState(() => loading = false);
+                    }
+                  },
+                  child: const Text("Guardar", style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -384,36 +384,187 @@ class _GestorBombasPageState extends State<GestorBombasPage>
     );
   }
 
+  Widget _buildBandejaObras(bool isMobile) {
+    List obras = obrasPorBomba['POR ASIGNAR'] ?? [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: Colors.indigo.shade50,
+          child: const Text("Bandeja de Obras (Por Asignar)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 16)),
+        ),
+        Expanded(
+          child: obras.isEmpty 
+            ? const Center(child: Text("No hay obras pendientes", style: TextStyle(color: Colors.grey)))
+            : ListView.builder(
+              itemCount: obras.length,
+              padding: const EdgeInsets.all(12),
+              itemBuilder: (context, index) {
+                var obra = obras[index];
+                Widget card = _buildObraCard(obra, isMobile);
+                if (isMobile) return card;
+                
+                return Draggable<Map<String, dynamic>>(
+                  data: obra,
+                  feedback: Material(
+                    elevation: 8,
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.transparent,
+                    child: SizedBox(width: 280, child: _buildObraCard(obra, false)),
+                  ),
+                  childWhenDragging: Opacity(opacity: 0.3, child: card),
+                  child: card,
+                );
+              },
+            ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildObraCard(Map<String, dynamic> v, bool isMobile) {
+    String hora = v["hora_entrega_editada"] ?? "08:00";
+    String cliente = v["nombre_razon_social"] ?? "Sin Cliente";
+    String volumen = v["volumen"]?.toString() ?? "0";
+    String diseno = (v["diseno"]?.toString() ?? "210").toUpperCase().replaceAll("F'C=", "").replaceAll("F'C =", "").trim();
+    String elemento = v["elemento"] ?? "";
+
+    return InkWell(
+      onTap: () => _abrirModalReasignacion(v),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+             Row(
+               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+               children: [
+                 Text(hora, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo.shade900)),
+                 const Icon(Icons.edit, size: 16, color: Colors.grey),
+               ]
+             ),
+             const SizedBox(height: 8),
+             Text(cliente, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.black87)),
+             const SizedBox(height: 4),
+             Text("$volumen m³ | F'c= $diseno", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+             const SizedBox(height: 4),
+             Text(elemento.toUpperCase(), style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.bold)),
+          ]
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileBody() {
+    return Column(
+      children: [
+        TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          labelColor: AppColors.accent,
+          indicatorColor: AppColors.accent,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+          tabs: columnasBombas.map((b) {
+            int cantidad = obrasPorBomba[b]?.length ?? 0;
+            double m3Total = volumenPorBomba[b] ?? 0.0;
+            return Tab(
+              height: 60,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(b, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  if (cantidad > 0)
+                    Text('$cantidad viajes | ${m3Total.toStringAsFixed(1)} m³', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: b == 'POR ASIGNAR' ? Colors.red : Colors.grey.shade600))
+                  else
+                    Text('Libre', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: columnasBombas.map((bomba) {
+              List obras = obrasPorBomba[bomba] ?? [];
+              if (obras.isEmpty) return Center(child: Text("Sin obras asignadas", style: TextStyle(color: Colors.grey.shade400, fontSize: 16)));
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: obras.length,
+                itemBuilder: (context, index) => _buildObraCard(obras[index], true).animate().fade().slideY(begin: 0.1, end: 0),
+              );
+            }).toList(),
+          ),
+        ),
+      ]
+    );
+  }
+
+  Widget _buildDesktopSplitView() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: Container(
+             decoration: BoxDecoration(
+               border: Border(right: BorderSide(color: Colors.grey.shade300, width: 2))
+             ),
+             child: _buildBandejaObras(false),
+          ),
+        ),
+        Expanded(
+          flex: 8,
+          child: VistaCapturaTimeline(
+             obrasPorBomba: obrasPorBomba,
+             fecha: fechaSeleccionada,
+             columnasManuales: columnasManuales,
+             duracionesManuales: duracionesManuales,
+             onRecargar: () {
+                cargarObras();
+             },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    bool isMobile = MediaQuery.of(context).size.width < 900;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          "Gestión de Bombas",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
-        ),
+        title: const Text("Gestión de Bombas", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.camera_alt, color: AppColors.accent),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => VistaCapturaTimeline(
-                    obrasPorBomba: obrasPorBomba,
-                    fecha: fechaSeleccionada,
-                    columnasManuales: columnasManuales,
-                    duracionesManuales: duracionesManuales,
-                    onRecargar: () {}, // Evita que onRecargar sobreescriba el estado local del modal
-                  ),
-                ),
-              );
-              cargarObras(); // Recarga la primera pantalla al cerrar el modal
-            },
-          ),
+          if (isMobile)
+             IconButton(
+               icon: const Icon(Icons.timeline, color: AppColors.accent),
+               onPressed: () async {
+                 await Navigator.push(
+                   context,
+                   MaterialPageRoute(
+                     builder: (_) => VistaCapturaTimeline(
+                       obrasPorBomba: obrasPorBomba,
+                       fecha: fechaSeleccionada,
+                       columnasManuales: columnasManuales,
+                       duracionesManuales: duracionesManuales,
+                       onRecargar: () {},
+                     ),
+                   ),
+                 );
+                 cargarObras();
+               },
+             ),
           IconButton(
             icon: const Icon(Icons.calendar_today, color: AppColors.accent),
             onPressed: () async {
@@ -430,183 +581,10 @@ class _GestorBombasPageState extends State<GestorBombasPage>
             },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelColor: AppColors.accent,
-          indicatorColor: AppColors.accent,
-          labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-          tabs: columnasBombas.map((b) {
-            int cantidad = obrasPorBomba[b]?.length ?? 0;
-            double m3Total = volumenPorBomba[b] ?? 0.0;
-            return Tab(
-              height: 60,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    b,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if (cantidad > 0)
-                    Text(
-                      '$cantidad viajes | ${m3Total.toStringAsFixed(1)} m³',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: b == 'POR ASIGNAR'
-                            ? Colors.red
-                            : Colors.grey.shade600,
-                      ),
-                    )
-                  else
-                    Text(
-                      'Libre',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
       ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: columnasBombas.map((bomba) {
-                List obras = obrasPorBomba[bomba] ?? [];
-                if (obras.isEmpty)
-                  return Center(
-                    child: Text(
-                      "Sin obras asignadas",
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 16,
-                      ),
-                    ),
-                  );
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: obras.length,
-                  itemBuilder: (context, index) {
-                    final v = obras[index];
-                    String hora = v["hora_entrega_editada"] ?? "08:00";
-                    String cliente = v["nombre_razon_social"] ?? "Sin Cliente";
-                    String volumen = v["volumen"]?.toString() ?? "0";
-
-                    String disenoRaw = v["diseno"]?.toString() ?? "210";
-                    String diseno = disenoRaw
-                        .toUpperCase()
-                        .replaceAll("F'C=", "")
-                        .replaceAll("F'C =", "")
-                        .trim();
-
-                    String elemento = v["elemento"] ?? "";
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 70,
-                          child: Column(
-                            children: [
-                              Text(
-                                hora,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              Container(
-                                width: 1.5,
-                                height: 90,
-                                color: Colors.grey.shade300,
-                                margin: const EdgeInsets.only(top: 8),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => _abrirModalReasignacion(v),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEFEFEF),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          cliente,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 13,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.edit,
-                                        size: 16,
-                                        color: Colors.black54,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-
-                                  Text(
-                                    "$volumen m³ | F'c= $diseno",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    elemento.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ).animate().fade().slideY(begin: 0.1, end: 0);
-                  },
-                );
-              }).toList(),
-            ),
+      body: loading 
+          ? const Center(child: CircularProgressIndicator()) 
+          : (isMobile ? _buildMobileBody() : _buildDesktopSplitView()),
     );
   }
 }

@@ -155,19 +155,35 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
           .order('nombres');
       setState(() => _asesores = List<Map<String, dynamic>>.from(asesores));
 
-      // Cargar empleado actual por email
-      if (user?.email != null) {
-        final emp = await _sb.from('empleados')
-            .select()
-            .eq('email', user!.email!)
-            .maybeSingle();
-        if (emp != null) {
+      // Cargar empleado actual por email o de la tabla usuarios si es admin externo
+      if (user != null) {
+        Map<String, dynamic>? emp;
+        if (user.email != null) {
+          emp = await _sb.from('empleados')
+              .select()
+              .eq('email', user.email!)
+              .maybeSingle();
+        }
+
+        Map<String, dynamic>? usu;
+        if (emp == null) {
+          usu = await _sb.from('usuarios')
+              .select('rol')
+              .eq('id', user.id)
+              .maybeSingle();
+        }
+
+        if (emp != null || usu != null) {
           setState(() {
-            _empleadoActual = emp;
-            _rolActual = (emp['rol'] ?? '').toString().toLowerCase();
-            // Auto-asignar asesor al usuario actual por defecto
-            if (_asesorSel == null) {
-              _asesorSel = emp;
+            if (emp != null) {
+              _empleadoActual = emp;
+              _rolActual = (emp['rol'] ?? '').toString().toLowerCase();
+              // Auto-asignar asesor al usuario actual por defecto
+              if (_asesorSel == null) {
+                _asesorSel = emp;
+              }
+            } else if (usu != null) {
+              _rolActual = (usu['rol'] ?? '').toString().toLowerCase();
             }
           });
         }

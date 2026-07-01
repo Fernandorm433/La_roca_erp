@@ -515,62 +515,69 @@ class _Sidebar extends StatelessWidget {
           colors: [_kDarkBg, Color(0xFF091929)],
         ),
       ),
-      child: Column(
-        children: [
-          const SizedBox(height: 48),
+      child: CustomScrollView(
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              children: [
+                const SizedBox(height: 48),
 
-          // Avatar
-          _AvatarWidget(iniciales: perfil.iniciales, fotoUrl: perfil.fotoUrl,
-                        size: 96),
-          const SizedBox(height: 16),
+                // Avatar
+                _AvatarWidget(iniciales: perfil.iniciales, fotoUrl: perfil.fotoUrl,
+                              size: 96),
+                const SizedBox(height: 16),
 
-          // Nombre
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              perfil.nombreCompleto.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.6,
-              ),
+                // Nombre
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    perfil.nombreCompleto.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Puesto badge
+                _RolBadge(texto: perfil.puesto.isNotEmpty ? perfil.puesto : perfil.rol),
+                const SizedBox(height: 6),
+
+                // Estado badge
+                _EstadoBadge(estado: perfil.estado),
+                const SizedBox(height: 28),
+
+                const Divider(color: Colors.white12, indent: 24, endIndent: 24),
+                const SizedBox(height: 16),
+
+                // Info personal
+                _SidebarInfo(Icons.email_outlined,            'Correo',    perfil.correo),
+                _SidebarInfo(Icons.phone_outlined,            'Teléfono',  perfil.telefono),
+                _SidebarInfo(Icons.business_center_outlined,  'Área',      perfil.area),
+                _SidebarInfo(Icons.location_on_outlined,      'Ubicación', perfil.ubicacion),
+                _SidebarInfo(Icons.calendar_today_outlined,   'Ingreso',   _formatFecha(perfil.fechaIngreso)),
+
+                const Spacer(),
+                const Divider(color: Colors.white12, indent: 24, endIndent: 24),
+
+                // Acciones
+                if (puedeEditar) _SidebarAction(Icons.edit_outlined, 'Editar perfil', onEditar),
+                const SizedBox(height: 16),
+
+                Text(
+                  '© ${DateTime.now().year} Ferrocarril del Istmo\nde Tehuantepec',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 10),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-
-          // Puesto badge
-          _RolBadge(texto: perfil.puesto.isNotEmpty ? perfil.puesto : perfil.rol),
-          const SizedBox(height: 6),
-
-          // Estado badge
-          _EstadoBadge(estado: perfil.estado),
-          const SizedBox(height: 28),
-
-          const Divider(color: Colors.white12, indent: 24, endIndent: 24),
-          const SizedBox(height: 16),
-
-          // Info personal
-          _SidebarInfo(Icons.email_outlined,            'Correo',    perfil.correo),
-          _SidebarInfo(Icons.phone_outlined,            'Teléfono',  perfil.telefono),
-          _SidebarInfo(Icons.business_center_outlined,  'Área',      perfil.area),
-          _SidebarInfo(Icons.location_on_outlined,      'Ubicación', perfil.ubicacion),
-          _SidebarInfo(Icons.calendar_today_outlined,   'Ingreso',   _formatFecha(perfil.fechaIngreso)),
-
-          const Spacer(),
-          const Divider(color: Colors.white12, indent: 24, endIndent: 24),
-
-          // Acciones
-          if (puedeEditar) _SidebarAction(Icons.edit_outlined, 'Editar perfil', onEditar),
-          const SizedBox(height: 16),
-
-          Text(
-            '© ${DateTime.now().year} Ferrocarril del Istmo\nde Tehuantepec',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 10),
-          ),
-          const SizedBox(height: 20),
         ],
       ),
     );
