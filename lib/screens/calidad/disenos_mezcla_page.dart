@@ -41,6 +41,7 @@ class _DisenosMezclaPageState extends State<DisenosMezclaPage> {
         });
       }
     } catch (e) {
+      if (!context.mounted) return;
       Helpers.showSnackBar(context, 'Error al cargar diseños: $e', isError: true);
       if (mounted) setState(() => loading = false);
     }
@@ -67,9 +68,11 @@ class _DisenosMezclaPageState extends State<DisenosMezclaPage> {
 
     try {
       await supabase.from('disenos_mezcla').delete().eq('id', id);
+      if (!context.mounted) return;
       Helpers.showSnackBar(context, 'Diseño eliminado correctamente');
       cargarDisenos();
     } catch (e) {
+      if (!context.mounted) return;
       Helpers.showSnackBar(context, 'Error: $e', isError: true);
     }
   }
@@ -411,6 +414,7 @@ class _FormularioDisenoState extends State<_FormularioDiseno> {
       widget.onGuardado();
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      if (!context.mounted) return;
       Helpers.showSnackBar(context, 'Error al guardar: $e', isError: true);
     } finally {
       if (mounted) setState(() => guardando = false);

@@ -184,6 +184,7 @@ class _GpsSettingsPageState extends State<GpsSettingsPage> {
                           'activo': isActive,
                         });
                         
+                        if (!context.mounted) return;
                         if (mounted) Navigator.pop(context);
                       },
                       child: const Text('Guardar Configuración', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
@@ -209,6 +210,7 @@ class _GpsSettingsPageState extends State<GpsSettingsPage> {
           TextButton(
             onPressed: () async {
               await _supabase.from('unidades_gps').delete().eq('imei', imei);
+              if (!context.mounted) return;
               if (mounted) Navigator.pop(ctx);
             },
             child: const Text("Eliminar", style: TextStyle(color: Colors.red)),

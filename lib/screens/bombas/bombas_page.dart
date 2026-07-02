@@ -736,6 +736,7 @@ class _VistaCapturaTimelineState extends State<VistaCapturaTimeline> {
     } catch (e) {
       if (mounted) Navigator.pop(context);
       ScaffoldMessenger.of(
+        if (!context.mounted) return;
         context,
       ).showSnackBar(SnackBar(content: Text("Error al compartir: $e")));
     }

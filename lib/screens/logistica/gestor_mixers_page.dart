@@ -1249,8 +1249,10 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                         ocultoGlobal = tempOculto;
                         usuariosPermitidos = tempPermitidos;
                       });
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Visibilidad guardada."), backgroundColor: Colors.green));
                     } catch (e) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
                     } finally {
                       setState(() => loading = false);

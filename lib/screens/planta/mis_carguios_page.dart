@@ -112,6 +112,7 @@ class _MisCarguiosPageState extends State<MisCarguiosPage> {
       await supabase.from('carguios_mixers').update({'estado': nuevoEstado}).eq('id', idCarguio);
       _cargarMisViajes();
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }

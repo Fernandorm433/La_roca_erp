@@ -267,9 +267,7 @@ class _VistaJefePageState extends State<VistaJefePage>
 
                                         if (mounted) {
                                           Navigator.pop(context);
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
+                                          ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(
                                               content: Text(
                                                 '✅ Ruta asignada correctamente',
@@ -282,9 +280,8 @@ class _VistaJefePageState extends State<VistaJefePage>
                                         }
                                       } catch (e) {
                                         setStateDialog(() => guardando = false);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
                                             content: Text(
                                               '❌ Error al asignar: $e',

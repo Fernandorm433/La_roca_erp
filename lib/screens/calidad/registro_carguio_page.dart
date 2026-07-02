@@ -187,6 +187,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         });
       }
     } catch (e) {
+      if (!context.mounted) return;
       if (!silent) Helpers.showSnackBar(context, 'Error al cargar datos: $e', isError: true);
       if (mounted && !silent) setState(() => loading = false);
     }
@@ -444,6 +445,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         );
       }
 
+      if (!context.mounted) return;
       Helpers.showSnackBar(context, 'Carguío registrado exitosamente');
       
       setState(() {
@@ -459,6 +461,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         _limpiarCalculos();
       });
     } catch (e) {
+      if (!context.mounted) return;
       Helpers.showSnackBar(context, 'Error al guardar: $e', isError: true);
     } finally {
       if (mounted) setState(() => guardando = false);

@@ -88,6 +88,7 @@ enum RolUsuario {
   admin,
   rrhh,
   programacion,
+  logistica,
   calidad,
   ventas,
   asesor,
@@ -369,11 +370,25 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.app_registration,
             pagina: const RegistroCarguioPage(),
           ),
+        ];
+        break;
+
+      // ─────────────────────────────────────────────────────────
+      // ROL: LOGÍSTICA — Liquidaciones y control.
+      // ─────────────────────────────────────────────────────────
+      case RolUsuario.logistica:
+        itemsPermitidos = [
+          ...modulosBaseEmpleado,
+          AppMenuItem(
+            titulo: 'Logística',
+            icono: Icons.local_shipping_outlined,
+            pagina: const LogisticaPage(),
+            seccion: 'GESTIÓN',
+          ),
           AppMenuItem(
             titulo: 'Liquidaciones',
             icono: Icons.account_balance_wallet_outlined,
             pagina: const LiquidacionesPage(),
-            seccion: 'GESTIÓN',
           ),
         ];
         break;
@@ -700,26 +715,44 @@ class _HomePageState extends State<HomePage> {
         List<AppMenuItem> extraItems = [];
         
         final modulosMap = {
+          'dashboard': AppMenuItem(titulo: 'Dashboard', icono: Icons.analytics_outlined, pagina: const DashboardGerencial(), seccion: 'EXTRAS'),
           'ventas': AppMenuItem(titulo: 'Ventas y Seguimiento', icono: Icons.point_of_sale_outlined, pagina: const VentasPage(), seccion: 'EXTRAS'),
+          'asesores': AppMenuItem(titulo: 'Asesores', icono: Icons.person_pin_circle_outlined, pagina: AsesoresPage(rol: widget.rol, nombreUsuario: widget.nombreUsuario), seccion: 'EXTRAS'),
+          'comercial': AppMenuItem(titulo: 'Comercial', icono: Icons.business_center_outlined, pagina: const ComercialPage(), seccion: 'EXTRAS'),
           'cotizaciones': AppMenuItem(titulo: 'Cotizaciones', icono: Icons.request_quote_outlined, pagina: const CotizacionesPage(), seccion: 'EXTRAS'),
           'requerimientos': AppMenuItem(titulo: 'Requerimientos', icono: Icons.precision_manufacturing_outlined, pagina: const RequerimientosListPage(), seccion: 'EXTRAS'),
           'ordenes_pedido': AppMenuItem(titulo: 'Órdenes de Pedido', icono: Icons.list_alt_rounded, pagina: const OrdenesPedidoPage(), seccion: 'EXTRAS'),
           'clientes': AppMenuItem(titulo: 'Directorio Clientes', icono: Icons.people_alt_outlined, pagina: const ClientesPage(), seccion: 'EXTRAS'),
+          'programacion': AppMenuItem(titulo: 'Programación', icono: Icons.table_chart_outlined, pagina: const ProgramacionPage(), seccion: 'EXTRAS'),
+          'bombas': AppMenuItem(titulo: 'Bombas', icono: Icons.fire_truck_outlined, pagina: const GestorBombasPage(), seccion: 'EXTRAS'),
           'despachos': AppMenuItem(titulo: 'Gestor Mixers (Despachos)', icono: Icons.local_shipping_outlined, pagina: const GestorMixersPage(), seccion: 'EXTRAS'),
           'mis_carguios': AppMenuItem(titulo: 'Mis Carguíos', icono: Icons.local_shipping_outlined, pagina: const MisCarguiosPage(), seccion: 'EXTRAS'),
           'checklist': AppMenuItem(titulo: 'Checklists', icono: Icons.checklist_outlined, pagina: const ChecklistPage(), seccion: 'EXTRAS'),
           'registro_carguio': AppMenuItem(titulo: 'Registro de Carguío', icono: Icons.app_registration, pagina: const RegistroCarguioPage(), seccion: 'EXTRAS'),
+          'dosificacion': AppMenuItem(titulo: 'Dosificación', icono: Icons.history_edu, pagina: const ControlCalidadPage(), seccion: 'EXTRAS'),
           'disenos_mezcla': AppMenuItem(titulo: 'Diseños de Mezcla', icono: Icons.science_outlined, pagina: const DisenosMezclaPage(), seccion: 'EXTRAS'),
+          'granulometria': AppMenuItem(titulo: 'Granulometría', icono: Icons.grain, pagina: const GranulometriaPage(), seccion: 'EXTRAS'),
           'costos': AppMenuItem(titulo: 'Costos', icono: Icons.attach_money_rounded, pagina: const CostosPage(), seccion: 'EXTRAS'),
           'tesoreria': AppMenuItem(titulo: 'Tesorería', icono: Icons.account_balance_outlined, pagina: const TesoreriaPage(), seccion: 'EXTRAS'),
+          'logistica': AppMenuItem(titulo: 'Logística', icono: Icons.local_shipping_outlined, pagina: const LogisticaPage(), seccion: 'EXTRAS'),
+          'rrhh': AppMenuItem(titulo: 'RRHH', icono: Icons.people_outline, pagina: const RecursosHumanosPage(), seccion: 'EXTRAS'),
+          'facturacion': AppMenuItem(titulo: 'Facturación', icono: Icons.receipt_long_outlined, pagina: const FacturacionPage(), seccion: 'EXTRAS'),
           'liquidaciones': AppMenuItem(titulo: 'Liquidaciones', icono: Icons.account_balance_wallet_outlined, pagina: const LiquidacionesPage(), seccion: 'EXTRAS'),
+          'control_cochera': AppMenuItem(titulo: 'Control de Cochera', icono: Icons.garage_outlined, pagina: const ControlCocheraPage(), seccion: 'EXTRAS'),
+          'control_combustible': AppMenuItem(titulo: 'Control Combustible', icono: Icons.local_gas_station_outlined, pagina: const ControlCombustiblePage(), seccion: 'EXTRAS'),
           'gps_flota': AppMenuItem(titulo: 'GPS Flota', icono: Icons.satellite_alt_outlined, pagina: const MapaPage(), seccion: 'EXTRAS'),
+          'guias': AppMenuItem(titulo: 'Guías', icono: Icons.description_outlined, pagina: const GuiasMainPage(), seccion: 'EXTRAS'),
         };
         
         for (var row in data) {
           var permitidos = List<String>.from((row['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
-          if (permitidos.contains(userId)) {
-            String mId = row['pantalla_id'].toString();
+          var denegados = List<String>.from((row['usuarios_denegados'] as List?)?.map((e) => e.toString()) ?? []);
+          String mId = row['pantalla_id'].toString();
+          
+          if (denegados.contains(userId)) {
+            // Remove from itemsPermitidos if it exists (meaning their role gave it by default)
+            itemsPermitidos.removeWhere((item) => item.pagina.runtimeType == modulosMap[mId]?.pagina.runtimeType);
+          } else if (permitidos.contains(userId)) {
             if (modulosMap.containsKey(mId)) {
               // Evitar duplicados (por si su rol base ya lo incluye)
               bool yaExiste = itemsPermitidos.any((item) => item.pagina.runtimeType == modulosMap[mId]!.pagina.runtimeType);

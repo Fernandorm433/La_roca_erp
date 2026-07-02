@@ -2174,6 +2174,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                     Navigator.pop(ctx);
                                   }
                                   _cargarEmpleados();
+                                  if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -2186,6 +2187,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                   );
                                 } catch (e) {
                                   debugPrint('Error empleado: $e');
+                                  if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -2373,6 +2375,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                 Navigator.pop(ctx);
                               }
                               _cargarAsistencias();
+                              if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Asistencia registrada'),
@@ -2381,6 +2384,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                               );
                             } catch (e) {
                               debugPrint('Error asistencia: $e');
+                              if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Error al registrar'),
@@ -2700,6 +2704,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                     cuerpo: mensajeCtrl.text.trim(),
                                   );
 
+                                  if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -2710,6 +2715,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                   );
                                 } catch (e) {
                                   debugPrint('Error: $e');
+                                  if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -2807,211 +2813,408 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       'ventas', 'asesor', 'jefe_operadores', 'operador', 'empleados',
     ];
     
-    final List<Map<String, String>> modulosDisponibles = [
-      {'id': 'ventas', 'nombre': 'Ventas y Seguimiento'},
-      {'id': 'cotizaciones', 'nombre': 'Cotizaciones'},
-      {'id': 'requerimientos', 'nombre': 'Requerimientos'},
-      {'id': 'ordenes_pedido', 'nombre': 'Órdenes de Pedido'},
-      {'id': 'clientes', 'nombre': 'Directorio Clientes'},
-      {'id': 'despachos', 'nombre': 'Gestor Mixers'},
-      {'id': 'mis_carguios', 'nombre': 'Mis Carguíos'},
-      {'id': 'checklist', 'nombre': 'Checklists'},
-      {'id': 'registro_carguio', 'nombre': 'Registro de Carguío'},
-      {'id': 'disenos_mezcla', 'nombre': 'Diseños de Mezcla'},
-      {'id': 'costos', 'nombre': 'Costos'},
-      {'id': 'tesoreria', 'nombre': 'Tesorería'},
-      {'id': 'liquidaciones', 'nombre': 'Liquidaciones'},
-      {'id': 'gps_flota', 'nombre': 'GPS Flota'},
-    ];
+    final List<Map<String, dynamic>> modulosDisponibles = [
+      {'id': 'dashboard', 'nombre': 'Dashboard', 'icono': Icons.analytics_outlined},
+      {'id': 'ventas', 'nombre': 'Ventas y Seguimiento', 'icono': Icons.point_of_sale_outlined},
+      {'id': 'asesores', 'nombre': 'Asesores', 'icono': Icons.person_pin_circle_outlined},
+      {'id': 'comercial', 'nombre': 'Comercial', 'icono': Icons.business_center_outlined},
+      {'id': 'cotizaciones', 'nombre': 'Cotizaciones', 'icono': Icons.request_quote_outlined},
+      {'id': 'requerimientos', 'nombre': 'Requerimientos', 'icono': Icons.inventory_2_outlined},
+      {'id': 'ordenes_pedido', 'nombre': 'Órdenes de Pedido', 'icono': Icons.list_alt_outlined},
+      {'id': 'clientes', 'nombre': 'Directorio Clientes', 'icono': Icons.people_outline},
+      {'id': 'programacion', 'nombre': 'Programación', 'icono': Icons.table_chart_outlined},
+      {'id': 'bombas', 'nombre': 'Bombas', 'icono': Icons.fire_truck_outlined},
+      {'id': 'despachos', 'nombre': 'Gestor Mixers', 'icono': Icons.local_shipping_outlined},
+      {'id': 'mis_carguios', 'nombre': 'Mis Carguíos', 'icono': Icons.fire_truck_outlined},
+      {'id': 'checklist', 'nombre': 'Checklists', 'icono': Icons.checklist_rtl_outlined},
+      {'id': 'registro_carguio', 'nombre': 'Registro Carguío', 'icono': Icons.app_registration},
+      {'id': 'dosificacion', 'nombre': 'Dosificación', 'icono': Icons.history_edu},
+      {'id': 'disenos_mezcla', 'nombre': 'Diseños de Mezcla', 'icono': Icons.science_outlined},
+      {'id': 'granulometria', 'nombre': 'Granulometría', 'icono': Icons.grain},
+      {'id': 'costos', 'nombre': 'Costos', 'icono': Icons.attach_money_outlined},
+      {'id': 'tesoreria', 'nombre': 'Tesorería', 'icono': Icons.account_balance_outlined},
+      {'id': 'logistica', 'nombre': 'Logística', 'icono': Icons.local_shipping_outlined},
+      {'id': 'rrhh', 'nombre': 'Recursos Humanos', 'icono': Icons.people_outline},
+      {'id': 'facturacion', 'nombre': 'Facturación', 'icono': Icons.receipt_long_outlined},
+      {'id': 'liquidaciones', 'nombre': 'Liquidaciones', 'icono': Icons.account_balance_wallet_outlined},
+      {'id': 'control_cochera', 'nombre': 'Control Cochera', 'icono': Icons.garage_outlined},
+      {'id': 'control_combustible', 'nombre': 'Control Combustible', 'icono': Icons.local_gas_station_outlined},
+      {'id': 'gps_flota', 'nombre': 'GPS Flota', 'icono': Icons.satellite_alt_outlined},
+      {'id': 'guias', 'nombre': 'Guías', 'icono': Icons.description_outlined}];
+
+    List<String> getModulosBase(String r) {
+      switch(r) {
+        case 'programacion': return ['programacion', 'bombas', 'despachos', 'checklist', 'gps_flota'];
+        case 'calidad': return ['dosificacion', 'disenos_mezcla', 'registro_carguio', 'granulometria'];
+        case 'logistica': return ['logistica', 'rrhh', 'liquidaciones', 'control_cochera', 'control_combustible'];
+        case 'rrhh': return ['rrhh', 'dashboard', 'gps_flota', 'guias', 'ordenes_pedido', 'costos', 'tesoreria', 'ventas', 'asesores', 'comercial', 'clientes', 'cotizaciones', 'requerimientos', 'programacion', 'bombas', 'despachos', 'checklist', 'dosificacion', 'disenos_mezcla', 'registro_carguio', 'granulometria', 'logistica', 'liquidaciones'];
+        case 'admin': return ['dashboard', 'ventas', 'asesores', 'comercial', 'cotizaciones', 'requerimientos', 'ordenes_pedido', 'clientes', 'programacion', 'bombas', 'despachos', 'mis_carguios', 'checklist', 'registro_carguio', 'dosificacion', 'disenos_mezcla', 'granulometria', 'costos', 'tesoreria', 'logistica', 'rrhh', 'facturacion', 'liquidaciones', 'control_cochera', 'control_combustible', 'gps_flota', 'guias'];
+        case 'ventas': return ['ventas', 'asesores', 'comercial', 'clientes', 'cotizaciones', 'requerimientos'];
+        case 'asesor': return ['ventas', 'asesores', 'comercial', 'clientes', 'cotizaciones', 'requerimientos'];
+        case 'jefe_operadores': return ['mis_carguios', 'registro_carguio', 'despachos', 'checklist'];
+        case 'operador': return ['mis_carguios', 'registro_carguio', 'checklist'];
+        default: return [];
+      }
+    }
+
     List<String> modulosSeleccionados = [];
+    List<String> modulosDenegados = [];
     bool modulosCargados = !esEdicion;
     
     bool guardando = false;
     final formKey = GlobalKey<FormState>();
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
           if (!modulosCargados && esEdicion) {
             modulosCargados = true; 
             supabase.from('permisos_pantallas').select().then((data) {
               List<String> seleccion = [];
+              List<String> denegados = [];
               for(var row in data) {
                  var permitidos = List<String>.from((row['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
+                 var dgs = List<String>.from((row['usuarios_denegados'] as List?)?.map((e) => e.toString()) ?? []);
                  if (permitidos.contains(usuario['id'])) {
                     seleccion.add(row['pantalla_id'].toString());
                  }
+                 if (dgs.contains(usuario['id'])) {
+                    denegados.add(row['pantalla_id'].toString());
+                 }
               }
-              if (ctx.mounted) setS(() { modulosSeleccionados = seleccion; });
+              if (ctx.mounted) setS(() { modulosSeleccionados = seleccion; modulosDenegados = denegados; });
             });
           }
           
-          return Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: formKey,
+          List<String> modulosBase = getModulosBase(rol);
+          
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Container(
+              width: 700,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 30, offset: const Offset(0, 10))
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40, height: 4,
-                        margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                    // CABECERA
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [Colors.indigo.shade800, Colors.indigo.shade600]),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(esEdicion ? Icons.edit_note : Icons.person_add_alt_1, color: Colors.white, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  esEdicion ? 'Editar Acceso ERP' : 'Crear Nuevo Acceso ERP',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                                Text(
+                                  esEdicion ? 'Actualiza los datos y permisos del usuario.' : 'Asigna rol y módulos a la nueva cuenta.',
+                                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => Navigator.pop(ctx),
+                          )
+                        ],
                       ),
                     ),
-                    Text(
-                      esEdicion ? 'Editar Acceso Existente' : 'Crear Nuevo Acceso ERP',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      esEdicion ? 'Modifica el nombre o rol del usuario en el sistema.' : 'Se creará una cuenta con el rol asignado.',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    ),
-                    const SizedBox(height: 24),
-                    _input(nombreCtrl, 'Nombre Completo *', Icons.person_outline, requerido: true),
-                    if (!esEdicion) ...[
-                      const SizedBox(height: 16),
-                      _input(emailCtrl, 'Correo Electrónico *', Icons.email_outlined, requerido: true, kb: TextInputType.emailAddress),
-                      const SizedBox(height: 16),
-                      _input(passCtrl, 'Contraseña (mín. 6 caracteres) *', Icons.lock_outline, requerido: true),
-                    ],
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: rol,
-                      decoration: InputDecoration(
-                        labelText: 'Rol en el Sistema *',
-                        prefixIcon: const Icon(Icons.admin_panel_settings_outlined, color: Color(0xFF4F46E5)),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      items: roles.map((r) => DropdownMenuItem(value: r, child: Text(r.toUpperCase()))).toList(),
-                      onChanged: (val) => setS(() => rol = val!),
-                    ),
                     
-                    const SizedBox(height: 24),
-                    const Text('Módulos Adicionales (Opcional)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    const Text('Otorga acceso a módulos extra independientemente del rol.', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8, runSpacing: 8,
-                      children: modulosDisponibles.map((m) {
-                        bool sel = modulosSeleccionados.contains(m['id']);
-                        return FilterChip(
-                          label: Text(m['nombre']!),
-                          selected: sel,
-                          onSelected: (val) {
-                            setS(() {
-                               if (val) modulosSeleccionados.add(m['id']!);
-                               else modulosSeleccionados.remove(m['id']);
-                            });
-                          },
-                          selectedColor: const Color(0xFF4F46E5).withOpacity(0.2),
-                          checkmarkColor: const Color(0xFF4F46E5),
-                        );
-                      }).toList(),
-                    ),
-                    
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: guardando ? null : () async {
-                          if (!formKey.currentState!.validate()) return;
-                          if (!esEdicion && passCtrl.text.length < 6) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres'), backgroundColor: Colors.red));
-                            return;
-                          }
-                          setS(() => guardando = true);
-                          try {
-                            String currentUserId = "";
-                            if (esEdicion) {
-                              currentUserId = usuario['id'];
-                              await supabase.from('usuarios').update({'nombre': nombreCtrl.text.trim(), 'rol': rol}).eq('id', currentUserId);
-                            } else {
-                              final tempClient = SupabaseClient(
-                                "http://91.98.135.205:8000",
-                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
-                                authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
-                              );
-                              final AuthResponse res = await tempClient.auth.signUp(
-                                email: emailCtrl.text.trim(),
-                                password: passCtrl.text.trim(),
-                                data: {'nombre': nombreCtrl.text.trim(), 'rol': rol},
-                              );
-                              if (res.user != null) {
-                                currentUserId = res.user!.id;
-                                await supabase.from('usuarios').upsert({'id': currentUserId, 'nombre': nombreCtrl.text.trim(), 'rol': rol});
-                              } else {
-                                throw Exception('No se pudo crear el usuario.');
-                              }
-                              tempClient.dispose();
-                            }
-                            
-                            if (currentUserId.isNotEmpty) {
-                              final dataPerms = await supabase.from('permisos_pantallas').select();
-                              for(var m in modulosDisponibles) {
-                                  String mId = m['id']!;
-                                  var existingRow = dataPerms.where((row) => row['pantalla_id'] == mId).toList();
-                                  List<String> permitidos = [];
-                                  if (existingRow.isNotEmpty) {
-                                      permitidos = List<String>.from((existingRow.first['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
+                    // FORMULARIO Y MÓDULOS (SCROLLABLE)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Form(
+                          key: formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: _input(nombreCtrl, 'Nombre Completo *', Icons.person_outline, requerido: true)),
+                                  const SizedBox(width: 16),
+                                  if (!esEdicion)
+                                    Expanded(child: _input(emailCtrl, 'Correo *', Icons.email_outlined, requerido: true, kb: TextInputType.emailAddress))
+                                  else
+                                    Expanded(child: _input(passCtrl, 'Nueva Contraseña (Opcional)', Icons.lock_reset_outlined, requerido: false)),
+                                ],
+                              ),
+                              if (!esEdicion) ...[
+                                const SizedBox(height: 16),
+                                _input(passCtrl, 'Contraseña (mín. 6 caracteres) *', Icons.lock_outline, requerido: true),
+                              ],
+                              const SizedBox(height: 16),
+                              DropdownButtonFormField<String>(
+                                value: rol,
+                                decoration: InputDecoration(
+                                  labelText: 'Rol Principal en el Sistema *',
+                                  prefixIcon: const Icon(Icons.admin_panel_settings_outlined, color: Color(0xFF4F46E5)),
+                                  filled: true,
+                                  fillColor: Colors.indigo.shade50.withOpacity(0.5),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                ),
+                                items: roles.map((r) => DropdownMenuItem(value: r, child: Text(r.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1E293B))))).toList(),
+                                onChanged: (val) {
+                                  setS(() {
+                                    rol = val!;
+                                    modulosDenegados.clear();
+                                  });
+                                },
+                              ),
+                              
+                              const SizedBox(height: 32),
+                              const Row(
+                                children: [
+                                  Icon(Icons.dashboard_customize_outlined, color: Color(0xFF4F46E5)),
+                                  SizedBox(width: 8),
+                                  Text('Panel de Accesos (Módulos)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text('Los módulos que vienen con su rol tienen un candado. Puedes revocarlos haciendo clic. Los módulos en blanco pueden añadirse como permisos extra.', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                              const SizedBox(height: 16),
+                              
+                              Wrap(
+                                spacing: 12, runSpacing: 12,
+                                children: modulosDisponibles.map((m) {
+                                  String mId = m['id'];
+                                  bool esBase = modulosBase.contains(mId);
+                                  bool denegado = modulosDenegados.contains(mId);
+                                  bool selExtra = modulosSeleccionados.contains(mId);
+                                  
+                                  bool tieneAcceso = (esBase && !denegado) || (!esBase && selExtra);
+                                  
+                                  Color bgColor = Colors.white;
+                                  Color borderColor = Colors.grey.shade300;
+                                  Color iconColor = Colors.grey.shade500;
+                                  Color textColor = Colors.grey.shade800;
+                                  
+                                  if (tieneAcceso) {
+                                    if (esBase) {
+                                      bgColor = Colors.indigo.shade50;
+                                      borderColor = Colors.indigo.shade300;
+                                      iconColor = Colors.indigo.shade700;
+                                      textColor = Colors.indigo.shade900;
+                                    } else {
+                                      bgColor = const Color(0xFF4F46E5);
+                                      borderColor = const Color(0xFF4F46E5);
+                                      iconColor = Colors.white;
+                                      textColor = Colors.white;
+                                    }
+                                  } else {
+                                    if (esBase && denegado) {
+                                      bgColor = Colors.red.shade50;
+                                      borderColor = Colors.red.shade200;
+                                      iconColor = Colors.red.shade400;
+                                      textColor = Colors.red.shade700;
+                                    }
                                   }
-                                  bool isSelected = modulosSeleccionados.contains(mId);
-                                  if (isSelected && !permitidos.contains(currentUserId)) {
-                                      permitidos.add(currentUserId);
-                                      await supabase.from('permisos_pantallas').upsert({'pantalla_id': mId, 'usuarios_permitidos': permitidos, 'oculto_global': false});
-                                  } else if (!isSelected && permitidos.contains(currentUserId)) {
-                                      permitidos.remove(currentUserId);
-                                      await supabase.from('permisos_pantallas').upsert({'pantalla_id': mId, 'usuarios_permitidos': permitidos, 'oculto_global': false});
-                                  }
-                              }
-                            }
-                            
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            _cargarUsuarios();
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(esEdicion ? 'Acceso actualizado' : 'Usuario creado exitosamente'), backgroundColor: const Color(0xFF059669)));
-                          } on AuthException catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Auth: ${e.message}'), backgroundColor: Colors.red));
-                            setS(() => guardando = false);
-                          } catch (e) {
-                            debugPrint('Error acceso: $e');
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al guardar. Revisa la consola.'), backgroundColor: Colors.red));
-                            setS(() => guardando = false);
-                          }
-                        },
-                        icon: guardando ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.save_outlined),
-                        label: Text(esEdicion ? 'Guardar Cambios' : 'Crear Acceso'),
-                        style: FilledButton.styleFrom(
-                           backgroundColor: Colors.indigo.shade800,
-                           padding: const EdgeInsets.symmetric(vertical: 16),
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setS(() {
+                                         if (esBase) {
+                                           if (denegado) modulosDenegados.remove(mId);
+                                           else modulosDenegados.add(mId);
+                                         } else {
+                                           if (selExtra) modulosSeleccionados.remove(mId);
+                                           else modulosSeleccionados.add(mId);
+                                         }
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: 200, // Ancho fijo para las tarjetas en Wrap
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                      decoration: BoxDecoration(
+                                        color: bgColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: borderColor, width: 1.5),
+                                        boxShadow: tieneAcceso && !esBase ? [BoxShadow(color: const Color(0xFF4F46E5).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(m['icono'], color: iconColor, size: 20),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              m['nombre'],
+                                              style: TextStyle(
+                                                color: textColor,
+                                                fontWeight: tieneAcceso ? FontWeight.bold : FontWeight.w500,
+                                                fontSize: 12,
+                                                decoration: esBase && denegado ? TextDecoration.lineThrough : null,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (esBase && !denegado) Icon(Icons.lock, color: iconColor, size: 14)
+                                          else if (esBase && denegado) Icon(Icons.block, color: iconColor, size: 14)
+                                          else if (!esBase && selExtra) const Icon(Icons.check_circle, color: Colors.white, size: 16)
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ).animate().fade().slideY(begin: 0.1, end: 0),
+                            ],
+                          ),
                         ),
+                      ),
+                    ),
+                    
+                    // PIE DE MODAL (BOTÓN GUARDAR)
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancelar', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 16),
+                          FilledButton.icon(
+                            onPressed: guardando ? null : () async {
+                              if (!formKey.currentState!.validate()) return;
+                              if (!esEdicion && passCtrl.text.length < 6) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres'), backgroundColor: Colors.red));
+                                return;
+                              }
+                              setS(() => guardando = true);
+                              try {
+                                String currentUserId = "";
+                                if (esEdicion) {
+                                  currentUserId = usuario['id'];
+                                  await supabase.from('usuarios').update({'nombre': nombreCtrl.text.trim(), 'rol': rol}).eq('id', currentUserId);
+                                  if (passCtrl.text.trim().isNotEmpty) {
+                                    await supabase.rpc('admin_reset_password', params: {
+                                      'target_user_id': currentUserId,
+                                      'new_password': passCtrl.text.trim(),
+                                    });
+                                  }
+                                } else {
+                                  final tempClient = SupabaseClient(
+                                    "http://91.98.135.205:8000",
+                                    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
+                                    authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
+                                  );
+                                  final AuthResponse res = await tempClient.auth.signUp(
+                                    email: emailCtrl.text.trim(),
+                                    password: passCtrl.text.trim(),
+                                    data: {'nombre': nombreCtrl.text.trim(), 'rol': rol},
+                                  );
+                                  if (res.user != null) {
+                                    currentUserId = res.user!.id;
+                                    await supabase.from('usuarios').upsert({'id': currentUserId, 'nombre': nombreCtrl.text.trim(), 'rol': rol});
+                                  } else {
+                                    throw Exception('No se pudo crear el usuario.');
+                                  }
+                                  tempClient.dispose();
+                                }
+                                
+                                if (currentUserId.isNotEmpty) {
+                                  final dataPerms = await supabase.from('permisos_pantallas').select();
+                                  for(var m in modulosDisponibles) {
+                                      String mId = m['id']!;
+                                      var existingRow = dataPerms.where((row) => row['pantalla_id'] == mId).toList();
+                                      List<String> permitidos = [];
+                                      List<String> denegadosDB = [];
+                                      if (existingRow.isNotEmpty) {
+                                          permitidos = List<String>.from((existingRow.first['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
+                                          denegadosDB = List<String>.from((existingRow.first['usuarios_denegados'] as List?)?.map((e) => e.toString()) ?? []);
+                                      }
+                                      
+                                      bool isSelected = modulosSeleccionados.contains(mId);
+                                      bool isDenied = modulosDenegados.contains(mId);
+                                      
+                                      bool needsUpdate = false;
+                                      
+                                      if (isSelected && !permitidos.contains(currentUserId)) {
+                                          permitidos.add(currentUserId); needsUpdate = true;
+                                      } else if (!isSelected && permitidos.contains(currentUserId)) {
+                                          permitidos.remove(currentUserId); needsUpdate = true;
+                                      }
+                                      
+                                      if (isDenied && !denegadosDB.contains(currentUserId)) {
+                                          denegadosDB.add(currentUserId); needsUpdate = true;
+                                      } else if (!isDenied && denegadosDB.contains(currentUserId)) {
+                                          denegadosDB.remove(currentUserId); needsUpdate = true;
+                                      }
+                                      
+                                      if (needsUpdate) {
+                                          await supabase.from('permisos_pantallas').upsert({
+                                            'pantalla_id': mId, 
+                                            'usuarios_permitidos': permitidos,
+                                            'usuarios_denegados': denegadosDB,
+                                            'oculto_global': false
+                                          });
+                                      }
+                                  }
+                                }
+                                
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                _cargarUsuarios();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(esEdicion ? 'Acceso actualizado' : 'Usuario creado exitosamente'), backgroundColor: const Color(0xFF059669)));
+                              } on AuthException catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error de autenticación: ${e.message}'), backgroundColor: Colors.red));
+                                setS(() => guardando = false);
+                              } catch (e) {
+                                debugPrint('Error acceso: $e');
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                                setS(() => guardando = false);
+                              }
+                            },
+                            icon: guardando ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.save_outlined),
+                            label: Text(esEdicion ? 'Guardar Cambios' : 'Crear Acceso'),
+                            style: FilledButton.styleFrom(
+                               backgroundColor: Colors.indigo.shade800,
+                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        );
+          );
         },
       ),
     );
   }
-
 
   // ══════════════════════════════════════════════════════════════
   // HELPERS REUTILIZABLES

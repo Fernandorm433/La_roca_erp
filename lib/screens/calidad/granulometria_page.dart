@@ -300,6 +300,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
       );
       logoBytes = logoData.buffer.asUint8List();
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -314,6 +315,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
     // 4. Generar PDF
     if (!mounted) return;
     final ctx = context;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(ctx).showSnackBar(
       SnackBar(
         content: const Text('Generando PDF...'),

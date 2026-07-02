@@ -77,8 +77,10 @@ class _ControlCombustiblePageState extends State<ControlCombustiblePage> {
       _montoController.clear();
       _cargarDatos();
       
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guardado exitosamente'), backgroundColor: Colors.green));
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red));
     }
   }
@@ -88,6 +90,7 @@ class _ControlCombustiblePageState extends State<ControlCombustiblePage> {
       await supabase.from('registro_combustible').delete().eq('id', id);
       _cargarDatos();
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: Colors.red));
     }
   }

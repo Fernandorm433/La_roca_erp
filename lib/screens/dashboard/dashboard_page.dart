@@ -160,6 +160,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
     if (fechaInicio == null) return;
 
     final DateTime? fechaFin = await showDatePicker(
+      if (!context.mounted) return;
       context: context,
       initialDate: fechaInicio,
       firstDate: DateTime(2020),
