@@ -181,7 +181,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
 
       final conductoresData = await supabase
           .from("conductores")
-          .select("id, nombre, marca")
+          .select("id, nombre, marca, usuario_id")
           .order("nombre");
 
       List<dynamic> carguiosData = [];
@@ -1001,11 +1001,14 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                       setState((){});
                       _guardarFilaUnica(idVenta, f);
                       if (isNew) {
-                         NotificationService().notificarUsuario(
-                           userId: val, 
-                           titulo: '🚚 Nueva Ruta Asignada', 
-                           cuerpo: 'Tienes un viaje a ${v['nombre_razon_social'] ?? 'obra'} en ${v['direccion'] ?? 'el destino asignado'}.'
-                         );
+                         String? uId = cond['usuario_id']?.toString();
+                         if (uId != null && uId.isNotEmpty) {
+                            NotificationService().notificarUsuario(
+                              userId: uId, 
+                              titulo: '🚚 Nueva Ruta Asignada', 
+                              cuerpo: 'Tienes un viaje a ${v['nombre_razon_social'] ?? 'obra'} en ${v['direccion'] ?? 'el destino asignado'}.'
+                            );
+                         }
                       }
                     }
                   },
