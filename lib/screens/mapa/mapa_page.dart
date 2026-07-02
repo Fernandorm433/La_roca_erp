@@ -387,8 +387,8 @@ class _MapaPageState extends State<MapaPage> {
     );
 
     if (pickedDate != null && mounted) {
+      if (!context.mounted) return;
       final TimeOfDay? pickedTime = await showTimePicker(
-        if (!context.mounted) return;
         context: context,
         initialTime: TimeOfDay.fromDateTime(initialDate),
       );
