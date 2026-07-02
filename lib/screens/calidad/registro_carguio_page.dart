@@ -1,9 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async'; // NUEVO
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/helpers.dart';
 import '../../core/services/notificacion_service.dart';
+
+class _CarguioItem {
+  final Map<String, dynamic> carguioRaw;
+  final Map<String, dynamic> ventaRaw;
+  final int ordenCarga;
+  final String estado;
+  final DateTime? fechaRegistro;
+
+  _CarguioItem({
+    required this.carguioRaw,
+    required this.ventaRaw,
+    required this.ordenCarga,
+    required this.estado,
+    this.fechaRegistro,
+  });
+}
 
 class RegistroCarguioPage extends StatefulWidget {
   const RegistroCarguioPage({super.key});
@@ -17,9 +34,11 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   bool loading = true;
   bool guardando = false;
   RealtimeChannel? _subscription;
+  Timer? _timer;
 
-  List ventasDelDia = [];
-  Map<String, dynamic>? ventaSeleccionada;
+  List<_CarguioItem> carguiosDelDia = [];
+  _CarguioItem? carguioSeleccionado;
+  
   Map<String, dynamic>? disenoActual;
   List disenosMezcla = [];
   Map<String, String> bombasPorVenta = {}; // <-- NUEVO PARA BOMBAS
@@ -55,6 +74,9 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     super.initState();
     _cargarDatosIniciales();
     _suscribirseACarguios();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _suscribirseACarguios() {
@@ -65,40 +87,20 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
           schema: 'public',
           table: 'carguios_mixers',
           callback: (payload) {
-            _procesarActualizacionCarguio(payload);
+            _cargarDatosIniciales(silent: true);
           },
         )
         .subscribe();
   }
 
   void _procesarActualizacionCarguio(PostgresChangePayload payload) async {
-    if (!mounted) return;
-    final newData = payload.newRecord;
-    if (newData.isNotEmpty) {
-      double vol = double.tryParse(newData['volumen_carguio']?.toString() ?? '0') ?? 0.0;
-      String idVenta = newData['id_venta']?.toString() ?? '';
-      
-      if (vol > 0 && idVenta.isNotEmpty) {
-        final vIdx = ventasDelDia.indexWhere((v) => v['id'].toString() == idVenta);
-        if (vIdx != -1) {
-          if (!guardando) {
-            _seleccionarVenta(ventasDelDia[vIdx]);
-          }
-        } else {
-          await _cargarDatosIniciales();
-          if (!mounted) return;
-          final vIdxNew = ventasDelDia.indexWhere((v) => v['id'].toString() == idVenta);
-          if (vIdxNew != -1 && !guardando) {
-            _seleccionarVenta(ventasDelDia[vIdxNew]);
-          }
-        }
-      }
-    }
+    // Ya no se usa directamente, recarga silenciosa en su lugar
   }
 
   @override
   void dispose() {
     _subscription?.unsubscribe();
+    _timer?.cancel();
     cOrdenCarguio.dispose();
     cVolumen.dispose();
     cMixer.dispose();
@@ -113,46 +115,80 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     super.dispose();
   }
 
-  Future _cargarDatosIniciales() async {
-    setState(() => loading = true);
+  Future _cargarDatosIniciales({bool silent = false}) async {
+    if (!silent) setState(() => loading = true);
     try {
       String hoy = DateTime.now().toIso8601String().split('T')[0];
       String manana = DateTime.now().add(const Duration(days: 1)).toIso8601String().split('T')[0];
 
-      // 1. Cargar Ventas del día
       final vData = await supabase
           .from('ventas_programacion')
           .select()
           .gte('fecha_entrega', hoy)
           .lt('fecha_entrega', manana);
 
-      // Solo pedidos con volumen asignado
-      List filtradas = [];
-      for (var v in vData) {
-        String volStr = v['volumen']?.toString() ?? '0';
-        double vol = double.tryParse(volStr.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-        if (vol > 0) filtradas.add(v);
-      }
-
-      await _cargarDisenos();
-
-      // CARGAR BOMBAS
       final asignaciones = await supabase.from("asignacion_bombas").select();
       Map<String, String> mapaBombas = {};
       for (var a in asignaciones) {
         mapaBombas[a['id_venta'].toString()] = a['bomba_asignada'].toString();
       }
 
+      final cData = await supabase.from('carguios_mixers').select();
+      
+      final dData = await supabase
+          .from('despachos_produccion')
+          .select('orden_carguio, cliente, fecha')
+          .gte('fecha', hoy);
+
+      List<_CarguioItem> listaFinal = [];
+
+      for (var c in cData) {
+        String idVenta = c['id_venta']?.toString() ?? '';
+        String ordenCargaStr = c['orden_carga']?.toString() ?? '';
+        int? ordenCarga = int.tryParse(ordenCargaStr);
+        
+        if (ordenCarga != null && idVenta.isNotEmpty) {
+          final ventaList = vData.where((v) => v['id'].toString() == idVenta).toList();
+          if (ventaList.isNotEmpty) {
+            var venta = ventaList.first;
+            String cliente = venta['nombre_razon_social'] ?? '';
+            String estado = c['estado']?.toString() ?? 'Pendiente';
+            
+            final despList = dData.where((d) => 
+               d['cliente'] == cliente && 
+               d['orden_carguio']?.toString() == ordenCarga.toString()
+            ).toList();
+            
+            DateTime? fechaReg;
+            if (despList.isNotEmpty) {
+              String fechaStr = despList.last['fecha'];
+              fechaReg = DateTime.tryParse(fechaStr);
+            }
+
+            listaFinal.add(_CarguioItem(
+              carguioRaw: c,
+              ventaRaw: venta,
+              ordenCarga: ordenCarga,
+              estado: estado,
+              fechaRegistro: fechaReg,
+            ));
+          }
+        }
+      }
+
+      listaFinal.sort((a, b) => a.ordenCarga.compareTo(b.ordenCarga));
+      await _cargarDisenos();
+
       if (mounted) {
         setState(() {
-          ventasDelDia = filtradas;
+          carguiosDelDia = listaFinal;
           bombasPorVenta = mapaBombas;
           loading = false;
         });
       }
     } catch (e) {
-      Helpers.showSnackBar(context, 'Error al cargar datos: $e', isError: true);
-      if (mounted) setState(() => loading = false);
+      if (!silent) Helpers.showSnackBar(context, 'Error al cargar datos: $e', isError: true);
+      if (mounted && !silent) setState(() => loading = false);
     }
   }
 
@@ -181,52 +217,38 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     }
   }
 
-  Future<void> _seleccionarVenta(Map<String, dynamic> venta) async {
+  Future<void> _seleccionarCarguio(_CarguioItem item) async {
     setState(() {
-      ventaSeleccionada = venta;
-      cVolumen.text = venta['volumen']?.toString() ?? "";
+      carguioSeleccionado = item;
+      cVolumen.text = item.ventaRaw['volumen']?.toString() ?? "";
       cMixer.clear();
       cOperador.clear();
       cOrdenCarguio.clear();
     });
 
     try {
-      // Buscar el mixer y operador asignados en la hoja "Despachos" (carguios_mixers)
-      final carguios = await supabase
-          .from('carguios_mixers')
-          .select()
-          .eq('id_venta', venta['id'])
-          .order('id', ascending: true); // Podríamos buscar el primero que esté 'Pendiente', por ahora el último o primero
-      
-      if (carguios.isNotEmpty) {
-        // Buscar el primer carguío que no esté Entregado/Finalizado, o el primero por defecto
-        final activo = carguios.firstWhere(
-          (c) => c['estado'] != 'Entregado' && c['estado'] != 'Terminado',
-          orElse: () => carguios.last,
-        );
-
-        if (mounted) {
-          setState(() {
-            cMixer.text = activo['codigo_mixer']?.toString() ?? '';
-            cOperador.text = activo['operador_nombre']?.toString() ?? '';
-            cOrdenCarguio.text = activo['orden_carga']?.toString() ?? '1';
-            
-            double volBase = double.tryParse(activo['volumen_carguio']?.toString() ?? '0') ?? 0.0;
-            double opt = double.tryParse(activo['optimizado_vol']?.toString() ?? '0') ?? 0.0;
-            double rep = double.tryParse(activo['reprocesado_vol']?.toString() ?? '0') ?? 0.0;
-            
-            optSeleccionado = opt;
-            repSeleccionado = rep;
-            
-            if (volBase > 0) {
-               double volNeto = volBase - opt - rep;
-               cVolumen.text = volNeto.toStringAsFixed(2);
-            }
-          });
-        }
+      final activo = item.carguioRaw;
+      if (mounted) {
+        setState(() {
+          cMixer.text = activo['codigo_mixer']?.toString() ?? '';
+          cOperador.text = activo['operador_nombre']?.toString() ?? '';
+          cOrdenCarguio.text = activo['orden_carga']?.toString() ?? '1';
+          
+          double volBase = double.tryParse(activo['volumen_carguio']?.toString() ?? '0') ?? 0.0;
+          double opt = double.tryParse(activo['optimizado_vol']?.toString() ?? '0') ?? 0.0;
+          double rep = double.tryParse(activo['reprocesado_vol']?.toString() ?? '0') ?? 0.0;
+          
+          optSeleccionado = opt;
+          repSeleccionado = rep;
+          
+          if (volBase > 0) {
+             double volNeto = volBase - opt - rep;
+             cVolumen.text = volNeto.toStringAsFixed(2);
+          }
+        });
       }
     } catch (e) {
-      debugPrint("Error al cargar detalles de despacho: $e");
+      debugPrint("Error al seleccionar carguío: $e");
     }
 
     _calcularDiseno();
@@ -243,7 +265,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   }
 
   void _calcularDiseno() {
-    if (ventaSeleccionada == null) return;
+    if (carguioSeleccionado == null) return;
     
     double vol = double.tryParse(cVolumen.text) ?? 0;
     if (vol <= 0) {
@@ -251,11 +273,12 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
       return;
     }
 
-    String huso = (ventaSeleccionada!['huso'] ?? '').toString().trim();
-    String resistenciaRaw = (ventaSeleccionada!['diseno'] ?? '').toString().trim();
+    final ventaSel = carguioSeleccionado!.ventaRaw;
+    String huso = (ventaSel['huso'] ?? '').toString().trim();
+    String resistenciaRaw = (ventaSel['diseno'] ?? '').toString().trim();
     
     // Determinar si es BOMBEABLE o DIRECTO a partir de la columna 'bombas' o 'tipo_vaciado'
-    String tipoVaciado = _getTipoVaciado(ventaSeleccionada!);
+    String tipoVaciado = _getTipoVaciado(ventaSel);
 
     // Limpiar la resistencia porque ventas puede traer "F'c= 175" y en BD es solo "175"
     String resistenciaClean = resistenciaRaw.replaceAll(RegExp(r"f'c=?\s*", caseSensitive: false), "").trim();
@@ -337,8 +360,8 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   }
 
   Future _guardarCarguio() async {
-    if (ventaSeleccionada == null) {
-      Helpers.showSnackBar(context, 'Seleccione un pedido primero', isError: true);
+    if (carguioSeleccionado == null) {
+      Helpers.showSnackBar(context, 'Seleccione un viaje primero', isError: true);
       return;
     }
     double vol = double.tryParse(cVolumen.text) ?? 0;
@@ -350,17 +373,18 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     setState(() => guardando = true);
 
     try {
+      final v = carguioSeleccionado!.ventaRaw;
       final payload = {
         'fecha': DateTime.now().toIso8601String(),
         'orden_carguio': int.tryParse(cOrdenCarguio.text) ?? 1,
-        'cliente': ventaSeleccionada!['nombre_razon_social'],
-        'ubicacion': ventaSeleccionada!['direccion'],
+        'cliente': v['nombre_razon_social'],
+        'ubicacion': v['direccion'],
         'operador': cOperador.text.trim(),
         'mixer': cMixer.text.trim(),
         'volumen': vol,
-        'diseno': ventaSeleccionada!['diseno'],
-        'huso': ventaSeleccionada!['huso'],
-        'tipo_vaciado': ventaSeleccionada!['tipo_vaciado'],
+        'diseno': v['diseno'],
+        'huso': v['huso'],
+        'tipo_vaciado': v['tipo_vaciado'],
         'estado': 'programada',
         'optimizado': optSeleccionado,
         'reprocesado': repSeleccionado,
@@ -385,6 +409,11 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
       };
 
       await supabase.from('despachos_produccion').insert(payload);
+      
+      String idCarguio = carguioSeleccionado!.carguioRaw['id'].toString();
+      await supabase.from('carguios_mixers').update({
+        'estado': 'REGISTRADO'
+      }).eq('id', idCarguio);
       
       // Verificación de tolerancia (Calidad)
       bool isFueraDeTolerancia(double realVal, double disenoVal) {
@@ -411,14 +440,14 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         await NotificationService().notificarPorRoles(
           roles: ['calidad', 'jefe_op'],
           titulo: '⚠️ Alerta de Calidad (> 5%)',
-          cuerpo: 'El carguío del Mixer ${cMixer.text.trim()} para ${ventaSeleccionada!['nombre_razon_social']} presenta variaciones fuera de norma.',
+          cuerpo: 'El carguío del Mixer ${cMixer.text.trim()} para ${v['nombre_razon_social']} presenta variaciones fuera de norma.',
         );
       }
 
       Helpers.showSnackBar(context, 'Carguío registrado exitosamente');
       
       setState(() {
-        ventaSeleccionada = null;
+        carguioSeleccionado = null;
         cVolumen.clear();
         cRealCemento.clear();
         cRealArena.clear();
@@ -494,6 +523,23 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     );
   }
 
+  Color _getColorForCarguio(_CarguioItem item) {
+    String estado = item.estado.toUpperCase();
+    if (estado == 'CARGANDO') return Colors.yellow.shade100;
+    
+    if (item.fechaRegistro != null) {
+      final diff = DateTime.now().difference(item.fechaRegistro!).inMinutes;
+      if (diff < 10) return Colors.blue.shade100;
+      return Colors.green.shade100;
+    }
+    
+    if (estado == 'REGISTRADO' || estado == 'DESPACHADO' || estado == 'EN OBRA') {
+      return Colors.green.shade50;
+    }
+    
+    return Colors.white;
+  }
+
   Widget _buildListaPedidos({required bool isMobile}) {
     Widget content = Container(
       decoration: BoxDecoration(
@@ -501,30 +547,38 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: ventasDelDia.isEmpty
+      child: carguiosDelDia.isEmpty
           ? const Padding(
               padding: EdgeInsets.all(32.0),
-              child: Center(child: Text("No hay pedidos programados para hoy.", style: TextStyle(color: Colors.grey, fontSize: 16))),
+              child: Center(child: Text("No hay viajes programados con número de orden.", style: TextStyle(color: Colors.grey, fontSize: 16))),
             )
           : ListView.separated(
               shrinkWrap: isMobile,
               physics: isMobile ? const NeverScrollableScrollPhysics() : null,
               padding: const EdgeInsets.all(16),
-              itemCount: ventasDelDia.length,
+              itemCount: carguiosDelDia.length,
               separatorBuilder: (context, index) => const Divider(height: 24),
               itemBuilder: (context, i) {
-                final v = ventasDelDia[i];
-                bool seleccionado = ventaSeleccionada != null && ventaSeleccionada!['id'] == v['id'];
+                final item = carguiosDelDia[i];
+                final v = item.ventaRaw;
+                bool seleccionado = carguioSeleccionado != null && carguioSeleccionado!.carguioRaw['id'] == item.carguioRaw['id'];
+                
+                Color cardColor = _getColorForCarguio(item);
+
                 return InkWell(
-                  onTap: () => _seleccionarVenta(v),
+                  onTap: () => _seleccionarCarguio(item),
                   borderRadius: BorderRadius.circular(12),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
+                    duration: const Duration(milliseconds: 300),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: seleccionado ? AppColors.accent.withOpacity(0.05) : Colors.white,
+                      color: seleccionado ? AppColors.accent.withOpacity(0.1) : cardColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: seleccionado ? AppColors.accent : Colors.grey.shade200, width: seleccionado ? 2 : 1),
+                      border: Border.all(
+                        color: seleccionado ? AppColors.accent : (cardColor == Colors.white ? Colors.grey.shade200 : cardColor.withOpacity(0.8)), 
+                        width: seleccionado ? 2 : 1
+                      ),
+                      boxShadow: cardColor != Colors.white && !seleccionado ? [BoxShadow(color: cardColor.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))] : [],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,20 +586,26 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(child: Text(v['nombre_razon_social'] ?? 'Desconocido', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryDark))),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
+                              child: Text("#${item.ordenCarga}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(v['nombre_razon_social'] ?? 'Desconocido', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primaryDark), overflow: TextOverflow.ellipsis)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                              child: Text("${v['volumen']} m³", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.accent)),
+                              child: Text("${item.carguioRaw['volumen_carguio'] ?? '0'} m³", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.accent)),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
-                            const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                            Icon(Icons.fire_truck, size: 16, color: Colors.grey.shade700),
                             const SizedBox(width: 4),
-                            Expanded(child: Text("${v['direccion']}", style: const TextStyle(color: Colors.grey, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            Text("Mixer ${item.carguioRaw['codigo_mixer'] ?? '-'} | ${item.carguioRaw['operador_nombre'] ?? '-'}", style: TextStyle(color: Colors.grey.shade800, fontSize: 13, fontWeight: FontWeight.w600)),
                           ],
                         ),
                         const SizedBox(height: 8),
