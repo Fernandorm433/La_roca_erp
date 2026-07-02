@@ -1710,13 +1710,20 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.edit_outlined,
-                    color: Color(0xFF4F46E5),
-                  ),
-                  tooltip: 'Editar Acceso',
-                  onPressed: () => _abrirFormUsuario(usuario: u),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: Color(0xFF4F46E5)),
+                      tooltip: 'Editar Acceso',
+                      onPressed: () => _abrirFormUsuario(usuario: u),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      tooltip: 'Eliminar Acceso',
+                      onPressed: () => _confirmarEliminacionUsuario(u['id']),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -2749,26 +2756,76 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   // FORM: USUARIO / ACCESO ERP
   // ══════════════════════════════════════════════════════════════
 
+  Future<void> _confirmarEliminacionUsuario(String userId) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar Acceso'),
+        content: const Text('¿Estás seguro de que deseas eliminar este acceso permanentemente? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await supabase.rpc('delete_user', params: {'target_user_id': userId});
+        _cargarUsuarios();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Usuario eliminado exitosamente'), backgroundColor: Colors.green),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error eliminando usuario: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   void _abrirFormUsuario({Map<String, dynamic>? usuario}) {
     final esEdicion = usuario != null;
-    final nombreCtrl = TextEditingController(
-      text: esEdicion ? usuario['nombre'] : '',
-    );
+    final nombreCtrl = TextEditingController(text: esEdicion ? usuario['nombre'] : '');
     final emailCtrl = TextEditingController();
     final passCtrl = TextEditingController();
     String rol = esEdicion ? (usuario['rol'] ?? 'empleados') : 'empleados';
     const roles = [
-      'admin',
-      'programacion',
-      'logistica',
-      'rrhh',
-      'calidad',
-      'ventas',
-      'asesor',
-      'jefe_operadores',
-      'operador',
-      'empleados',
+      'admin', 'programacion', 'logistica', 'rrhh', 'calidad',
+      'ventas', 'asesor', 'jefe_operadores', 'operador', 'empleados',
     ];
+    
+    final List<Map<String, String>> modulosDisponibles = [
+      {'id': 'ventas', 'nombre': 'Ventas y Seguimiento'},
+      {'id': 'cotizaciones', 'nombre': 'Cotizaciones'},
+      {'id': 'requerimientos', 'nombre': 'Requerimientos'},
+      {'id': 'ordenes_pedido', 'nombre': 'Órdenes de Pedido'},
+      {'id': 'clientes', 'nombre': 'Directorio Clientes'},
+      {'id': 'despachos', 'nombre': 'Gestor Mixers'},
+      {'id': 'mis_carguios', 'nombre': 'Mis Carguíos'},
+      {'id': 'checklist', 'nombre': 'Checklists'},
+      {'id': 'registro_carguio', 'nombre': 'Registro de Carguío'},
+      {'id': 'disenos_mezcla', 'nombre': 'Diseños de Mezcla'},
+      {'id': 'costos', 'nombre': 'Costos'},
+      {'id': 'tesoreria', 'nombre': 'Tesorería'},
+      {'id': 'liquidaciones', 'nombre': 'Liquidaciones'},
+      {'id': 'gps_flota', 'nombre': 'GPS Flota'},
+    ];
+    List<String> modulosSeleccionados = [];
+    bool modulosCargados = !esEdicion;
+    
     bool guardando = false;
     final formKey = GlobalKey<FormState>();
 
@@ -2777,10 +2834,23 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
+        builder: (ctx, setS) {
+          if (!modulosCargados && esEdicion) {
+            modulosCargados = true; 
+            supabase.from('permisos_pantallas').select().then((data) {
+              List<String> seleccion = [];
+              for(var row in data) {
+                 var permitidos = List<String>.from((row['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
+                 if (permitidos.contains(usuario['id'])) {
+                    seleccion.add(row['pantalla_id'].toString());
+                 }
+              }
+              if (ctx.mounted) setS(() { modulosSeleccionados = seleccion; });
+            });
+          }
+          
+          return Container(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -2795,202 +2865,139 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                   children: [
                     Center(
                       child: Container(
-                        width: 40,
-                        height: 4,
+                        width: 40, height: 4,
                         margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                        decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
                       ),
                     ),
                     Text(
-                      esEdicion
-                          ? 'Editar Acceso Existente'
-                          : 'Crear Nuevo Acceso ERP',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B),
-                      ),
+                      esEdicion ? 'Editar Acceso Existente' : 'Crear Nuevo Acceso ERP',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      esEdicion
-                          ? 'Modifica el nombre o rol del usuario en el sistema.'
-                          : 'Se creará una cuenta con el rol asignado.',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 13,
-                      ),
+                      esEdicion ? 'Modifica el nombre o rol del usuario en el sistema.' : 'Se creará una cuenta con el rol asignado.',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     ),
                     const SizedBox(height: 24),
-                    _input(
-                      nombreCtrl,
-                      'Nombre Completo *',
-                      Icons.person_outline,
-                      requerido: true,
-                    ),
+                    _input(nombreCtrl, 'Nombre Completo *', Icons.person_outline, requerido: true),
                     if (!esEdicion) ...[
                       const SizedBox(height: 16),
-                      _input(
-                        emailCtrl,
-                        'Correo Electrónico *',
-                        Icons.email_outlined,
-                        requerido: true,
-                        kb: TextInputType.emailAddress,
-                      ),
+                      _input(emailCtrl, 'Correo Electrónico *', Icons.email_outlined, requerido: true, kb: TextInputType.emailAddress),
                       const SizedBox(height: 16),
-                      _input(
-                        passCtrl,
-                        'Contraseña (mín. 6 caracteres) *',
-                        Icons.lock_outline,
-                        requerido: true,
-                      ),
+                      _input(passCtrl, 'Contraseña (mín. 6 caracteres) *', Icons.lock_outline, requerido: true),
                     ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: rol,
                       decoration: InputDecoration(
                         labelText: 'Rol en el Sistema *',
-                        prefixIcon: const Icon(
-                          Icons.admin_panel_settings_outlined,
-                          color: Color(0xFF4F46E5),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
+                        prefixIcon: const Icon(Icons.admin_panel_settings_outlined, color: Color(0xFF4F46E5)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                       ),
-                      items: roles
-                          .map(
-                            (r) => DropdownMenuItem(
-                              value: r,
-                              child: Text(r.toUpperCase()),
-                            ),
-                          )
-                          .toList(),
+                      items: roles.map((r) => DropdownMenuItem(value: r, child: Text(r.toUpperCase()))).toList(),
                       onChanged: (val) => setS(() => rol = val!),
                     ),
+                    
+                    const SizedBox(height: 24),
+                    const Text('Módulos Adicionales (Opcional)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    const Text('Otorga acceso a módulos extra independientemente del rol.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: modulosDisponibles.map((m) {
+                        bool sel = modulosSeleccionados.contains(m['id']);
+                        return FilterChip(
+                          label: Text(m['nombre']!),
+                          selected: sel,
+                          onSelected: (val) {
+                            setS(() {
+                               if (val) modulosSeleccionados.add(m['id']!);
+                               else modulosSeleccionados.remove(m['id']);
+                            });
+                          },
+                          selectedColor: const Color(0xFF4F46E5).withOpacity(0.2),
+                          checkmarkColor: const Color(0xFF4F46E5),
+                        );
+                      }).toList(),
+                    ),
+                    
                     const SizedBox(height: 32),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: guardando
-                            ? null
-                            : () async {
-                                if (!formKey.currentState!.validate()) return;
-                                if (!esEdicion && passCtrl.text.length < 6) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'La contraseña debe tener al menos 6 caracteres',
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                  return;
-                                }
-                                setS(() => guardando = true);
-                                try {
-                                  if (esEdicion) {
-                                    await supabase
-                                        .from('usuarios')
-                                        .update({
-                                          'nombre': nombreCtrl.text.trim(),
-                                          'rol': rol,
-                                        })
-                                        .eq('id', usuario['id']);
-                                  } else {
-                                    final tempClient = SupabaseClient(
-                                      "http://91.98.135.205:8000",
-                                      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
-                                      authOptions: const AuthClientOptions(
-                                        authFlowType: AuthFlowType.implicit,
-                                      ),
-                                    );
-                                    final AuthResponse res = await tempClient
-                                        .auth
-                                        .signUp(
-                                          email: emailCtrl.text.trim(),
-                                          password: passCtrl.text.trim(),
-                                          data: {
-                                            'nombre': nombreCtrl.text.trim(),
-                                            'rol': rol,
-                                          },
-                                        );
-                                    if (res.user != null) {
-                                      await supabase.from('usuarios').upsert({
-                                        'id': res.user!.id,
-                                        'nombre': nombreCtrl.text.trim(),
-                                        'rol': rol,
-                                      });
-                                    } else {
-                                      throw Exception(
-                                        'No se pudo crear el usuario.',
-                                      );
-                                    }
-                                    tempClient.dispose();
+                        onPressed: guardando ? null : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          if (!esEdicion && passCtrl.text.length < 6) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres'), backgroundColor: Colors.red));
+                            return;
+                          }
+                          setS(() => guardando = true);
+                          try {
+                            String currentUserId = "";
+                            if (esEdicion) {
+                              currentUserId = usuario['id'];
+                              await supabase.from('usuarios').update({'nombre': nombreCtrl.text.trim(), 'rol': rol}).eq('id', currentUserId);
+                            } else {
+                              final tempClient = SupabaseClient(
+                                "http://91.98.135.205:8000",
+                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
+                                authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
+                              );
+                              final AuthResponse res = await tempClient.auth.signUp(
+                                email: emailCtrl.text.trim(),
+                                password: passCtrl.text.trim(),
+                                data: {'nombre': nombreCtrl.text.trim(), 'rol': rol},
+                              );
+                              if (res.user != null) {
+                                currentUserId = res.user!.id;
+                                await supabase.from('usuarios').upsert({'id': currentUserId, 'nombre': nombreCtrl.text.trim(), 'rol': rol});
+                              } else {
+                                throw Exception('No se pudo crear el usuario.');
+                              }
+                              tempClient.dispose();
+                            }
+                            
+                            if (currentUserId.isNotEmpty) {
+                              final dataPerms = await supabase.from('permisos_pantallas').select();
+                              for(var m in modulosDisponibles) {
+                                  String mId = m['id']!;
+                                  var existingRow = dataPerms.where((row) => row['pantalla_id'] == mId).toList();
+                                  List<String> permitidos = [];
+                                  if (existingRow.isNotEmpty) {
+                                      permitidos = List<String>.from((existingRow.first['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
                                   }
-                                  if (ctx.mounted) {
-                                    Navigator.pop(ctx);
+                                  bool isSelected = modulosSeleccionados.contains(mId);
+                                  if (isSelected && !permitidos.contains(currentUserId)) {
+                                      permitidos.add(currentUserId);
+                                      await supabase.from('permisos_pantallas').upsert({'pantalla_id': mId, 'usuarios_permitidos': permitidos, 'oculto_global': false});
+                                  } else if (!isSelected && permitidos.contains(currentUserId)) {
+                                      permitidos.remove(currentUserId);
+                                      await supabase.from('permisos_pantallas').upsert({'pantalla_id': mId, 'usuarios_permitidos': permitidos, 'oculto_global': false});
                                   }
-                                  _cargarUsuarios();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        esEdicion
-                                            ? 'Acceso actualizado'
-                                            : 'Usuario creado exitosamente',
-                                      ),
-                                      backgroundColor: const Color(0xFF059669),
-                                    ),
-                                  );
-                                } on AuthException catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error Auth: ${e.message}'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                  setS(() => guardando = false);
-                                } catch (e) {
-                                  debugPrint('Error acceso: $e');
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Error al guardar. Revisa la consola.',
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                  setS(() => guardando = false);
-                                }
-                              },
-                        icon: guardando
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.save_outlined),
-                        label: Text(
-                          esEdicion
-                              ? 'Actualizar Acceso'
-                              : 'Crear y Otorgar Acceso',
-                        ),
+                              }
+                            }
+                            
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            _cargarUsuarios();
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(esEdicion ? 'Acceso actualizado' : 'Usuario creado exitosamente'), backgroundColor: const Color(0xFF059669)));
+                          } on AuthException catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error Auth: ${e.message}'), backgroundColor: Colors.red));
+                            setS(() => guardando = false);
+                          } catch (e) {
+                            debugPrint('Error acceso: $e');
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al guardar. Revisa la consola.'), backgroundColor: Colors.red));
+                            setS(() => guardando = false);
+                          }
+                        },
+                        icon: guardando ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.save_outlined),
+                        label: Text(esEdicion ? 'Guardar Cambios' : 'Crear Acceso'),
                         style: FilledButton.styleFrom(
-                          backgroundColor: Colors.indigo.shade800,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                           backgroundColor: Colors.indigo.shade800,
+                           padding: const EdgeInsets.symmetric(vertical: 16),
+                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
@@ -2999,10 +3006,12 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
               ),
             ),
           ),
-        ),
+        );
+        },
       ),
     );
   }
+
 
   // ══════════════════════════════════════════════════════════════
   // HELPERS REUTILIZABLES

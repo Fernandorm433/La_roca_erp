@@ -143,7 +143,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _configurarAccesos() {
+  Future<void> _configurarAccesos() async {
     // 1. CREAMOS LA LISTA BASE: Lo que todo empleado debe ver sí o sí.
     final modulosBaseEmpleado = [
       AppMenuItem(
@@ -690,6 +690,54 @@ class _HomePageState extends State<HomePage> {
           ),
         ];
         break;
+    }
+
+    // 3. AGREGAR MÓDULOS EXTRA POR PERMISOS DE PANTALLAS
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final data = await Supabase.instance.client.from('permisos_pantallas').select();
+        List<AppMenuItem> extraItems = [];
+        
+        final modulosMap = {
+          'ventas': AppMenuItem(titulo: 'Ventas y Seguimiento', icono: Icons.point_of_sale_outlined, pagina: const VentasPage(), seccion: 'EXTRAS'),
+          'cotizaciones': AppMenuItem(titulo: 'Cotizaciones', icono: Icons.request_quote_outlined, pagina: const CotizacionesPage(), seccion: 'EXTRAS'),
+          'requerimientos': AppMenuItem(titulo: 'Requerimientos', icono: Icons.precision_manufacturing_outlined, pagina: const RequerimientosListPage(), seccion: 'EXTRAS'),
+          'ordenes_pedido': AppMenuItem(titulo: 'Órdenes de Pedido', icono: Icons.list_alt_rounded, pagina: const OrdenesPedidoPage(), seccion: 'EXTRAS'),
+          'clientes': AppMenuItem(titulo: 'Directorio Clientes', icono: Icons.people_alt_outlined, pagina: const ClientesPage(), seccion: 'EXTRAS'),
+          'despachos': AppMenuItem(titulo: 'Gestor Mixers (Despachos)', icono: Icons.local_shipping_outlined, pagina: const GestorMixersPage(), seccion: 'EXTRAS'),
+          'mis_carguios': AppMenuItem(titulo: 'Mis Carguíos', icono: Icons.local_shipping_outlined, pagina: const MisCarguiosPage(), seccion: 'EXTRAS'),
+          'checklist': AppMenuItem(titulo: 'Checklists', icono: Icons.checklist_outlined, pagina: const ChecklistPage(), seccion: 'EXTRAS'),
+          'registro_carguio': AppMenuItem(titulo: 'Registro de Carguío', icono: Icons.app_registration, pagina: const RegistroCarguioPage(), seccion: 'EXTRAS'),
+          'disenos_mezcla': AppMenuItem(titulo: 'Diseños de Mezcla', icono: Icons.science_outlined, pagina: const DisenosMezclaPage(), seccion: 'EXTRAS'),
+          'costos': AppMenuItem(titulo: 'Costos', icono: Icons.attach_money_rounded, pagina: const CostosPage(), seccion: 'EXTRAS'),
+          'tesoreria': AppMenuItem(titulo: 'Tesorería', icono: Icons.account_balance_outlined, pagina: const TesoreriaPage(), seccion: 'EXTRAS'),
+          'liquidaciones': AppMenuItem(titulo: 'Liquidaciones', icono: Icons.account_balance_wallet_outlined, pagina: const LiquidacionesPage(), seccion: 'EXTRAS'),
+          'gps_flota': AppMenuItem(titulo: 'GPS Flota', icono: Icons.satellite_alt_outlined, pagina: const MapaPage(), seccion: 'EXTRAS'),
+        };
+        
+        for (var row in data) {
+          var permitidos = List<String>.from((row['usuarios_permitidos'] as List?)?.map((e) => e.toString()) ?? []);
+          if (permitidos.contains(userId)) {
+            String mId = row['pantalla_id'].toString();
+            if (modulosMap.containsKey(mId)) {
+              // Evitar duplicados (por si su rol base ya lo incluye)
+              bool yaExiste = itemsPermitidos.any((item) => item.pagina.runtimeType == modulosMap[mId]!.pagina.runtimeType);
+              if (!yaExiste) {
+                extraItems.add(modulosMap[mId]!);
+              }
+            }
+          }
+        }
+        
+        if (extraItems.isNotEmpty && mounted) {
+          setState(() {
+            itemsPermitidos.addAll(extraItems);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cargando permisos extra: $e');
     }
   }
 
