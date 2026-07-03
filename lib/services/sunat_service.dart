@@ -8,10 +8,12 @@ class SunatService {
   /// para procesarla en SUNAT (Entorno BETA actualmente).
   Future<Map<String, dynamic>?> emitirComprobante({
     required String tipoDoc, // '01' Factura, '03' Boleta
-    required String serie, // ej. 'B001'
+    required String serie, // ej. 'F001'
     required int correlativo, // ej. 1
     required String clienteDocumento, // DNI o RUC
     required double montoTotal,
+    required String cotizacionId,
+    bool anticipada = false,
   }) async {
     try {
       final response = await _supabase.functions.invoke(
@@ -22,6 +24,8 @@ class SunatService {
           'correlativo': correlativo,
           'clienteDocumento': clienteDocumento,
           'montoTotal': montoTotal,
+          'cotizacionId': cotizacionId,
+          'anticipada': anticipada,
         },
       );
 
@@ -37,5 +41,22 @@ class SunatService {
       debugPrint('Excepción al llamar a sunat-emision: $e');
       return null;
     }
+  }
+
+  /// Envía los datos de una Guía de Remisión a SUNAT
+  Future<Map<String, dynamic>?> emitirGuiaRemision({
+    required String serie, // ej. 'T001'
+    required int correlativo,
+    required String clienteDocumento,
+    required String cotizacionId,
+  }) async {
+    return emitirComprobante(
+      tipoDoc: '09', // Guía de Remisión Remitente
+      serie: serie,
+      correlativo: correlativo,
+      clienteDocumento: clienteDocumento,
+      montoTotal: 0,
+      cotizacionId: cotizacionId,
+    );
   }
 }

@@ -530,9 +530,19 @@ class _HomePageState extends State<HomePage> {
             seccion: 'GESTIÓN',
           ),
           AppMenuItem(
+            titulo: 'Guías',
+            icono: Icons.description_outlined,
+            pagina: const GuiasMainPage(),
+          ),
+          AppMenuItem(
             titulo: 'RRHH',
             icono: Icons.people_alt_outlined,
             pagina: const RecursosHumanosPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Tesorería',
+            icono: Icons.account_balance_outlined,
+            pagina: const TesoreriaPage(),
           ),
           AppMenuItem(
             titulo: 'Facturación',

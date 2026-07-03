@@ -65,7 +65,6 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
   bool cerrando = false;
   DateTime fechaSeleccionada = DateTime.now();
   bool diaCerrado = false;
-  bool esJefeOperaciones = false; 
 
   List<Map<String, dynamic>> ventas = [];
   Map<String, List<_FilaGuiaData>> carguiosPorVenta = {};
@@ -162,7 +161,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
         }
         
         if (isRecibo && (opGuardada.isEmpty || opGuardada.toUpperCase() == 'PENDIENTE')) {
-          if (!diaCerrado || esJefeOperaciones) {
+          if (!diaCerrado) {
             String newOP = await _generarOP();
             opCtrls[idV]!.text = newOP;
             v['orden_pedido'] = newOP;
@@ -225,8 +224,8 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
   }
   
   Future<void> _guardarOP(String idVenta, Map<String, dynamic> v) async {
-    if (diaCerrado && !esJefeOperaciones) return;
-    String nuevaOP = opCtrls[idVenta]!.text.trim();
+    if (diaCerrado) return;
+    final nuevaOP = opCtrls[idVenta]!.text.trim();
     if (nuevaOP != (v['orden_pedido']?.toString() ?? '')) {
       try {
         await supabase.from('ventas_programacion').update({'orden_pedido': nuevaOP}).eq('id', idVenta);
@@ -239,7 +238,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
   }
 
   Future<void> _guardarFilaUnica(_FilaGuiaData f) async {
-    if (diaCerrado && !esJefeOperaciones) return;
+    if (diaCerrado) return;
     if (f.id == null) return; 
     
     try {
@@ -328,7 +327,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isReadOnly = diaCerrado && !esJefeOperaciones;
+    bool isReadOnly = diaCerrado;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), 
@@ -358,16 +357,6 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
         actions: [
-          Row(
-            children: [
-              const Text("Jefe de OP", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
-              Switch(
-                value: esJefeOperaciones,
-                activeColor: Colors.purple,
-                onChanged: (val) => setState(() => esJefeOperaciones = val),
-              ),
-            ],
-          ),
           IconButton(
             icon: const Icon(Icons.calendar_month, color: AppColors.primaryDark),
             tooltip: "Consultar Historial",
@@ -384,7 +373,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
               }
             },
           ),
-          if (!diaCerrado || esJefeOperaciones)
+          if (!diaCerrado)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
               child: ElevatedButton.icon(

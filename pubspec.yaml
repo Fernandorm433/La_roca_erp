@@ -45,6 +45,7 @@ dependencies:
   firebase_auth: ^5.7.0
   provider: ^6.1.5+1
   shared_preferences: ^2.5.5
+  audioplayers: ^6.7.1
 
 dev_dependencies: 
   flutter_test:
@@ -59,7 +60,8 @@ flutter:
 
   # 👉 Asegúrate de que el logo esté bien declarado aquí
   assets:
-    - assets/images/LOGO2023.png
+    - assets/images/
+    - assets/sounds/
 
 
 flutter_native_splash:

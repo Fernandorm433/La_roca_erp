@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async'; // NUEVO
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/helpers.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../core/services/notificacion_service.dart';
 
 class _CarguioItem {
@@ -69,13 +70,16 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   double optSeleccionado = 0;
   double repSeleccionado = 0;
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
   @override
   void initState() {
     super.initState();
     _cargarDatosIniciales();
     _suscribirseACarguios();
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
+    // Use a 5-second polling timer as a fallback for realtime
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) _cargarDatosIniciales(silent: true);
     });
   }
 
@@ -112,6 +116,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     cRealPiedra38.dispose();
     cRealAgua.dispose();
     cRealAditivo.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -180,6 +185,15 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
       await _cargarDisenos();
 
       if (mounted) {
+        // Check for new carguios to play notification
+        if (silent && listaFinal.length > carguiosDelDia.length && carguiosDelDia.isNotEmpty) {
+          try {
+            _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+          } catch (e) {
+            debugPrint('Error playing sound: $e');
+          }
+        }
+
         setState(() {
           carguiosDelDia = listaFinal;
           bombasPorVenta = mapaBombas;

@@ -1,4 +1,5 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -15,29 +16,92 @@ Deno.serve(async (req) => {
     const data = await req.json();
     console.log("Datos recibidos para SUNAT:", data);
 
-    // 1. Aquí se extraen los datos de la venta (cliente, monto, IGV, etc.)
-    const { tipoDoc, serie, correlativo, clienteDocumento, montoTotal } = data;
+    const { 
+      tipoDoc, 
+      serie, 
+      correlativo, 
+      clienteDocumento, 
+      montoTotal, 
+      cotizacionId, 
+      anticipada 
+    } = data;
 
-    // 2. TODO: Generar XML UBL 2.1
-    // (Esta sección requerirá una librería de construcción de XML o plantillas de texto)
-    const mockXml = `<?xml version="1.0" encoding="UTF-8"?>\n<Invoice>...</Invoice>`;
+    // 1. Validaciones básicas
+    if (!tipoDoc || !serie || !correlativo) {
+      throw new Error("Faltan parámetros obligatorios (tipoDoc, serie, correlativo).");
+    }
 
-    // 3. TODO: Firmar XML usando el Certificado Digital (.pfx)
-    // El certificado debe guardarse en Supabase Secrets.
-    const certPassword = Deno.env.get("SUNAT_CERT_PASSWORD") || "test_password";
+    // 2. GENERACIÓN DEL XML UBL 2.1 Y FIRMA (SIMULADA POR AHORA HASTA TENER EL .PFX)
+    /* 
+      Aquí iría la lógica usando xmldom y xml-crypto para construir el UBL:
+      const doc = new DOMParser().parseFromString(xmlString);
+      const sig = new SignedXml();
+      sig.addReference("//*[local-name(.)='ExtensionContent']");
+      sig.computeSignature(xmlString);
+    */
+    
+    // Hash generado por la "firma"
+    const mockHash = btoa(`HASH-${serie}-${correlativo}-${Date.now()}`);
 
-    // 4. TODO: Empaquetar en ZIP y enviar SOAP a SUNAT BETA
-    const sunatBetaUrl = "https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService";
+    // 3. ACTUALIZAR BASE DE DATOS
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: { Authorization: req.headers.get('Authorization')! },
+      },
+    });
 
-    // --- MOCK DE RESPUESTA PARA EL ENTORNO BETA ---
-    // Simulamos que la SUNAT respondió exitosamente para que puedas probar Flutter.
+    if (tipoDoc === '01' || tipoDoc === '03') {
+      // Es Factura o Boleta
+      if (!cotizacionId) throw new Error("Falta cotizacionId para facturación");
+      
+      const { error: dbError } = await supabase
+        .from('facturacion_sunat')
+        .insert({
+          cotizacion_id: cotizacionId,
+          tipo_comprobante: tipoDoc,
+          serie: serie,
+          correlativo: correlativo,
+          monto_total: montoTotal || 0,
+          anticipada: anticipada || false,
+          estado_sunat: 'ACEPTADO',
+          hash: mockHash,
+        });
+
+      if (dbError) {
+        console.error("Error DB Factura:", dbError);
+        throw dbError;
+      }
+      
+    } else if (tipoDoc === '09') {
+      // Es Guía de Remisión Remitente (GRE)
+      if (!cotizacionId) throw new Error("Falta cotizacionId para GRE");
+      
+      const { error: dbError } = await supabase
+        .from('guias_remision')
+        .insert({
+          cotizacion_id: cotizacionId,
+          serie: serie,
+          correlativo: correlativo,
+          cliente_documento: clienteDocumento || '',
+          estado_sunat: 'ACEPTADO',
+          hash: mockHash,
+        });
+
+      if (dbError) {
+        console.error("Error DB Guia:", dbError);
+        throw dbError;
+      }
+    }
+
+    // Respuesta simulada de la SUNAT
     const mockResponse = {
       status: "success",
       sunat_response: {
         codigo: 0,
-        mensaje: `El Comprobante numero ${serie}-${correlativo} ha sido aceptado`,
-        hash: "xyz123MockHashABC=", 
-        xml_firmado: mockXml,
+        mensaje: `El Comprobante numero ${serie}-${correlativo} ha sido aceptado (BETA)`,
+        hash: mockHash, 
       }
     };
 
@@ -46,6 +110,7 @@ Deno.serve(async (req) => {
       { headers: { ...cors, 'Content-Type': 'application/json' } },
     )
   } catch (error) {
+    console.error("Error procesando emisión:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...cors, 'Content-Type': 'application/json' }, status: 400 },
