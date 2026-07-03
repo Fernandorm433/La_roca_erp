@@ -71,14 +71,17 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   double repSeleccionado = 0;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isAlarmPlaying = false;
+  Timer? _volumeTimer;
+  double _currentVolume = 0.2;
 
   @override
   void initState() {
     super.initState();
     _cargarDatosIniciales();
     _suscribirseACarguios();
-    // Use a 5-second polling timer as a fallback for realtime
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+    // Use a 2-second polling timer as a fallback for realtime
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (mounted) _cargarDatosIniciales(silent: true);
     });
   }
@@ -116,6 +119,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     cRealPiedra38.dispose();
     cRealAgua.dispose();
     cRealAditivo.dispose();
+    _volumeTimer?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -187,15 +191,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
       if (mounted) {
         // Check for new carguios to play notification
         if (silent && listaFinal.length > carguiosDelDia.length && carguiosDelDia.isNotEmpty) {
-          try {
-            _audioPlayer.play(AssetSource('sounds/notification.wav'));
-            NotificationService().mostrarNotificacionLocalDirecta(
-              'Nuevo Carguío Asignado', 
-              'Revisa la lista, se ha agregado una nueva orden.'
-            );
-          } catch (e) {
-            debugPrint('Error playing sound/notification: $e');
-          }
+          _startAlarm();
         }
 
         setState(() {
@@ -236,7 +232,45 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
     }
   }
 
+  void _startAlarm() {
+    if (_isAlarmPlaying) return;
+    _isAlarmPlaying = true;
+    _currentVolume = 0.2;
+    
+    try {
+      _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      _audioPlayer.setVolume(_currentVolume);
+      _audioPlayer.play(AssetSource('sounds/notification.wav'));
+      
+      NotificationService().mostrarNotificacionLocalDirecta(
+        'Nuevo Carguío Asignado', 
+        'Revisa la lista, se ha agregado una nueva orden.'
+      );
+      
+      _volumeTimer?.cancel();
+      _volumeTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+        if (_currentVolume < 1.0) {
+          _currentVolume += 0.2;
+          if (_currentVolume > 1.0) _currentVolume = 1.0;
+          _audioPlayer.setVolume(_currentVolume);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error playing sound: $e');
+    }
+  }
+
+  void _stopAlarm() {
+    if (!_isAlarmPlaying) return;
+    setState(() {
+      _isAlarmPlaying = false;
+    });
+    _volumeTimer?.cancel();
+    _audioPlayer.stop();
+  }
+
   Future<void> _seleccionarCarguio(_CarguioItem item) async {
+    _stopAlarm();
     setState(() {
       carguioSeleccionado = item;
       cVolumen.text = item.ventaRaw['volumen']?.toString() ?? "";
@@ -489,10 +523,13 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
   @override
   Widget build(BuildContext context) {
     bool isMobile = MediaQuery.of(context).size.width < 900;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+    
+    return GestureDetector(
+      onTap: _stopAlarm,
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
         title: const Text("Registro de Carguío", style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 24)),
         backgroundColor: Colors.white,
         elevation: 1,
@@ -505,6 +542,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
           : isMobile 
               ? _buildMobileLayout()
               : _buildDesktopLayout(),
+      ),
     );
   }
 
