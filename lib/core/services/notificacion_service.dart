@@ -101,6 +101,30 @@ class NotificationService {
     );
   }
 
+  void mostrarNotificacionLocalDirecta(String titulo, String cuerpo) {
+    _localNotifications.show(
+      DateTime.now().millisecond,
+      titulo,
+      cuerpo,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channel.id,
+          _channel.name,
+          channelDescription: _channel.description,
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
+  }
+
   // ─── Guardar token del dispositivo en Supabase ────────────────
   // Llamar al hacer login (tanto asesor como jefa)
   Future<void> guardarToken(String userId) async {

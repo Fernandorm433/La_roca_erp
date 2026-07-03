@@ -189,8 +189,12 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         if (silent && listaFinal.length > carguiosDelDia.length && carguiosDelDia.isNotEmpty) {
           try {
             _audioPlayer.play(AssetSource('sounds/notification.wav'));
+            NotificationService().mostrarNotificacionLocalDirecta(
+              'Nuevo Carguío Asignado', 
+              'Revisa la lista, se ha agregado una nueva orden.'
+            );
           } catch (e) {
-            debugPrint('Error playing sound: $e');
+            debugPrint('Error playing sound/notification: $e');
           }
         }
 
