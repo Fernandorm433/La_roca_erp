@@ -188,7 +188,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         // Check for new carguios to play notification
         if (silent && listaFinal.length > carguiosDelDia.length && carguiosDelDia.isNotEmpty) {
           try {
-            _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+            _audioPlayer.play(AssetSource('sounds/notification.wav'));
           } catch (e) {
             debugPrint('Error playing sound: $e');
           }
