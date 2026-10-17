@@ -34,6 +34,11 @@ class NotificationService {
 
   // ─── Inicializar (llamar en main.dart DESPUÉS de Firebase.initializeApp) ──
   Future<void> initialize() async {
+    if (kIsWeb) {
+      debugPrint('ℹ️ FCM y notificaciones locales móviles omitidas en Web.');
+      return;
+    }
+
     // Registrar handler de background
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -128,6 +133,7 @@ class NotificationService {
   // ─── Guardar token del dispositivo en Supabase ────────────────
   // Llamar al hacer login (tanto asesor como jefa)
   Future<void> guardarToken(String userId) async {
+    if (kIsWeb) return;
     try {
       // En iOS y macOS, requerimos obtener primero el APNS Token.
       // Si estamos en simulador o sin la capacidad Push configurada, esto evitará el crasheo.

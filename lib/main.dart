@@ -1,6 +1,7 @@
 // Archivo: lib/main.dart
 import 'dart:io';
 import 'dart:ui'; // Necesario para el servicio en segundo plano
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -46,8 +47,8 @@ void main() async {
   }
 
   // INICIALIZAR EL MOTOR DEL GPS EN SEGUNDO PLANO
-  // (Solo se activa en móviles, no en Windows/Mac)
-  if (Platform.isAndroid || Platform.isIOS) {
+  // (Solo se activa en móviles nativos Android/iOS, nunca en Web ni Desktop)
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     await initializeService();
   }
 
@@ -342,7 +343,7 @@ class _AuthGateState extends State<AuthGate> {
 
         final RolUsuario rolAsignado = _obtenerRolDesdeString(rolString);
  
-        if (Platform.isAndroid || Platform.isIOS) {
+        if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
           final service = FlutterBackgroundService();
           if (rolAsignado == RolUsuario.operador) {
             // Ya no usamos el GPS del celular para el operador (se usa Teltonika físico).
