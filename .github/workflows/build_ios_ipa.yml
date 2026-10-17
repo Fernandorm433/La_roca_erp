@@ -1,0 +1,46 @@
+name: Compilar IPA (iOS)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    name: Compilar IPA de iOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Instalar dependencias
+        run: flutter pub get
+
+      - name: Compilar iOS Release (Sin firma de código)
+        run: flutter build ios --release --no-codesign
+
+      - name: Empaquetar Runner.app en archivo .IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -r ERP_NOVACONCRET.ipa Payload
+
+      - name: Subir artefacto IPA listo para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: ERP_NOVACONCRET_iOS_IPA
+          path: ERP_NOVACONCRET.ipa
+          retention-days: 14
