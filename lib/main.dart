@@ -4,7 +4,6 @@ import 'dart:ui'; // Necesario para el servicio en segundo plano
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:app_database/core/services/notificacion_service.dart';
 import 'core/utils/map_utils.dart';
 
@@ -33,9 +32,8 @@ void main() async {
   );
 
   // INICIALIZAR SUPABASE DESPUÉS
-  // INICIALIZAR SUPABASE DESPUÉS
   await Supabase.initialize(
-    url: "http://91.98.135.205:8000",
+    url: "http://167.233.215.224:8000",
     anonKey:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
   );
@@ -75,7 +73,7 @@ Future<void> initializeService() async {
       isForegroundMode: true,
       notificationChannelId: 'gps_service',
       initialNotificationTitle: 'Ruta Activa',
-      initialNotificationContent: 'Optimizando logística de La Roca',
+      initialNotificationContent: 'Optimizando logística de Novaconcret',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -110,7 +108,7 @@ void onStart(ServiceInstance service) async {
   // IMPORTANTE: El servicio corre en un hilo aislado, por lo que 
   // debemos inicializar Supabase de nuevo solo para este hilo.
   await Supabase.initialize(
-    url: "http://91.98.135.205:8000",
+    url: "http://167.233.215.224:8000",
     anonKey:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
   );
@@ -228,7 +226,7 @@ void onStart(ServiceInstance service) async {
 
                 if (service is AndroidServiceInstance) {
                   service.setForegroundNotificationInfo(
-                    title: "Ruta La Roca: ${conductor['marca']}",
+                    title: "Ruta Novaconcret: ${conductor['marca']}",
                     content: "Actualizando en tiempo real... (${velocidadFiltrada.toStringAsFixed(1)} km/h)",
                   );
                 }
@@ -271,7 +269,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "ERP Operaciones",
+      title: "ERP NOVACONCRET",
       scrollBehavior: AppScrollBehavior(), // ✅ Habilita arrastrar con mouse en PC
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

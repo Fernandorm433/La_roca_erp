@@ -161,7 +161,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: DataTable(
-            headingRowColor: WidgetStateProperty.all(Colors.indigo.shade50),
+            headingRowColor: WidgetStateProperty.all(const Color(0xFFEFF6FF)),
             columnSpacing: 25,
             dataRowMaxHeight: 65,
             columns: const [
@@ -170,7 +170,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Hora',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -179,7 +179,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Cliente / Obra',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -188,7 +188,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Vol (m³)',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -197,7 +197,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Diseño F\'c',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -206,7 +206,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Huso',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -215,7 +215,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Elemento',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -224,7 +224,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Slump',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -233,7 +233,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   'Bomba(s)',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo,
+                    color: const Color(0xFF004899),
                   ),
                 ),
               ),
@@ -479,7 +479,7 @@ class _ProgramacionPageState extends State<ProgramacionPage> {
                   leading: CircleAvatar(
                     backgroundColor: esCancelado
                         ? Colors.red.shade100
-                        : Colors.indigo.shade50,
+                        : const Color(0xFFEFF6FF),
                     child: Icon(
                       esCancelado ? Icons.cancel : Icons.access_time,
                       color: esCancelado ? Colors.red : AppColors.accent,

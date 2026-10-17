@@ -1,16 +1,19 @@
 // lib/screens/ventas/cotizaciones_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/cotizacion_pdf_generator.dart';
 import 'cotizacion_pdf_preview.dart';
 import 'cotizaciones_page.dart';
+import '../home/home_page.dart';
 import 'cotizacion_detalle_page.dart';
 
 class CotizacionesListPage extends StatefulWidget {
-  const CotizacionesListPage({super.key});
+  final RolUsuario? rol;
+  final String? nombreUsuario;
+
+  const CotizacionesListPage({super.key, this.rol, this.nombreUsuario});
   @override
   State<CotizacionesListPage> createState() => _CotizacionesListPageState();
 }
@@ -83,21 +86,41 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
       final items = (c['cotizacion_items'] as List? ?? []).map((i) => ItemCotizacion(
         tipo: i['tipo'] ?? 'Concreto',
         descripcion: i['descripcion'] ?? '',
-        detalles: List<String>.from(i['detalles'] ?? []),
+        detalles: parseDetalles(i['detalles']),
         cantidad: double.tryParse(i['cantidad'].toString()) ?? 0,
         unidad: i['unidad'] ?? 'M³',
         precioUnitario: double.tryParse(i['precio_unitario'].toString()) ?? 0,
       )).toList();
+      final rawItems = c['cotizacion_items'] as List? ?? [];
+      final concretoItem = rawItems.firstWhere(
+        (i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto',
+        orElse: () => rawItems.isNotEmpty ? rawItems.first : null,
+      );
+      final horaEntregaDt = DateTime.tryParse(c['hora_entrega'] ?? '');
+      final fechaCreacion = DateTime.tryParse(c['created_at'] ?? '') ?? DateTime.now();
+
       final datos = DatosCotizacion(
         numeroCotizacion: c['numero_cotizacion'] ?? '',
-        fecha: DateTime.tryParse(c['created_at'] ?? '') ?? DateTime.now(),
+        fecha: fechaCreacion,
+        fechaVencimiento: fechaCreacion.add(const Duration(days: 30)),
+        horaEntrega: horaEntregaDt,
         clienteNombre: c['cliente_nombre'] ?? '',
         clienteDocumento: c['cliente_documento'] ?? '',
         clienteDireccion: c['obra_direccion'] ?? c['cliente_direccion'] ?? '',
         clienteTelefono: c['cliente_telefono'] ?? '',
         asesorNombre: c['asesor_nombre'] ?? '',
         asesorTelefono: c['asesor_telefono'] ?? '',
+        contactoObra: c['cliente_nombre'] ?? '',
+        contactoTelefono: c['cliente_telefono'] ?? '',
+        tipoComprobante: c['tipo_comprobante'] ?? 'Factura',
+        formaPago: 'DEPÓSITO',
+        fechaVaciado: horaEntregaDt != null ? DateFormat('dd/MM/yyyy').format(horaEntregaDt) : null,
+        elementoVaciar: concretoItem?['elemento']?.toString(),
+        formaVaciado: (concretoItem?['bombeable'] == true) ? 'BOMBEABLE' : 'DIRECTO',
         igvPorcentaje: double.tryParse(c['igv_porcentaje']?.toString() ?? '18') ?? 18.0,
+        subTotalCustom: double.tryParse(c['subtotal']?.toString() ?? ''),
+        igvMontoCustom: double.tryParse(c['igv_monto']?.toString() ?? ''),
+        totalCustom: double.tryParse(c['total']?.toString() ?? ''),
         items: items,
       );
       if (mounted) {
@@ -116,6 +139,8 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
       builder: (_) => CotizacionesPage(
         cotizacionExistente: dup ? null : cot,
         datosParaDuplicar: dup ? cot : null,
+        rol: widget.rol,
+        nombreUsuario: widget.nombreUsuario,
       ),
     ));
     _load();
@@ -124,19 +149,18 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F5F2),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // ── Sin menú ni notificaciones ──
         title: const Text('Cotizaciones',
             style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold, fontSize: 20)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: AppColors.primaryDark, size: 28),
+            icon: const Icon(Icons.add_circle_outline, color: AppColors.primary, size: 26),
             onPressed: () => _open(),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(children: [
@@ -148,16 +172,17 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F7F0),
-                  borderRadius: BorderRadius.circular(30),
+                  color: AppColors.greyLight,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.greyBorder),
                 ),
                 child: TextField(
                   controller: _search,
                   style: const TextStyle(fontSize: 14),
                   decoration: const InputDecoration(
-                    hintText: 'Buscar por cliente...',
-                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey, size: 20),
+                    hintText: 'Buscar por cliente, asesor o N°...',
+                    hintStyle: TextStyle(color: AppColors.grey, fontSize: 13),
+                    prefixIcon: Icon(Icons.search, color: AppColors.grey, size: 20),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(vertical: 10),
                   ),
@@ -170,8 +195,9 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F7F0),
-                  borderRadius: BorderRadius.circular(30),
+                  color: AppColors.greyLight,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.greyBorder),
                 ),
                 child: const Icon(Icons.swap_vert, color: AppColors.primaryDark, size: 20),
               ),
@@ -246,10 +272,10 @@ class _CotCard extends StatelessWidget {
       child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDrive ? const Color(0xFFEEFAEE) : Colors.white,
+        color: isDrive ? const Color(0xFFF0F9FF) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDrive ? const Color(0xFF81C784) : const Color(0xFFE2EDE2),
+          color: isDrive ? const Color(0xFFBAE6FD) : AppColors.greyBorder,
           width: isDrive ? 1.5 : 1,
         ),
       ),
@@ -259,24 +285,24 @@ class _CotCard extends StatelessWidget {
           Center(
             child: Text(
               (cot['cliente_nombre'] ?? 'Sin nombre').toString().toUpperCase(),
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: Color(0xFF1A2E1A)),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: Color(0xFF0F172A)),
               textAlign: TextAlign.center,
             ),
           ),
           const SizedBox(height: 2),
           Center(
             child: Text('Asesor: ${cot['asesor_nombre'] ?? '—'}',
-                style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
+                style: const TextStyle(fontSize: 12.5, color: AppColors.grey)),
           ),
           const SizedBox(height: 10),
           Row(children: [
             Text('${fmt.format(total)} S/',
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: AppColors.primary)),
             const SizedBox(width: 8),
             if (isDrive)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(20)),
                 child: const Text('DRIVE',
                     style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
               ),

@@ -24,11 +24,15 @@ import '../logistica/gestor_mixers_page.dart';
 import '../planta/mis_carguios_page.dart';
 import '../ventas/ventas_page.dart';
 import '../ventas/asesores_page.dart';
-import '../ventas/cotizaciones_page.dart';
+import '../ventas/cotizaciones_list_page.dart';
 import '../ventas/requerimientos_list_page.dart';
 import '../ventas/ordenes_pedido_page.dart';
 import '../calidad/disenos_mezcla_page.dart';
 import '../calidad/registro_carguio_page.dart';
+import '../calidad/historial_carguios_page.dart';
+import '../calidad/formulario_probetas_page.dart';
+import '../calidad/control_calidad_probetas_page.dart';
+import '../calidad/certificados_calidad_page.dart';
 import '../clientes/clientes_page.dart';
 import '../empleados/perfil_page.dart';
 import '../empleados/comunicados_page.dart';
@@ -36,45 +40,7 @@ import '../empleados/comunicados_page.dart';
 import '../gestion/control_cochera_page.dart';
 import '../gestion/control_combustible_page.dart';
 
-import '../calidad/calidad_page.dart';
-import '../calidad/granulometria_page.dart';
-import '../checklists/checklist_page.dart';
-import '../auth/login_page.dart';
 
-// ── Módulos Gestión ─────────────────────────────────────────────
-import '../rrhh/recursos_humanos_page.dart';
-import '../logistica/logistica_page.dart';
-import '../comercial/comercial_page.dart';
-import '../facturacion/facturacion_page.dart';
-import '../mapa/mapa_page.dart';
-import '../comercial/liquidaciones_page.dart';
-
-// ── [NUEVO] Módulo de Costos ────────────────────────────────────
-import '../costos/costos_page.dart';
-
-// ── [NUEVO] Módulo de Tesorería ─────────────────────────────────
-import '../tesoreria/tesoreria_page.dart';
-
-// ── [NUEVO] Módulo de Carguíos (Mixers) ───────────────────────
-import '../logistica/gestor_mixers_page.dart';
-import '../planta/mis_carguios_page.dart';
-
-// ── Módulos Ventas y Seguimiento ────────────────────────────────
-import '../ventas/ventas_page.dart';
-import '../ventas/asesores_page.dart';
-import '../ventas/cotizaciones_page.dart';
-import '../ventas/requerimientos_list_page.dart'; // <-- [NUEVO]
-import '../ventas/ordenes_pedido_page.dart'; // <-- [NUEVO] Órdenes de pedido externas
-// ── [NUEVO] Módulo Diseños de Mezcla y Registro Carguío ─────────
-import '../calidad/disenos_mezcla_page.dart';
-import '../calidad/registro_carguio_page.dart';
-
-// ── [NUEVO] Módulo de Clientes ──────────────────────────────────
-import '../clientes/clientes_page.dart';
-
-// ── Módulos Empleados ──────────────────────────────────────────
-import '../empleados/perfil_page.dart';
-import '../empleados/comunicados_page.dart';
 
 import 'dart:io';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -182,6 +148,11 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.app_registration,
             pagina: const RegistroCarguioPage(),
           ),
+          AppMenuItem(
+            titulo: 'Historial de Carguíos',
+            icono: Icons.history,
+            pagina: const HistorialCarguiosPage(),
+          ),
         ];
         break;
 
@@ -209,7 +180,10 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesPage(),
+            pagina: CotizacionesListPage(
+              rol: widget.rol,
+              nombreUsuario: widget.nombreUsuario,
+            ),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',
@@ -317,7 +291,10 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesPage(),
+            pagina: CotizacionesListPage(
+              rol: widget.rol,
+              nombreUsuario: widget.nombreUsuario,
+            ),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',
@@ -417,9 +394,29 @@ class _HomePageState extends State<HomePage> {
             pagina: const RegistroCarguioPage(),
           ),
           AppMenuItem(
+            titulo: 'Historial de Carguíos',
+            icono: Icons.history,
+            pagina: const HistorialCarguiosPage(),
+          ),
+          AppMenuItem(
             titulo: 'Granulometría',
             icono: Icons.grain,
             pagina: const GranulometriaPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Control de Calidad',
+            icono: Icons.analytics_outlined,
+            pagina: const ControlCalidadProbetasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Formulario de Probetas',
+            icono: Icons.assignment_outlined,
+            pagina: const FormularioProbetasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Certificados',
+            icono: Icons.verified_outlined,
+            pagina: const CertificadosCalidadPage(),
           ),
         ];
         break;
@@ -468,7 +465,10 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesPage(),
+            pagina: CotizacionesListPage(
+              rol: widget.rol,
+              nombreUsuario: widget.nombreUsuario,
+            ),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',
@@ -517,9 +517,29 @@ class _HomePageState extends State<HomePage> {
             pagina: const RegistroCarguioPage(),
           ),
           AppMenuItem(
+            titulo: 'Historial de Carguíos',
+            icono: Icons.history,
+            pagina: const HistorialCarguiosPage(),
+          ),
+          AppMenuItem(
             titulo: 'Granulometría',
             icono: Icons.grain,
             pagina: const GranulometriaPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Control de Calidad',
+            icono: Icons.analytics_outlined,
+            pagina: const ControlCalidadProbetasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Formulario de Probetas',
+            icono: Icons.assignment_outlined,
+            pagina: const FormularioProbetasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Certificados',
+            icono: Icons.verified_outlined,
+            pagina: const CertificadosCalidadPage(),
           ),
           
           // GESTIÓN
@@ -638,7 +658,10 @@ class _HomePageState extends State<HomePage> {
           AppMenuItem(
             titulo: 'Cotizaciones',
             icono: Icons.request_quote_outlined,
-            pagina: const CotizacionesPage(),
+            pagina: CotizacionesListPage(
+              rol: widget.rol,
+              nombreUsuario: widget.nombreUsuario,
+            ),
           ),
           AppMenuItem(
             titulo: 'Requerimientos',
@@ -695,6 +718,21 @@ class _HomePageState extends State<HomePage> {
             icono: Icons.grain,
             pagina: const GranulometriaPage(),
           ),
+          AppMenuItem(
+            titulo: 'Control de Calidad',
+            icono: Icons.analytics_outlined,
+            pagina: const ControlCalidadProbetasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Formulario de Probetas',
+            icono: Icons.assignment_outlined,
+            pagina: const FormularioProbetasPage(),
+          ),
+          AppMenuItem(
+            titulo: 'Certificados',
+            icono: Icons.verified_outlined,
+            pagina: const CertificadosCalidadPage(),
+          ),
 
           // ── GESTIÓN ─────────────────────────────────────────
           AppMenuItem(
@@ -729,7 +767,7 @@ class _HomePageState extends State<HomePage> {
           'ventas': AppMenuItem(titulo: 'Ventas y Seguimiento', icono: Icons.point_of_sale_outlined, pagina: const VentasPage(), seccion: 'EXTRAS'),
           'asesores': AppMenuItem(titulo: 'Asesores', icono: Icons.person_pin_circle_outlined, pagina: AsesoresPage(rol: widget.rol, nombreUsuario: widget.nombreUsuario), seccion: 'EXTRAS'),
           'comercial': AppMenuItem(titulo: 'Comercial', icono: Icons.business_center_outlined, pagina: const ComercialPage(), seccion: 'EXTRAS'),
-          'cotizaciones': AppMenuItem(titulo: 'Cotizaciones', icono: Icons.request_quote_outlined, pagina: const CotizacionesPage(), seccion: 'EXTRAS'),
+          'cotizaciones': AppMenuItem(titulo: 'Cotizaciones', icono: Icons.request_quote_outlined, pagina: CotizacionesListPage(rol: widget.rol, nombreUsuario: widget.nombreUsuario), seccion: 'EXTRAS'),
           'requerimientos': AppMenuItem(titulo: 'Requerimientos', icono: Icons.precision_manufacturing_outlined, pagina: const RequerimientosListPage(), seccion: 'EXTRAS'),
           'ordenes_pedido': AppMenuItem(titulo: 'Órdenes de Pedido', icono: Icons.list_alt_rounded, pagina: const OrdenesPedidoPage(), seccion: 'EXTRAS'),
           'clientes': AppMenuItem(titulo: 'Directorio Clientes', icono: Icons.people_alt_outlined, pagina: const ClientesPage(), seccion: 'EXTRAS'),
@@ -742,6 +780,9 @@ class _HomePageState extends State<HomePage> {
           'dosificacion': AppMenuItem(titulo: 'Dosificación', icono: Icons.history_edu, pagina: const ControlCalidadPage(), seccion: 'EXTRAS'),
           'disenos_mezcla': AppMenuItem(titulo: 'Diseños de Mezcla', icono: Icons.science_outlined, pagina: const DisenosMezclaPage(), seccion: 'EXTRAS'),
           'granulometria': AppMenuItem(titulo: 'Granulometría', icono: Icons.grain, pagina: const GranulometriaPage(), seccion: 'EXTRAS'),
+          'control_calidad_probetas': AppMenuItem(titulo: 'Control de Calidad', icono: Icons.analytics_outlined, pagina: const ControlCalidadProbetasPage(), seccion: 'EXTRAS'),
+          'formulario_probetas': AppMenuItem(titulo: 'Formulario de Probetas', icono: Icons.assignment_outlined, pagina: const FormularioProbetasPage(), seccion: 'EXTRAS'),
+          'certificados_calidad': AppMenuItem(titulo: 'Certificados', icono: Icons.verified_outlined, pagina: const CertificadosCalidadPage(), seccion: 'EXTRAS'),
           'costos': AppMenuItem(titulo: 'Costos', icono: Icons.attach_money_rounded, pagina: const CostosPage(), seccion: 'EXTRAS'),
           'tesoreria': AppMenuItem(titulo: 'Tesorería', icono: Icons.account_balance_outlined, pagina: const TesoreriaPage(), seccion: 'EXTRAS'),
           'logistica': AppMenuItem(titulo: 'Logística', icono: Icons.local_shipping_outlined, pagina: const LogisticaPage(), seccion: 'EXTRAS'),
@@ -1055,44 +1096,122 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // TOP HEADER CUSTOMIZADO (Ultra Premium)
+            // TOP HEADER CUSTOMIZADO (NovaConcret Enterprise)
             Container(
               height: 70,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
                 color: sidebarColor,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    width: 1.2,
+                  ),
+                ),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))
-                ]
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
                   if (!esEscritorio)
-                    Image.asset('assets/images/LOGO2023.png', height: 32, fit: BoxFit.contain)
-                  else
-                    const SizedBox.shrink(),
+                    Image.asset(
+                      'assets/images/LOGO_NOVA.png',
+                      height: 42,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                        'assets/images/logo.png',
+                        height: 42,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                          'assets/LOGO_NOVA.png',
+                          height: 42,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.local_shipping, size: 36, color: AppColors.primary),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.3) : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        itemsPermitidos[indiceActual].icono,
+                        size: 20,
+                        color: isDark ? const Color(0xFF38BDF8) : AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          itemsPermitidos[indiceActual].titulo,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        if (itemsPermitidos[indiceActual].seccion != null)
+                          Text(
+                            itemsPermitidos[indiceActual].seccion!,
+                            style: const TextStyle(
+                              color: Color(0xFF0284C7),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                   const Spacer(),
                   
-                  // Role Badge
+                  // Role Badge corporativo NovaConcret
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.1),
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [const Color(0xFF1E3A8A), const Color(0xFF0284C7)]
+                            : [const Color(0xFF002244), const Color(0xFF004899)],
+                      ),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.2))
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF004899).withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.shield_outlined, size: 14, color: AppColors.accent),
+                        const Icon(Icons.verified_user_rounded, size: 14, color: Color(0xFF38BDF8)),
                         const SizedBox(width: 6),
                         Text(
                           widget.rol.name.toUpperCase(),
-                          style: const TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                          style: const TextStyle(
+                            color: Colors.white, 
+                            fontSize: 11, 
+                            fontWeight: FontWeight.w900, 
+                            letterSpacing: 1.0
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   
                   // Theme Toggle
                   Consumer<ThemeProvider>(
@@ -1101,35 +1220,35 @@ class _HomePageState extends State<HomePage> {
                         onTap: () => themeProvider.toggleTheme(!themeProvider.isDarkMode),
                         borderRadius: BorderRadius.circular(50),
                         child: Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(9),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: isDark ? Colors.white24 : Colors.grey.shade200),
-                            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade50
+                            border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                           ),
                           child: Icon(
-                            themeProvider.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                            color: themeProvider.isDarkMode ? Colors.yellow.shade600 : AppColors.primaryDark,
-                            size: 20,
+                            themeProvider.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                            color: themeProvider.isDarkMode ? Colors.amber : const Color(0xFF475569),
+                            size: 19,
                           ),
                         ),
                       );
                     },
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   
                   // Logout
                   InkWell(
                     onTap: () => _cerrarSesion(context),
                     borderRadius: BorderRadius.circular(50),
                     child: Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.red.withValues(alpha: 0.05),
-                        border: Border.all(color: Colors.red.withValues(alpha: 0.1))
+                        color: Colors.red.withValues(alpha: 0.08),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
                       ),
-                      child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                      child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 19),
                     ),
                   ),
                 ],
@@ -1207,34 +1326,73 @@ class _HomePageState extends State<HomePage> {
   // CUSTOM NAVIGATION RAIL (PC)
   // ─────────────────────────────────────────────────────────────
   Widget _buildCustomNavigationRail(bool extendido, Color bgColor, Color textColor, Color iconColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: extendido ? 240 : 80,
+      width: extendido ? 275 : 82,
       decoration: BoxDecoration(
         color: bgColor,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            width: 1.2,
+          ),
+        ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 15, offset: const Offset(5, 0))
-        ]
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 15,
+            offset: const Offset(4, 0),
+          ),
+        ],
       ),
       child: Column(
         children: [
           if (extendido)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               alignment: Alignment.centerLeft,
               child: Image.asset(
-                'assets/images/LOGO2023.png',
-                height: 40,
-                width: 170, // Constraints para evitar overflow
+                'assets/images/LOGO_NOVA.png',
+                height: 48,
                 fit: BoxFit.contain,
                 alignment: Alignment.centerLeft,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  'assets/images/logo.png',
+                  height: 48,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.centerLeft,
+                  errorBuilder: (_, __, ___) => Image.asset(
+                    'assets/LOGO_NOVA.png',
+                    height: 48,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.centerLeft,
+                  ),
+                ),
               ),
             )
           else 
-            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Image.asset(
+                'assets/images/LOGO_NOVA.png',
+                height: 38,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  'assets/images/logo.png',
+                  height: 38,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Image.asset(
+                    'assets/LOGO_NOVA.png',
+                    height: 38,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
             
           Expanded(
             child: ListView(
-              padding: EdgeInsets.symmetric(vertical: extendido ? 8 : 12, horizontal: 16),
+              padding: EdgeInsets.symmetric(vertical: extendido ? 6 : 10, horizontal: 14),
               physics: const BouncingScrollPhysics(),
               children: _buildCustomRailItems(extendido, textColor, iconColor),
             ),
@@ -1254,17 +1412,17 @@ class _HomePageState extends State<HomePage> {
       final esSeleccionado = indiceActual == i;
 
       if (extendido && item.seccion != null && item.seccion != lastSeccion) {
-        if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 16));
+        if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 14));
         widgets.add(
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
             child: Text(
               item.seccion!,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
-                color: isDark ? Colors.blueGrey.shade400 : Colors.blueGrey.shade300,
-                letterSpacing: 1.5,
+                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                letterSpacing: 1.3,
               ),
             ),
           ),
@@ -1272,8 +1430,10 @@ class _HomePageState extends State<HomePage> {
         lastSeccion = item.seccion;
       }
 
-      final colorHover = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03);
-      final colorSelectedBg = isDark ? AppColors.accent.withValues(alpha: 0.15) : AppColors.accent.withValues(alpha: 0.1);
+      final colorHover = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9);
+      final colorSelectedBg = isDark
+          ? const Color(0xFF1E3A8A).withValues(alpha: 0.35)
+          : const Color(0xFFEFF6FF);
 
       widgets.add(
         Tooltip(
@@ -1283,25 +1443,44 @@ class _HomePageState extends State<HomePage> {
             margin: const EdgeInsets.only(bottom: 4),
             child: Material(
               color: esSeleccionado ? colorSelectedBg : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(10),
               child: InkWell(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(10),
                 hoverColor: colorHover,
                 onTap: () => setState(() => indiceActual = i),
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: extendido ? 12 : 0, vertical: extendido ? 12 : 14),
+                  padding: EdgeInsets.symmetric(horizontal: extendido ? 12 : 0, vertical: extendido ? 11 : 13),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: esSeleccionado 
+                        ? Border(
+                            left: BorderSide(
+                              color: isDark ? const Color(0xFF38BDF8) : AppColors.primary,
+                              width: 3.5,
+                            ),
+                          )
+                        : null,
+                  ),
                   child: extendido
                       ? Row(
                           children: [
-                            Icon(item.icono, size: 22, color: esSeleccionado ? AppColors.accent : iconColor),
-                            const SizedBox(width: 14),
+                            Icon(
+                              item.icono, 
+                              size: 21, 
+                              color: esSeleccionado 
+                                  ? (isDark ? const Color(0xFF38BDF8) : AppColors.primary) 
+                                  : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 item.titulo,
                                 style: TextStyle(
                                   fontWeight: esSeleccionado ? FontWeight.w800 : FontWeight.w600,
-                                  fontSize: 14,
-                                  color: esSeleccionado ? AppColors.accent : textColor.withValues(alpha: 0.8),
+                                  fontSize: 13.5,
+                                  color: esSeleccionado 
+                                      ? (isDark ? const Color(0xFF38BDF8) : AppColors.primary) 
+                                      : const Color(0xFF334155),
                                 ),
                               ),
                             ),
@@ -1310,13 +1489,21 @@ class _HomePageState extends State<HomePage> {
                       : Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(item.icono, size: 24, color: esSeleccionado ? AppColors.accent : iconColor),
-                            const SizedBox(height: 6),
+                            Icon(
+                              item.icono, 
+                              size: 23, 
+                              color: esSeleccionado 
+                                  ? (isDark ? const Color(0xFF38BDF8) : AppColors.primary) 
+                                  : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(height: 5),
                             Text(
                               item.titulo,
                               style: TextStyle(
                                 fontSize: 9,
-                                color: esSeleccionado ? AppColors.accent : iconColor,
+                                color: esSeleccionado 
+                                    ? (isDark ? const Color(0xFF38BDF8) : AppColors.primary) 
+                                    : const Color(0xFF64748B),
                                 fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.normal,
                               ),
                               overflow: TextOverflow.ellipsis,

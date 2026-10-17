@@ -1,11 +1,11 @@
 {
-    "name": "app_database",
-    "short_name": "app_database",
+    "name": "ERP NOVACONCRET",
+    "short_name": "ERP NOVACONCRET",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#002244",
+    "theme_color": "#002244",
+    "description": "ERP NOVACONCRET - Gestión Integral",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

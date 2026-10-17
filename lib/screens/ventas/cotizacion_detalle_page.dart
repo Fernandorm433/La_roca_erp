@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/cotizacion_pdf_generator.dart';
@@ -55,21 +54,40 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       final items = _items.map((i) => ItemCotizacion(
         tipo: i['tipo'] ?? 'Concreto',
         descripcion: i['descripcion'] ?? '',
-        detalles: List<String>.from(i['detalles'] ?? []),
+        detalles: parseDetalles(i['detalles']),
         cantidad: double.tryParse(i['cantidad'].toString()) ?? 0,
         unidad: i['unidad'] ?? 'M³',
         precioUnitario: double.tryParse(i['precio_unitario'].toString()) ?? 0,
       )).toList();
+      final concretoItem = _items.firstWhere(
+        (i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto',
+        orElse: () => _items.isNotEmpty ? _items.first : null,
+      );
+      final horaEntregaDt = DateTime.tryParse(_cot['hora_entrega'] ?? '');
+      final fechaCreacion = DateTime.tryParse(_cot['created_at'] ?? '') ?? DateTime.now();
+
       final datos = DatosCotizacion(
         numeroCotizacion: _cot['numero_cotizacion'] ?? '',
-        fecha: DateTime.tryParse(_cot['created_at'] ?? '') ?? DateTime.now(),
+        fecha: fechaCreacion,
+        fechaVencimiento: fechaCreacion.add(const Duration(days: 30)),
+        horaEntrega: horaEntregaDt,
         clienteNombre: _cot['cliente_nombre'] ?? '',
         clienteDocumento: _cot['cliente_documento'] ?? '',
-        clienteDireccion: _cot['obra_direccion'] ?? '',
+        clienteDireccion: _cot['obra_direccion'] ?? _cot['cliente_direccion'] ?? '',
         clienteTelefono: _cot['cliente_telefono'] ?? '',
         asesorNombre: _cot['asesor_nombre'] ?? '',
         asesorTelefono: _cot['asesor_telefono'] ?? '',
+        contactoObra: _cot['cliente_nombre'] ?? '',
+        contactoTelefono: _cot['cliente_telefono'] ?? '',
+        tipoComprobante: _cot['tipo_comprobante'] ?? 'Factura',
+        formaPago: 'DEPÓSITO',
+        fechaVaciado: horaEntregaDt != null ? DateFormat('dd/MM/yyyy').format(horaEntregaDt) : null,
+        elementoVaciar: concretoItem?['elemento']?.toString(),
+        formaVaciado: (concretoItem?['bombeable'] == true) ? 'BOMBEABLE' : 'DIRECTO',
         igvPorcentaje: double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18,
+        subTotalCustom: double.tryParse(_cot['subtotal']?.toString() ?? ''),
+        igvMontoCustom: double.tryParse(_cot['igv_monto']?.toString() ?? ''),
+        totalCustom: double.tryParse(_cot['total']?.toString() ?? ''),
         items: items,
       );
       
@@ -142,68 +160,29 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       // Update ventas_programacion if exists
       final oldFechaStr = DateTime.tryParse(_cot['hora_entrega'] ?? '')?.toIso8601String().split('T')[0];
       
+      String idVentaStr = '';
+      Map<String, dynamic>? existingVenta;
+      
       if (oldFechaStr != null) {
-        final ventas = await _sb.from('ventas_programacion')
+        final ventasData = await _sb.from('ventas_programacion')
             .select()
             .eq('fecha_entrega', oldFechaStr)
             .ilike('nombre_razon_social', _cot['cliente_nombre'] ?? '')
             .limit(1);
             
-        if (ventas.isNotEmpty) {
-           final idVenta = ventas[0]['id'];
+        if (ventasData.isNotEmpty) {
+           existingVenta = ventasData[0];
+           idVentaStr = existingVenta['id']?.toString() ?? '';
            final horaStr = DateFormat('HH:mm:ss').format(nuevaFecha);
            final fechaStr = DateFormat('yyyy-MM-dd').format(nuevaFecha);
            await _sb.from('ventas_programacion').update({
              'fecha_entrega': fechaStr,
              'hora_entrega': horaStr,
              'volumen': nuevoVolumen,
-           }).eq('id', idVenta);
+           }).eq('id', idVentaStr);
         }
       }
 
-      // Send to Drive
-      try {
-        final params = {
-          'asesor': _cot['asesor_nombre'] ?? '',
-          'day': DateFormat('dd/MM/yyyy').format(nuevaFecha),
-          'hour': DateFormat('HH:mm').format(nuevaFecha),
-          'client': (_cot['cliente_nombre'] ?? '').toString().toUpperCase(),
-          'tipoDocumento': _cot['tipo_comprobante'] ?? 'Factura',
-          'document': _cot['cliente_documento'] ?? '',
-          'address': _cot['obra_direccion'] ?? '',
-          'phone': _cot['cliente_telefono'] ?? '',
-          'distrito': _cot['obra_distrito'] ?? '',
-          'volumen': nuevoVolumen.toString(),
-          'fuerza': concretoItem != null ? (concretoItem['resistencia']?.toString().isNotEmpty == true ? "F'c=${concretoItem['resistencia']}" : concretoItem['descripcion'] ?? '') : '',
-          'elemento': concretoItem?['elemento'] ?? '',
-          'huso': concretoItem?['huso'] ?? '',
-          'slump': concretoItem?['slump'] ?? '',
-          'aditivo': concretoItem?['aditivo'] ?? '',
-          'cemento': concretoItem?['tipo_cemento'] ?? '',
-          'bombas': '',
-          'extensiones': '',
-          'selectedMixer': '',
-          'selectedCapacity': '',
-          'time': DateFormat('HH:mm').format(nuevaFecha),
-          'quality': '',
-          'commentReturn': 'MODIFICADO DESDE APP',
-          'location': _cot['obra_maps_link'] ?? '',
-          'urlVoucher': '',
-          'emisionReq': DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-          'observaciones': 'EDICIÓN',
-        };
-
-        final body = params.entries
-            .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-            .join('&');
-
-        const gasUrl = 'https://script.google.com/macros/s/AKfycbzKlmfOBqCQSewWueYIdBwvjj_RP7uUty2qGRjGeS3i1XrS3a0qiLeUMl8I8SfT3ut2Fg/exec';
-        
-        await http.post(Uri.parse(gasUrl),
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body);
-      } catch (e) {
-        debugPrint('Error enviando a Drive: $e');
-      }
       
       // Reload
       final d = await _sb.from('cotizaciones')
@@ -291,7 +270,7 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
                         child: const Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.check_circle, color: AppColors.primaryDark, size: 16),
                           SizedBox(width: 6),
-                          Text('Requerimiento enviado al Drive',
+                          Text('Requerimiento Generado',
                               style: TextStyle(color: AppColors.primaryDark,
                                   fontWeight: FontWeight.bold, fontSize: 12)),
                         ]),
@@ -445,7 +424,7 @@ class _ItemTile extends StatelessWidget {
     final cant = double.tryParse(item['cantidad']?.toString() ?? '0') ?? 0;
     final precio = double.tryParse(item['precio_unitario']?.toString() ?? '0') ?? 0;
     final sub = cant * precio;
-    final detalles = List<String>.from(item['detalles'] ?? []);
+    final detalles = parseDetalles(item['detalles']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

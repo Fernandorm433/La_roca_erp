@@ -70,6 +70,9 @@ class GuiaPdfPreview extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Vista Previa de Guía')),
       body: PdfPreview(
+        pdfFileName: 'Guia_${carguio['nro_guia'] ?? 'despacho'}.pdf',
+        canChangeOrientation: false,
+        canChangePageFormat: false,
         build: (format) => _generatePdf(),
       ),
     );

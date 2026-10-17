@@ -28,11 +28,11 @@ class _GranulometriaExportDialogState extends State<GranulometriaExportDialog> {
   DateTime _fechaAnalisis = DateTime.now();
   final _fmt = DateFormat('d/M/yyyy');
 
-  static const _navy = Color(0xFF0A1931);
-  static const _navyMid = Color(0xFF1B3A6B);
-  static const _teal = Color(0xFF0EA5A0);
-  static const _divider = Color(0xFFDDE3ED);
-  static const _bg = Color(0xFFF0F4F8);
+  static const _navy = Color(0xFF002244);
+  static const _navyMid = Color(0xFF003366);
+  static const _teal = Color(0xFF0284C7);
+  static const _divider = Color(0xFFE2E8F0);
+  static const _bg = Color(0xFFF8FAFC);
   static const _textLight = Color(0xFF94A3B8);
   static const _inputBg = Color(0xFFF8FAFC);
 

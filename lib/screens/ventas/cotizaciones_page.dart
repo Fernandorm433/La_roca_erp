@@ -1,11 +1,11 @@
 // lib/screens/ventas/cotizaciones_page.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/cotizacion_pdf_generator.dart';
+import '../../services/consulta_doc_service.dart';
+import '../home/home_page.dart';
 import 'cotizacion_pdf_preview.dart';
 
 // ─── MODELO LOCAL ─────────────────────────────────────────────────────────────
@@ -81,8 +81,16 @@ class _Stepper extends StatelessWidget {
 class CotizacionesPage extends StatefulWidget {
   final Map<String, dynamic>? cotizacionExistente;
   final Map<String, dynamic>? datosParaDuplicar;
+  final RolUsuario? rol;
+  final String? nombreUsuario;
 
-  const CotizacionesPage({super.key, this.cotizacionExistente, this.datosParaDuplicar});
+  const CotizacionesPage({
+    super.key,
+    this.cotizacionExistente,
+    this.datosParaDuplicar,
+    this.rol,
+    this.nombreUsuario,
+  });
 
   @override
   State<CotizacionesPage> createState() => _CotizacionesPageState();
@@ -95,12 +103,16 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
 
   // PASO 0
   String _tipoComprobante = 'Factura';
-  Map<String, dynamic>? _asesorSel;
+  Map<String, dynamic>? _asesorSel = {
+    'id': 'admin',
+    'nombre': 'Administrador (Yo)',
+    'rol': 'admin',
+    'telefono': '',
+  };
   DateTime? _fechaEntrega;
   List<Map<String, dynamic>> _asesores = [];
 
   // Usuario actual y rol
-  Map<String, dynamic>? _empleadoActual;
   String _rolActual = '';
 
   // PASO 1 – Búsqueda de cliente
@@ -117,17 +129,24 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
   bool _buscandoCliente = false;
   bool _clienteSeleccionado = false;
   bool _mostrarNuevo = false;
+  final ConsultaDocService _consultaDocService = ConsultaDocService();
+  bool _buscandoSunat = false;
 
   // PASO 2
   List<_ItemLocal> _items = [];
   bool _guardando = false;
-  bool _generandoReq = false;
 
   bool get _esEdicion => widget.cotizacionExistente != null;
-  bool get _esAdmin => _rolActual == 'admin';
+  bool get _esAdmin =>
+      widget.rol == RolUsuario.admin ||
+      widget.rol == RolUsuario.ventas ||
+      _rolActual == 'admin' ||
+      _rolActual == 'administrador' ||
+      _rolActual == 'gerencia' ||
+      _rolActual == 'jefe_ventas' ||
+      _rolActual == 'jefe comercial' ||
+      _rolActual.isEmpty;
 
-  static const String _GAS_URL =
-      'https://script.google.com/macros/s/AKfycbzKlmfOBqCQSewWueYIdBwvjj_RP7uUty2qGRjGeS3i1XrS3a0qiLeUMl8I8SfT3ut2Fg/exec';
 
   @override
   void initState() {
@@ -148,47 +167,122 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
   Future<void> _cargarUsuarioYAsesores() async {
     final user = _sb.auth.currentUser;
     try {
-      // Cargar todos los asesores
-      final asesores = await _sb.from('empleados')
-          .select('id, nombres, apellidos, telefono, rol')
-          .eq('activo', true)
-          .order('nombres');
-      setState(() => _asesores = List<Map<String, dynamic>>.from(asesores));
+      // 1. Obtener datos del usuario/empleado logueado
+      Map<String, dynamic>? usu;
+      String rolDetectado = widget.rol?.name.toLowerCase() ?? '';
+      String nombreDetectado = widget.nombreUsuario ?? '';
 
-      // Cargar empleado actual por email o de la tabla usuarios si es admin externo
       if (user != null) {
-        Map<String, dynamic>? emp;
-        if (user.email != null) {
-          emp = await _sb.from('empleados')
-              .select()
-              .eq('email', user.email!)
-              .maybeSingle();
-        }
-
-        Map<String, dynamic>? usu;
-        if (emp == null) {
+        try {
           usu = await _sb.from('usuarios')
-              .select('rol')
+              .select('id, rol, nombre')
               .eq('id', user.id)
               .maybeSingle();
-        }
 
-        if (emp != null || usu != null) {
-          setState(() {
-            if (emp != null) {
-              _empleadoActual = emp;
-              _rolActual = (emp['rol'] ?? '').toString().toLowerCase();
-              // Auto-asignar asesor al usuario actual por defecto
-              if (_asesorSel == null) {
-                _asesorSel = emp;
-              }
-            } else if (usu != null) {
-              _rolActual = (usu['rol'] ?? '').toString().toLowerCase();
+          if (usu != null) {
+            if ((usu['rol'] ?? '').toString().isNotEmpty) {
+              rolDetectado = usu['rol'].toString().toLowerCase();
             }
-          });
+            if ((usu['nombre'] ?? '').toString().isNotEmpty) {
+              nombreDetectado = usu['nombre'].toString();
+            }
+          }
+        } catch (e) {
+          debugPrint('Error consultando usuario actual en cotizaciones: $e');
         }
       }
-    } catch (_) {}
+
+      final esAdminUser = widget.rol == RolUsuario.admin ||
+          widget.rol == RolUsuario.ventas ||
+          rolDetectado == 'admin' ||
+          rolDetectado == 'administrador' ||
+          rolDetectado == 'gerencia' ||
+          rolDetectado == 'jefe_ventas' ||
+          rolDetectado == 'jefe comercial' ||
+          rolDetectado.isEmpty;
+
+      // 2. Cargar asesores de ventas desde la tabla usuarios
+      List<Map<String, dynamic>> listaAsesores = [];
+      try {
+        final res = await _sb.from('usuarios')
+            .select('id, nombre, rol')
+            .order('nombre');
+        final usuariosDb = List<Map<String, dynamic>>.from(res);
+        for (final u in usuariosDb) {
+          final r = (u['rol'] ?? '').toString().toLowerCase();
+          final n = (u['nombre'] ?? '').toString().trim();
+          if (n.isNotEmpty && (r.contains('asesor') || r.contains('venta') || r.contains('comercial'))) {
+            final tel = n.toLowerCase().contains('fernando')
+                ? '958316823'
+                : (n.toLowerCase().contains('sofia') ? '958316824' : '');
+            listaAsesores.add({
+              'id': u['id'],
+              'nombre': n,
+              'rol': r,
+              'telefono': tel,
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error consultando asesores de usuarios: $e');
+      }
+
+      // Asegurar que asesores base siempre existan
+      if (!listaAsesores.any((a) => a['nombre'].toString().toLowerCase().contains('fernando'))) {
+        listaAsesores.add({
+          'id': 'asesor_fernando',
+          'nombre': 'Fernando Romero',
+          'rol': 'asesor',
+          'telefono': '958316823',
+        });
+      }
+      if (!listaAsesores.any((a) => a['nombre'].toString().toLowerCase().contains('sofia'))) {
+        listaAsesores.add({
+          'id': 'asesor_sofia',
+          'nombre': 'Sofia Romero',
+          'rol': 'asesor',
+          'telefono': '958316824',
+        });
+      }
+
+      // Opción especial de Administrador
+      final adminOption = {
+        'id': user?.id ?? 'admin-id',
+        'nombre': (nombreDetectado.isNotEmpty && nombreDetectado != 'Usuario')
+            ? '$nombreDetectado (Administrador)'
+            : 'Administrador (Yo)',
+        'rol': 'admin',
+        'telefono': '',
+      };
+
+      final List<Map<String, dynamic>> todasOpciones = [adminOption, ...listaAsesores];
+
+      if (mounted) {
+        setState(() {
+          _rolActual = rolDetectado.isNotEmpty ? rolDetectado : 'admin';
+          _asesores = todasOpciones;
+
+          // Si estamos editando y ya se cargó el asesor del registro existente, mantenerlo
+          if (_esEdicion && _asesorSel != null) return;
+
+          if (esAdminUser) {
+            // Por defecto asignado a Administrador (o puede elegir cualquier asesor)
+            if (_asesorSel == null || _asesorSel!['id'] == 'admin' || _asesorSel!['id'] == 'admin-id') {
+              _asesorSel = adminOption;
+            }
+          } else {
+            final miAsesor = listaAsesores.firstWhere(
+              (a) => a['id'].toString() == user?.id.toString() ||
+                     (nombreDetectado.isNotEmpty && a['nombre'].toString().toLowerCase().contains(nombreDetectado.toLowerCase())),
+              orElse: () => adminOption,
+            );
+            _asesorSel = miAsesor;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error en _cargarUsuarioYAsesores: $e');
+    }
   }
 
   void _precargar() {
@@ -206,11 +300,27 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
       _searchClienteCtrl.text = _nombreCtrl.text;
       _clienteSeleccionado = true;
     }
+    if (src['asesor_nombre'] != null && src['asesor_nombre'].toString().trim().isNotEmpty) {
+      final asesorNom = src['asesor_nombre'].toString().trim();
+      final index = _asesores.indexWhere(
+        (a) => (a['nombre'] ?? '').toString().toLowerCase().contains(asesorNom.toLowerCase()),
+      );
+      if (index != -1) {
+        _asesorSel = _asesores[index];
+      } else {
+        _asesorSel = {
+          'id': src['asesor_id']?.toString() ?? 'asesor-id',
+          'nombre': asesorNom,
+          'rol': 'asesor',
+          'telefono': src['asesor_telefono'] ?? '',
+        };
+      }
+    }
     final rawItems = src['cotizacion_items'] as List? ?? [];
     _items = rawItems.map((i) => _ItemLocal(
       tipo: i['tipo'] ?? 'Concreto',
       descripcion: i['descripcion'] ?? '',
-      detalles: List<String>.from(i['detalles'] ?? []),
+      detalles: parseDetalles(i['detalles']),
       cantidad: double.tryParse(i['cantidad'].toString()) ?? 0,
       unidad: i['unidad'] ?? 'M³',
       precioUnitario: double.tryParse(i['precio_unitario'].toString()) ?? 0,
@@ -288,6 +398,26 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
         return seen.add(key);
       }).toList();
 
+      // Si no hay resultados locales y es un DNI (8 dígitos) o RUC (11 dígitos), consultar a SUNAT / RENIEC en vivo
+      final cleanDigits = q2.replaceAll(RegExp(r'[^0-9]'), '');
+      if (unique.isEmpty && (cleanDigits.length == 8 || cleanDigits.length == 11)) {
+        try {
+          final resOnline = await _consultaDocService.consultarDocumento(cleanDigits);
+          if (resOnline != null && resOnline['nombre_razon_social'] != null) {
+            unique.add({
+              'nombre_razon_social': resOnline['nombre_razon_social'],
+              'dni_ruc': resOnline['dni_ruc'] ?? cleanDigits,
+              'telefono': resOnline['telefono'] ?? '',
+              'direccion': resOnline['direccion'] ?? '',
+              'obra_direccion': resOnline['direccion'] ?? '',
+              'obra_maps_link': '',
+              'obra_distrito': resOnline['distrito'] ?? '',
+              'fuente': resOnline['fuente'] ?? 'SUNAT OFICIAL',
+            });
+          }
+        } catch (_) {}
+      }
+
       setState(() {
         _sugerencias = unique;
         _mostrarNuevo = unique.isEmpty;
@@ -296,6 +426,49 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
       setState(() { _sugerencias = []; _mostrarNuevo = true; });
     } finally {
       setState(() => _buscandoCliente = false);
+    }
+  }
+
+  Future<void> _consultarSunatOnline(String documento) async {
+    final doc = documento.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    if (doc.length != 8 && doc.length != 11) {
+      _snack('Ingrese un DNI (8 dígitos) o RUC (11 dígitos) válido', err: true);
+      return;
+    }
+
+    setState(() => _buscandoSunat = true);
+    try {
+      final res = await _consultaDocService.consultarDocumento(doc);
+      if (res != null && res['nombre_razon_social'] != null && res['nombre_razon_social'].toString().isNotEmpty) {
+        setState(() {
+          _nombreCtrl.text = res['nombre_razon_social'].toString().toUpperCase();
+          _docCtrl.text = res['dni_ruc'] ?? doc;
+          _searchClienteCtrl.text = res['nombre_razon_social'].toString().toUpperCase();
+          if (res['telefono'] != null && res['telefono'].toString().isNotEmpty) {
+            _telCtrl.text = res['telefono'];
+          }
+          if (res['direccion'] != null && res['direccion'].toString().isNotEmpty) {
+            _dirClienteCtrl.text = res['direccion'];
+            if (_dirObraCtrl.text.isEmpty) {
+              _dirObraCtrl.text = res['direccion'];
+            }
+          }
+          if (res['distrito'] != null && res['distrito'].toString().isNotEmpty) {
+            _distritoCtrl.text = res['distrito'];
+          }
+          _clienteSeleccionado = true;
+          _sugerencias = [];
+          _mostrarNuevo = false;
+        });
+
+        _snack('✅ Datos obtenidos de ${res['fuente'] ?? "SUNAT"}: ${_nombreCtrl.text}');
+      } else {
+        _snack('No se encontró información en SUNAT/RENIEC para $doc', err: true);
+      }
+    } catch (e) {
+      _snack('Error al consultar SUNAT: $e', err: true);
+    } finally {
+      if (mounted) setState(() => _buscandoSunat = false);
     }
   }
 
@@ -371,7 +544,17 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
 
   bool _validarPaso() {
     if (_paso == 0) {
-      if (_asesorSel == null) { _snack('Selecciona un asesor', err: true); return false; }
+      if (_asesorSel == null) {
+        if (_asesores.isNotEmpty) {
+          _asesorSel = _asesores.first;
+        } else {
+          _asesorSel = {
+            'id': 'admin',
+            'nombre': 'Administrador',
+            'rol': 'admin',
+          };
+        }
+      }
       if (_fechaEntrega == null) { _snack('Selecciona fecha y hora de entrega', err: true); return false; }
     }
     if (_paso == 1) {
@@ -385,9 +568,13 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
     if (_items.isEmpty) { _snack('Agrega al menos un producto', err: true); return; }
     setState(() => _guardando = true);
     try {
-      final asesorNombre = _asesorSel != null
-          ? '${_asesorSel!['nombres']} ${_asesorSel!['apellidos'] ?? ''}'.trim()
-          : '';
+      final rawAsesor = _asesorSel != null
+          ? (_asesorSel!['nombre'] ?? '${_asesorSel!['nombres'] ?? ''} ${_asesorSel!['apellidos'] ?? ''}').toString().trim()
+          : 'ADMINISTRADOR';
+      final asesorNombre = rawAsesor
+          .replaceAll(' (Yo)', '')
+          .replaceAll(' (Administrador)', '')
+          .trim();
       final payload = {
         'cliente_nombre': _nombreCtrl.text.toUpperCase().trim(),
         'cliente_documento': _docCtrl.text,
@@ -398,7 +585,7 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
         'obra_maps_link': _mapsCtrl.text,
         'obra_distrito': _distritoCtrl.text,
         'tipo_comprobante': _tipoComprobante,
-        'asesor_id': _asesorSel?['id'],
+        'asesor_id': null, // Omit to avoid FK constraint error with empty empleados table
         'asesor_nombre': asesorNombre,
         'asesor_telefono': _asesorSel?['telefono'] ?? '',
         'hora_entrega': _fechaEntrega?.toIso8601String(),
@@ -457,20 +644,41 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
   Future<void> _pdf() async {
     if (_items.isEmpty) { _snack('Agrega al menos un producto', err: true); return; }
     try {
-      final asesorNombre = _asesorSel != null
-          ? '${_asesorSel!['nombres']} ${_asesorSel!['apellidos'] ?? ''}'.trim()
-          : (widget.cotizacionExistente?['asesor_nombre'] ?? '');
+      final rawAsesor = _asesorSel != null
+          ? (_asesorSel!['nombre'] ?? '${_asesorSel!['nombres'] ?? ''} ${_asesorSel!['apellidos'] ?? ''}').toString().trim()
+          : (widget.cotizacionExistente?['asesor_nombre'] ?? 'ADMINISTRADOR');
+      final asesorNombre = rawAsesor
+          .replaceAll(' (Yo)', '')
+          .replaceAll(' (Administrador)', '')
+          .trim();
       final numero = widget.cotizacionExistente?['numero_cotizacion'] ?? await _genNumero();
       final nombre = _nombreCtrl.text.toUpperCase().trim().isEmpty ? 'CLIENTE' : _nombreCtrl.text.toUpperCase().trim();
+      final concretoItem = _items.firstWhere(
+        (i) => i.tipo.toLowerCase() == 'concreto',
+        orElse: () => _items.first,
+      );
+      final formaVaciadoStr = concretoItem.tipoVaciado.isNotEmpty
+          ? concretoItem.tipoVaciado
+          : (concretoItem.descripcion.toUpperCase().contains('BOMBA') ? 'BOMBEABLE' : 'DIRECTO');
+
       final datos = DatosCotizacion(
         numeroCotizacion: numero,
         fecha: DateTime.now(),
+        fechaVencimiento: DateTime.now().add(const Duration(days: 30)),
+        horaEntrega: _fechaEntrega,
         clienteNombre: nombre,
         clienteDocumento: _docCtrl.text.isEmpty ? 'S/D' : _docCtrl.text,
-        clienteDireccion: _dirObraCtrl.text.isEmpty ? 'S/D' : _dirObraCtrl.text,
+        clienteDireccion: _dirObraCtrl.text.isEmpty ? (_dirClienteCtrl.text.isEmpty ? 'S/D' : _dirClienteCtrl.text) : _dirObraCtrl.text,
         clienteTelefono: _telCtrl.text,
         asesorNombre: asesorNombre.toUpperCase(),
         asesorTelefono: _asesorSel?['telefono'] ?? '',
+        contactoObra: nombre,
+        contactoTelefono: _telCtrl.text,
+        tipoComprobante: _tipoComprobante,
+        formaPago: 'DEPÓSITO',
+        fechaVaciado: _fechaEntrega != null ? DateFormat('dd/MM/yyyy').format(_fechaEntrega!) : null,
+        elementoVaciar: concretoItem.elemento.isNotEmpty ? concretoItem.elemento : null,
+        formaVaciado: formaVaciadoStr,
         igvPorcentaje: _igvPct,
         items: _items.map((i) => i.toPdf()).toList(),
       );
@@ -485,78 +693,13 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
     } catch (e) { _snack('Error PDF: $e', err: true); }
   }
 
-  Future<void> _generarRequerimiento() async {
-    if (_items.isEmpty) { _snack('Agrega al menos un producto', err: true); return; }
-    if (_asesorSel == null) { _snack('Selecciona un asesor primero', err: true); return; }
 
-    setState(() => _generandoReq = true);
-    try {
-      final asesorNombre = '${_asesorSel!['nombres']} ${_asesorSel!['apellidos'] ?? ''}'.trim();
-      final fmt = DateFormat('dd/MM/yyyy');
-      final fmtH = DateFormat('HH:mm');
-      final fecha = _fechaEntrega ?? DateTime.now();
-
-      final concreto = _items.firstWhere((i) => i.tipo == 'Concreto', orElse: () => _items.first);
-      final hayBombeo = _items.any((i) =>
-          i.tipoVaciado == 'BOMBEABLE' || (i.tipo == 'Servicio' && i.descripcion.contains('BOMBA')));
-
-      final params = {
-        'asesor': asesorNombre,
-        'day': fmt.format(fecha),
-        'hour': fmtH.format(fecha),
-        'client': _nombreCtrl.text.toUpperCase().trim(),
-        'tipoDocumento': _docCtrl.text.length == 11 ? 'RUC' : 'DNI',
-        'document': _docCtrl.text,
-        'address': _dirObraCtrl.text,
-        'phone': _telCtrl.text,
-        'distrito': _distritoCtrl.text,
-        'volumen': concreto.cantidad.toString(),
-        'fuerza': concreto.resistencia.isNotEmpty ? concreto.resistencia : concreto.descripcion,
-        'elemento': concreto.elemento,
-        'huso': concreto.huso,
-        'slump': concreto.slump,
-        'aditivo': concreto.aditivo,
-        'cemento': concreto.cemento,
-        'bombas': hayBombeo ? 'SI' : '',
-        'extensiones': '',
-        'selectedMixer': '',
-        'selectedCapacity': '',
-        'time': fmtH.format(fecha),
-        'quality': '',
-        'commentReturn': '',
-        'location': _mapsCtrl.text,
-        'urlVoucher': '',
-        'emisionReq': DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-        'observaciones': '',
-      };
-
-      final body = params.entries
-          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-
-      final res = await http.post(
-        Uri.parse(_GAS_URL),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: body,
-      );
-
-      if (res.statusCode == 200 && res.body.contains('SUCCESS')) {
-        _snack('✅ Requerimiento enviado al Drive');
-      } else {
-        _snack('Error al enviar: ${res.statusCode}', err: true);
-      }
-    } catch (e) {
-      _snack('Error: $e', err: true);
-    } finally {
-      setState(() => _generandoReq = false);
-    }
-  }
 
   // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F5F2),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -570,15 +713,187 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
       ),
       body: Column(children: [
         Container(color: Colors.white, child: _Stepper(paso: _paso)),
-        const Divider(height: 1, color: Color(0xFFE0EDE0)),
+        const Divider(height: 1, color: AppColors.greyBorder),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: [_buildPaso0(), _buildPaso1(), _buildPaso2()][_paso],
+            child: _paso == 0 ? _buildPaso0() : _paso == 1 ? _buildPaso1() : _buildPaso2(),
           ),
         ),
         _buildFooter(),
       ]),
+    );
+  }
+
+  void _abrirModalSelectorAsesor() {
+    if (_asesores.isEmpty) {
+      _asesores = [
+        {
+          'id': 'admin',
+          'nombre': (widget.nombreUsuario != null && widget.nombreUsuario!.isNotEmpty)
+              ? '${widget.nombreUsuario} (Administrador)'
+              : 'Administrador (Yo)',
+          'rol': 'admin',
+          'telefono': '',
+        },
+        {'id': 'asesor_fernando', 'nombre': 'Fernando Romero', 'rol': 'asesor', 'telefono': '958316823'},
+        {'id': 'asesor_sofia', 'nombre': 'Sofia Romero', 'rol': 'asesor', 'telefono': '958316824'},
+      ];
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.badge_outlined, color: AppColors.primaryDark, size: 22),
+                    SizedBox(width: 10),
+                    Text(
+                      'Emitir Cotización a Nombre de',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Text(
+                  _esAdmin
+                      ? 'Como Administrador, puedes emitir cotizaciones directamente a tu nombre o asignarlas a cualquiera de tus asesores de ventas.'
+                      : 'Selecciona si la cotización se registrará como Administrador o a nombre de un asesor comercial.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _asesores.map((a) {
+                      final esAdminItem = a['rol'] == 'admin';
+                      final isSelected = _asesorSel != null &&
+                          (_asesorSel!['id'].toString() == a['id'].toString() ||
+                           _asesorSel!['nombre'].toString() == a['nombre'].toString());
+                      return InkWell(
+                        onTap: () {
+                          setState(() => _asesorSel = a);
+                          Navigator.pop(ctx);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primaryDark.withOpacity(0.06) : Colors.transparent,
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey.shade100),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: esAdminItem
+                                    ? AppColors.primaryDark.withOpacity(0.12)
+                                    : const Color(0xFF0284C7).withOpacity(0.12),
+                                child: Icon(
+                                  esAdminItem ? Icons.admin_panel_settings_rounded : Icons.person_outline,
+                                  color: esAdminItem ? AppColors.primaryDark : const Color(0xFF0284C7),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            a['nombre']?.toString() ?? 'Sin nombre',
+                                            style: TextStyle(
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                              fontSize: 15,
+                                              color: isSelected ? AppColors.primaryDark : const Color(0xFF1E293B),
+                                            ),
+                                          ),
+                                        ),
+                                        if (isSelected) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primaryDark,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'SELECCIONADO',
+                                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      esAdminItem
+                                          ? '🛡️ Administrador General de NovaConcret'
+                                          : '👤 Asesor Comercial / Ventas${(a['telefono'] != null && a['telefono'].toString().isNotEmpty) ? ' • Tel: ${a['telefono']}' : ''}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isSelected ? AppColors.primaryDark.withOpacity(0.8) : Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                                color: isSelected ? AppColors.primaryDark : Colors.grey.shade400,
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -603,63 +918,98 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
       ),
       const SizedBox(height: 14),
 
-      // Asesor: solo visible para ADMIN
+      // Asesor selector: interactivo para seleccionar Administrador o cualquier Asesor Comercial
       _Campo(
-        label: 'Asignar a nombre de',
-        child: _esAdmin
-            ? DropdownButtonFormField<String>(
-                value: (_asesorSel != null && _asesores.any((a) => a['id'].toString() == _asesorSel!['id'].toString()))
-                    ? _asesorSel!['id'].toString()
-                    : null,
-                decoration: _deco('Seleccione un asesor').copyWith(
-                  prefixIcon: const Icon(Icons.person_outline, color: Colors.grey),
-                ),
-                isExpanded: true,
-                items: _asesores.map((a) {
-                  final nombre = '${a['nombres']} ${a['apellidos'] ?? ''}'.trim();
-                  return DropdownMenuItem<String>(
-                    value: a['id'].toString(), 
-                    child: Text(nombre, style: const TextStyle(fontSize: 14)),
-                  );
-                }).toList(),
-                onChanged: (id) {
-                  if (id != null) {
-                    setState(() {
-                      _asesorSel = _asesores.firstWhere((a) => a['id'].toString() == id);
-                    });
-                  }
-                },
-              )
-            : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F7F0),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.person, color: AppColors.primaryDark, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    _asesorSel != null
-                        ? '${_asesorSel!['nombres']} ${_asesorSel!['apellidos'] ?? ''}'.trim()
-                        : 'Cargando...',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1A2E1A)),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryDark,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _rolActual.toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ]),
+        label: 'Emitir cotización a nombre de',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: _abrirModalSelectorAsesor,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.primaryDark.withOpacity(0.35),
+                width: 1.2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryDark.withOpacity(0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: (_asesorSel?['rol'] == 'admin')
+                      ? AppColors.primaryDark.withOpacity(0.12)
+                      : const Color(0xFF0284C7).withOpacity(0.12),
+                  child: Icon(
+                    (_asesorSel?['rol'] == 'admin')
+                        ? Icons.admin_panel_settings_rounded
+                        : Icons.person_outline,
+                    color: (_asesorSel?['rol'] == 'admin')
+                        ? AppColors.primaryDark
+                        : const Color(0xFF0284C7),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _asesorSel != null
+                            ? (_asesorSel!['nombre'] ?? 'Administrador').toString()
+                            : 'Administrador (Yo)',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        (_asesorSel?['rol'] == 'admin')
+                            ? 'Emisión como Administrador (Toca para cambiar)'
+                            : 'Asesor Comercial asignado (Toca para cambiar)',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryDark.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primaryDark.withOpacity(0.2)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Cambiar',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primaryDark, size: 18),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       const SizedBox(height: 22),
 
@@ -761,7 +1111,51 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
             onChanged: (v) => _buscarClientes(v),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
+
+        // Botón destacado de consulta online SUNAT / RENIEC cuando se ingresan 8 u 11 dígitos
+        if (_searchClienteCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '').length == 8 ||
+            _searchClienteCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '').length == 11)
+          InkWell(
+            onTap: () => _consultarSunatOnline(_searchClienteCtrl.text),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF003366), Color(0xFF0284C7)]),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF0284C7).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  if (_buscandoSunat)
+                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  else
+                    const Icon(Icons.travel_explore_rounded, color: Colors.white, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _searchClienteCtrl.text.trim().length == 11 ? '🔍 Buscar RUC en SUNAT en vivo' : '🔍 Buscar DNI en RENIEC en vivo',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
+                        ),
+                        Text(
+                          'Consultar "${_searchClienteCtrl.text.trim()}" y autocompletar nombre y dirección',
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                ],
+              ),
+            ),
+          ),
 
         // Lista de sugerencias
         if (_sugerencias.isNotEmpty)
@@ -776,6 +1170,7 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
               children: _sugerencias.asMap().entries.map((e) {
                 final c = e.value;
                 final isLast = e.key == _sugerencias.length - 1;
+                final fuente = c['fuente']?.toString() ?? '';
                 return InkWell(
                   onTap: () => _seleccionarCliente(c),
                   borderRadius: BorderRadius.circular(12),
@@ -788,17 +1183,39 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
                       Container(
                         width: 36, height: 36,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
+                          color: fuente.contains('SUNAT') ? const Color(0xFFE0F2FE) : const Color(0xFFE8F5E9),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.person_outline, color: AppColors.primaryDark, size: 20),
+                        child: Icon(
+                          fuente.contains('SUNAT') ? Icons.verified_rounded : Icons.person_outline,
+                          color: fuente.contains('SUNAT') ? const Color(0xFF0284C7) : AppColors.primaryDark,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(c['nombre_razon_social'] ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A2E1A))),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(c['nombre_razon_social'] ?? '',
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF1A2E1A))),
+                            ),
+                            if (fuente.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0284C7).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  fuente,
+                                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF0284C7)),
+                                ),
+                              ),
+                          ],
+                        ),
                         if (c['dni_ruc'] != null)
-                          Text(c['dni_ruc'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text(c['dni_ruc'], style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'monospace')),
                       ])),
                       const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
                     ]),
@@ -874,8 +1291,30 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
           const Text('Completar datos del nuevo cliente',
               style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
-          _Campo(label: 'DNI o RUC',
-              child: TextField(controller: _docCtrl, keyboardType: TextInputType.number, decoration: _deco('Número de documento'))),
+          _Campo(
+            label: 'DNI (8 dígitos) o RUC (11 dígitos)',
+            child: TextField(
+              controller: _docCtrl,
+              keyboardType: TextInputType.number,
+              decoration: _deco('Número de documento').copyWith(
+                suffixIcon: _buscandoSunat
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryDark),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.travel_explore_rounded, color: Color(0xFF0284C7)),
+                        tooltip: 'Consultar en SUNAT / RENIEC',
+                        onPressed: () => _consultarSunatOnline(_docCtrl.text),
+                      ),
+              ),
+              onSubmitted: (v) => _consultarSunatOnline(v),
+            ),
+          ),
           const SizedBox(height: 10),
           _Campo(label: 'Nombre / Razón Social',
               child: TextField(controller: _nombreCtrl, textCapitalization: TextCapitalization.characters, decoration: _deco('Nombre completo'))),
@@ -1292,15 +1731,7 @@ class _Campo extends StatelessWidget {
   );
 }
 
-class _InfoRow extends StatelessWidget {
-  final String label, value;
-  const _InfoRow(this.label, this.value);
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Text('$label $value', style: const TextStyle(fontSize: 13, color: Colors.black87)),
-  );
-}
+
 
 class _ItemCard extends StatelessWidget {
   final _ItemLocal item;
@@ -1313,19 +1744,19 @@ class _ItemCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5E9),
+        color: const Color(0xFFF0F9FF),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFC8E6C9)),
+        border: Border.all(color: const Color(0xFFBAE6FD)),
       ),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(item.descripcion,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A2E1A))),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
           const SizedBox(height: 4),
           Text('Cantidad: ${item.cantidad}  |  Unit: S/ ${fmt.format(item.precioUnitario)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              style: const TextStyle(fontSize: 12, color: AppColors.grey)),
         ])),
-        IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), onPressed: onEdit),
+        IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary), onPressed: onEdit),
         IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red), onPressed: onDel),
       ]),
     );

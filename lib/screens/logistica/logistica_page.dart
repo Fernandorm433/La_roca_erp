@@ -145,9 +145,9 @@ class _LogisticaPageState extends State<LogisticaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: const Color(0xFFF4F7FA),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF004899)))
           : LayoutBuilder(
               builder: (context, constraints) {
                 bool isMobile = constraints.maxWidth < 800 || constraints.maxHeight < 800;
@@ -156,11 +156,10 @@ class _LogisticaPageState extends State<LogisticaPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildHeader(),
+                        _buildHero(),
                         _buildAccionesRapidas(),
-                        _buildKpis(),
                         _buildFilterRow(),
-                        SizedBox(height: 550, child: _buildTabla()),
+                        SizedBox(height: 560, child: _buildTabla()),
                       ],
                     ),
                   );
@@ -168,9 +167,8 @@ class _LogisticaPageState extends State<LogisticaPage> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildHeader(),
+                    _buildHero(),
                     _buildAccionesRapidas(),
-                    _buildKpis(),
                     _buildFilterRow(),
                     Expanded(child: _buildTabla()),
                   ],
@@ -180,78 +178,296 @@ class _LogisticaPageState extends State<LogisticaPage> {
     );
   }
 
-  // ── HEADER ──────────────────────────────────────────────────
-  Widget _buildHeader() => Container(
-        padding: const EdgeInsets.fromLTRB(24, 32, 24, 12),
-        child: Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF334155)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: const Color(0xFF0F172A).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
-                ),
-                child: const Icon(Icons.inventory_2_rounded, color: Colors.white, size: 24),
+  // ── HERO CABECERA corporativo NovaConcret ────────────────────
+  Widget _buildHero() {
+    return Container(
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF002244), // Deep Navy
+            Color(0xFF003366),
+            Color(0xFF004899), // Nova Blue
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Ambient brand circles
+          Positioned(
+            top: -50,
+            right: -30,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF0284C7).withOpacity(0.15),
               ),
-              const SizedBox(width: 16),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Recepción de Materiales',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.8)),
-                const SizedBox(height: 4),
-                const Text('Gestión diaria de agregados',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
-              ]),
-            ]),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.analytics_rounded, color: Colors.white, size: 18),
-              label: const Text('Comparativa Mensual', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F172A), 
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 4,
-                shadowColor: const Color(0xFF0F172A).withOpacity(0.4),
+            ),
+          ),
+          Positioned(
+            bottom: -40,
+            left: 80,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF004899).withOpacity(0.2),
               ),
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const comparativa_consumos_page.ComparativaConsumosPage()));
-              },
+            ),
+          ),
+          // Content
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withOpacity(0.2)),
+                            ),
+                            child: const Icon(Icons.inventory_2_rounded, color: Colors.white, size: 24),
+                          ),
+                          const SizedBox(width: 14),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Logística y Materiales',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Recepción diaria de agregados y control de insumos · NovaConcret',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const comparativa_consumos_page.ComparativaConsumosPage(),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.analytics_rounded, color: Colors.white, size: 16),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Comparativa Mensual',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Tooltip(
+                            message: 'Actualizar registros',
+                            child: InkWell(
+                              onTap: _cargar,
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                ),
+                                child: const Icon(Icons.sync_rounded, color: Colors.white, size: 20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isSmall = constraints.maxWidth < 650;
+                      if (isSmall) {
+                        return Column(
+                          children: [
+                            Row(
+                              children: [
+                                _kpiHero('Volumen Hoy', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_rounded, const Color(0xFF38BDF8)),
+                                const SizedBox(width: 10),
+                                _kpiHero('Total Facturado', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_rounded, const Color(0xFF0284C7)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _kpiHero('Entradas', '${_registros.length}', Icons.local_shipping_rounded, const Color(0xFF004899)),
+                                const SizedBox(width: 10),
+                                _kpiHero('Sin OP', '$_pendientesOp', Icons.pending_actions_rounded, const Color(0xFF64748B)),
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          _kpiHero('Volumen Hoy', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_rounded, const Color(0xFF38BDF8)),
+                          const SizedBox(width: 10),
+                          _kpiHero('Total Facturado', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_rounded, const Color(0xFF0284C7)),
+                          const SizedBox(width: 10),
+                          _kpiHero('Entradas Registradas', '${_registros.length}', Icons.local_shipping_rounded, const Color(0xFF004899)),
+                          const SizedBox(width: 10),
+                          _kpiHero('Pendientes Sin OP', '$_pendientesOp', Icons.pending_actions_rounded, const Color(0xFF64748B)),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiHero(String title, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-      ).animate().fade().slideY(begin: -0.02);
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.75),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildAccionesRapidas() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.bolt_rounded, color: Color(0xFFD97706), size: 18),
-              const SizedBox(width: 6),
-              const Text('ACCIONES RÁPIDAS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 1.0)),
+              Icon(Icons.bolt_rounded, color: Color(0xFF0284C7), size: 18),
+              SizedBox(width: 6),
+              Text(
+                'ACCIONES RÁPIDAS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF003366),
+                  letterSpacing: 0.8,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             clipBehavior: Clip.none,
             child: Row(
               children: [
-                _btnRapido('Piedra Chancada', Icons.terrain_rounded, const [Color(0xFF475569), Color(0xFF334155)], 'PIEDRA'),
-                const SizedBox(width: 14),
-                _btnRapido('Arena', Icons.grain_rounded, const [Color(0xFFD97706), Color(0xFFB45309)], 'ARENA'),
-                const SizedBox(width: 14),
-                _btnRapido('Cemento', Icons.shopping_bag_rounded, const [Color(0xFF0284C7), Color(0xFF0369A1)], 'CEMENTO'),
-                const SizedBox(width: 14),
-                _btnRapido('Otro', Icons.add_box_rounded, const [Color(0xFF0F172A), Color(0xFF000000)], ''),
+                _btnRapido('Piedra Chancada', Icons.terrain_rounded, const [Color(0xFF002244), Color(0xFF003366)], 'PIEDRA'),
+                const SizedBox(width: 12),
+                _btnRapido('Arena', Icons.grain_rounded, const [Color(0xFF004899), Color(0xFF0284C7)], 'ARENA'),
+                const SizedBox(width: 12),
+                _btnRapido('Cemento', Icons.shopping_bag_rounded, const [Color(0xFF0284C7), Color(0xFF38BDF8)], 'CEMENTO'),
+                const SizedBox(width: 12),
+                _btnRapido('Otro Material', Icons.add_box_rounded, const [Color(0xFF334155), Color(0xFF64748B)], ''),
               ],
             ),
           )
@@ -263,29 +479,44 @@ class _LogisticaPageState extends State<LogisticaPage> {
   Widget _btnRapido(String texto, IconData icono, List<Color> grad, String categoria) {
     return InkWell(
       onTap: () => _abrirFormulario(categoriaBase: categoria),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
-            BoxShadow(color: grad[0].withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: const Color(0xFF003366).withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: grad, begin: Alignment.topLeft, end: Alignment.bottomRight),
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: grad[0].withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))],
+                boxShadow: [
+                  BoxShadow(color: grad[0].withOpacity(0.35), blurRadius: 6, offset: const Offset(0, 2)),
+                ],
               ),
-              child: Icon(icono, color: Colors.white, size: 16),
+              child: Icon(icono, color: Colors.white, size: 15),
             ),
-            const SizedBox(width: 12),
-            Text(texto, style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2)),
+            const SizedBox(width: 10),
+            Text(
+              texto,
+              style: const TextStyle(
+                color: Color(0xFF002244),
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+                letterSpacing: 0.2,
+              ),
+            ),
             const SizedBox(width: 4),
           ],
         ),
@@ -293,75 +524,9 @@ class _LogisticaPageState extends State<LogisticaPage> {
     ).animate().scale(duration: 200.ms, curve: Curves.easeOut);
   }
 
-  // ── KPI CARDS ───────────────────────────────────────────────
-  Widget _buildKpis() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            bool isMobile = constraints.maxWidth < 800;
-            if (isMobile) {
-              return Column(
-                children: [
-                  Row(children: [
-                    Expanded(child: _kpiSolidInternal('VOLUMEN HOY', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_rounded, const [Color(0xFF0F172A), Color(0xFF1E293B)])),
-                    const SizedBox(width: 16),
-                    Expanded(child: _kpiSolidInternal('FACTURADO', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_rounded, const [Color(0xFF059669), Color(0xFF047857)])),
-                  ]),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    Expanded(child: _kpiSolidInternal('ENTRADAS', '${_registros.length}', Icons.local_shipping_rounded, const [Color(0xFF0284C7), Color(0xFF0369A1)])),
-                    const SizedBox(width: 16),
-                    Expanded(child: _kpiSolidInternal('SIN OP', '$_pendientesOp', Icons.pending_actions_rounded, const [Color(0xFFEA580C), Color(0xFFC2410C)])),
-                  ]),
-                ],
-              );
-            }
-            return Row(children: [
-              Expanded(child: _kpiSolidInternal('VOLUMEN HOY', '${_totalVolumen.toStringAsFixed(0)} m³', Icons.layers_rounded, const [Color(0xFF0F172A), Color(0xFF1E293B)])),
-              const SizedBox(width: 16),
-              Expanded(child: _kpiSolidInternal('FACTURADO', 'S/ ${_totalFacturado.toStringAsFixed(2)}', Icons.receipt_long_rounded, const [Color(0xFF059669), Color(0xFF047857)])),
-              const SizedBox(width: 16),
-              Expanded(child: _kpiSolidInternal('ENTRADAS', '${_registros.length}', Icons.local_shipping_rounded, const [Color(0xFF0284C7), Color(0xFF0369A1)])),
-              const SizedBox(width: 16),
-              Expanded(child: _kpiSolidInternal('SIN OP', '$_pendientesOp', Icons.pending_actions_rounded, const [Color(0xFFEA580C), Color(0xFFC2410C)])),
-            ]);
-          },
-        ),
-      ).animate().fade(delay: 100.ms).slideY(begin: 0.05);
-
-  Widget _kpiSolidInternal(String t, String v, IconData icon, List<Color> grad) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: grad, begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [BoxShadow(color: grad[0].withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: Colors.white, size: 20)
-              ),
-              Icon(Icons.show_chart_rounded, color: Colors.white.withOpacity(0.3), size: 28),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(t, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(v, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-          ),
-        ]),
-      );
-
   // ── FILA DE FILTROS ──────────────────────────────────────────
   Widget _buildFilterRow() => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 10),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
         child: LayoutBuilder(
           builder: (context, constraints) {
             bool isMobile = constraints.maxWidth < 600;
@@ -369,52 +534,93 @@ class _LogisticaPageState extends State<LogisticaPage> {
               return Column(
                 children: [
                   Container(
-                    height: 48,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF003366).withOpacity(0.03),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: TextField(
                       onChanged: (v) => setState(() => _busqueda = v),
                       decoration: const InputDecoration(
-                        hintText: 'Buscar...',
-                        hintStyle: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-                        prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                        hintText: 'Buscar material, proveedor o guía...',
+                        hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                        prefixIcon: Icon(Icons.search_rounded, size: 19, color: Color(0xFF0284C7)),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: InkWell(
                           onTap: () async {
-                            final s = await showDatePicker(context: context, initialDate: _fechaFiltro, firstDate: DateTime(2025), lastDate: DateTime(2030));
-                            if (s != null) { setState(() => _fechaFiltro = s); _cargar(); }
+                            final s = await showDatePicker(
+                              context: context,
+                              initialDate: _fechaFiltro,
+                              firstDate: DateTime(2025),
+                              lastDate: DateTime(2030),
+                            );
+                            if (s != null) {
+                              setState(() => _fechaFiltro = s);
+                              _cargar();
+                            }
                           },
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                            height: 46,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF003366).withOpacity(0.03),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
                             child: Row(children: [
-                              const Icon(Icons.calendar_today_outlined, size: 15, color: Color(0xFF475569)),
+                              const Icon(Icons.calendar_today_rounded, size: 15, color: Color(0xFF0284C7)),
                               const SizedBox(width: 8),
                               Text(
-                                '${_fechaFiltro.day.toString().padLeft(2,'0')}/${_fechaFiltro.month.toString().padLeft(2,'0')}/${_fechaFiltro.year}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B), fontSize: 13),
+                                '${_fechaFiltro.day.toString().padLeft(2, '0')}/${_fechaFiltro.month.toString().padLeft(2, '0')}/${_fechaFiltro.year}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF002244), fontSize: 13),
                               ),
                             ]),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Container(
-                        height: 48,
-                        width: 48,
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                        height: 46,
+                        width: 46,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF003366).withOpacity(0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: IconButton(
                           onPressed: _cargar,
-                          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF475569)),
+                          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF004899), size: 20),
                           tooltip: 'Actualizar',
                         ),
                       ),
@@ -427,16 +633,27 @@ class _LogisticaPageState extends State<LogisticaPage> {
               // Búsqueda
               Expanded(
                 child: Container(
-                  height: 48,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF003366).withOpacity(0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   child: TextField(
                     onChanged: (v) => setState(() => _busqueda = v),
                     decoration: const InputDecoration(
-                      hintText: 'Buscar por descripción, proveedor, guía...',
-                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-                      prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                      hintText: 'Buscar por descripción, proveedor, guía o factura...',
+                      hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                      prefixIcon: Icon(Icons.search_rounded, size: 19, color: Color(0xFF0284C7)),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      contentPadding: EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
@@ -445,32 +662,62 @@ class _LogisticaPageState extends State<LogisticaPage> {
               // Selector de fecha
               InkWell(
                 onTap: () async {
-                  final s = await showDatePicker(context: context, initialDate: _fechaFiltro, firstDate: DateTime(2025), lastDate: DateTime(2030));
-                  if (s != null) { setState(() => _fechaFiltro = s); _cargar(); }
+                  final s = await showDatePicker(
+                    context: context,
+                    initialDate: _fechaFiltro,
+                    firstDate: DateTime(2025),
+                    lastDate: DateTime(2030),
+                  );
+                  if (s != null) {
+                    setState(() => _fechaFiltro = s);
+                    _cargar();
+                  }
                 },
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                  height: 46,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF003366).withOpacity(0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today_outlined, size: 15, color: Color(0xFF475569)),
+                    const Icon(Icons.calendar_today_rounded, size: 15, color: Color(0xFF0284C7)),
                     const SizedBox(width: 8),
                     Text(
-                      '${_fechaFiltro.day.toString().padLeft(2,'0')}/${_fechaFiltro.month.toString().padLeft(2,'0')}/${_fechaFiltro.year}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B), fontSize: 13),
+                      '${_fechaFiltro.day.toString().padLeft(2, '0')}/${_fechaFiltro.month.toString().padLeft(2, '0')}/${_fechaFiltro.year}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF002244), fontSize: 13),
                     ),
                   ]),
                 ),
               ),
               const SizedBox(width: 12),
               Container(
-                height: 48,
-                width: 48,
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))]),
+                height: 46,
+                width: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF003366).withOpacity(0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: IconButton(
                   onPressed: _cargar,
-                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF475569)),
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF004899), size: 20),
                   tooltip: 'Actualizar',
                 ),
               ),
@@ -529,7 +776,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
                             width: c.width,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                              child: Text(c.label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                              child: Text(c.label, style: const TextStyle(color: Color(0xFF003366), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
                             ),
                           )).toList(),
                         ),
@@ -583,7 +830,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
               _celdaVolumen(r.volumenM3, 80),
               _celdaDesc(r.descripcion, 210),
               _celdaProveedor(r.proveedor, r.ruc, 170),
-              _celdaText('S/ ${r.precioUnitario.toStringAsFixed(2)}', 80, color: const Color(0xFF64748B)),
+              _celdaText('S/ ${r.precioUnitario.toStringAsFixed(2)}', 80, color: const Color(0xFF475569)),
               _celdaTotal(r.total, 90),
               _celdaBadge(r.guia, 80, isGuia: true),
               _celdaBadge(r.factura.isNotEmpty ? r.factura : 'PAGADO', 90, isFactura: true, pagado: r.factura.isEmpty),
@@ -598,7 +845,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
               SizedBox(width: 50, child: Center(
                 child: IconButton(
                   icon: const Icon(Icons.edit_rounded, size: 18),
-                  color: const Color(0xFF94A3B8),
+                  color: const Color(0xFF004899),
                   splashRadius: 20,
                   hoverColor: const Color(0xFFE2E8F0),
                   onPressed: () => _abrirFormulario(reg: r),
@@ -619,10 +866,10 @@ class _LogisticaPageState extends State<LogisticaPage> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
+            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF0284C7)),
             const SizedBox(width: 6),
             Text('${f.day.toString().padLeft(2,'0')}/${f.month.toString().padLeft(2,'0')}', 
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF002244))),
           ],
         ),
       ),
@@ -637,12 +884,12 @@ class _LogisticaPageState extends State<LogisticaPage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
+            color: const Color(0xFFE0F2FE).withOpacity(0.5),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text('${vol.toStringAsFixed(0)}', 
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF003366))),
         ),
       ),
     );
@@ -655,7 +902,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Text(desc, 
           maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A), height: 1.2)),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF002244), height: 1.2)),
       ),
     );
   }
@@ -671,10 +918,10 @@ class _LogisticaPageState extends State<LogisticaPage> {
           children: [
             Text(prov.isEmpty ? '-' : prov, 
               maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF334155))),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
             if (ruc.isNotEmpty) ...[
               const SizedBox(height: 2),
-              Text(ruc, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+              Text(ruc, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
             ]
           ],
         ),
@@ -688,7 +935,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Text('S/ ${total.toStringAsFixed(2)}', 
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF004899))),
       ),
     );
   }
@@ -702,18 +949,18 @@ class _LogisticaPageState extends State<LogisticaPage> {
       text = '-';
     } else {
       if (isGuia) {
-        bg = const Color(0xFFFFF7ED);
-        tc = const Color(0xFFC2410C);
-        borderColor = const Color(0xFFFDBA74);
+        bg = const Color(0xFFE0F2FE);
+        tc = const Color(0xFF0284C7);
+        borderColor = const Color(0xFFBAE6FD);
       } else if (isFactura) {
         if (pagado) {
-          bg = const Color(0xFFDCFCE7);
+          bg = const Color(0xFFF0FDF4);
           tc = const Color(0xFF15803D);
-          borderColor = const Color(0xFF86EFAC);
+          borderColor = const Color(0xFFBBF7D0);
         } else {
           bg = const Color(0xFFEFF6FF);
-          tc = const Color(0xFF1D4ED8);
-          borderColor = const Color(0xFF93C5FD);
+          tc = const Color(0xFF004899);
+          borderColor = const Color(0xFFBFDBFE);
         }
       }
     }
@@ -749,7 +996,7 @@ class _LogisticaPageState extends State<LogisticaPage> {
           child: Checkbox(
             value: val,
             onChanged: (v) => onChanged(v ?? false),
-            activeColor: const Color(0xFF0F172A),
+            activeColor: const Color(0xFF003366),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             side: const BorderSide(color: Color(0xFF94A3B8), width: 1.5),
           ),
@@ -885,13 +1132,13 @@ class _FormularioSheetState extends State<_FormularioSheet> {
               
               // Título
               Row(children: [
-                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF0F172A).withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF0F172A))),
+                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF004899).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF004899))),
                 const SizedBox(width: 12),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(widget.registro != null ? 'Editar Registro' : 'Nuevo Registro de Materiales',
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                  const Text('Ingreso de áridos y agregados', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF002244))),
+                  const Text('Ingreso de áridos y agregados · NovaConcret', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                 ]),
               ]),
               const SizedBox(height: 20),
@@ -911,7 +1158,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
-                  child: Text(s, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
+                  child: Text(s, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF003366))),
                 ),
               )).toList()),
               const SizedBox(height: 14),
@@ -933,12 +1180,16 @@ class _FormularioSheetState extends State<_FormularioSheet> {
               // Total calculado
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
                 child: Row(children: [
-                  const Icon(Icons.calculate_outlined, color: Color(0xFF16A34A), size: 18),
+                  const Icon(Icons.calculate_outlined, color: Color(0xFF0284C7), size: 18),
                   const SizedBox(width: 8),
                   Text('TOTAL: S/ ${_totalCalc.toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF15803D), fontSize: 15)),
+                      style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF003366), fontSize: 15)),
                 ]),
               ),
               const SizedBox(height: 14),
@@ -973,7 +1224,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
                 width: double.infinity, height: 52,
                 child: FilledButton(
                   onPressed: _loading ? null : _guardar,
-                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF0F172A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFF003366), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                       : Text(widget.registro != null ? 'Actualizar Registro' : 'Guardar Registro',
@@ -998,12 +1249,12 @@ class _FormularioSheetState extends State<_FormularioSheet> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
           child: Row(children: [
-            const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF475569)),
+            const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF0284C7)),
             const SizedBox(width: 10),
             const Text('Fecha del registro:', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF334155), fontSize: 13)),
             const Spacer(),
             Text('${_fecha.day.toString().padLeft(2,'0')}/${_fecha.month.toString().padLeft(2,'0')}/${_fecha.year}',
-                style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 14)),
+                style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF003366), fontSize: 14)),
           ]),
         ),
       );
@@ -1029,7 +1280,7 @@ class _FormularioSheetState extends State<_FormularioSheet> {
         filled: true, fillColor: const Color(0xFFF8FAFC),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF004899), width: 1.5)),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.red)),
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.red)),
       );

@@ -127,9 +127,9 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), // Slate 100
       appBar: AppBar(
-        title: const Text('Dashboard Analítico', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5)),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F172A),
+        title: const Text('Dashboard Analítico de Consumos', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: -0.3, color: Colors.white)),
+        backgroundColor: const Color(0xFF002244),
+        foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
       ),
@@ -139,7 +139,7 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
           _buildFilterBar(),
           Expanded(
             child: _loading 
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF004899)))
               : SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                   child: Column(
@@ -149,19 +149,19 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
                       _buildChartSection().animate().fade(duration: 400.ms).slideY(begin: 0.1),
                       const SizedBox(height: 32),
                       
-                      const Text('DESGLOSE DE MATERIALES', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF64748B), letterSpacing: 1.0)),
+                      const Text('DESGLOSE DE MATERIALES', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF003366), letterSpacing: 1.0)),
                       const SizedBox(height: 16),
                       
-                      _buildModernCard('Cemento (Big Bags)', _ingresoCementoBags, _consumoCementoBags, 'Bolsas', Icons.shopping_bag, const Color(0xFF0F172A))
+                      _buildModernCard('Cemento (Big Bags)', _ingresoCementoBags, _consumoCementoBags, 'Bolsas', Icons.shopping_bag, const Color(0xFF003366))
                           .animate().fade(delay: 100.ms).slideX(begin: 0.05),
                       const SizedBox(height: 16),
-                      _buildModernCard('Arena (KG)', _ingresoArena, _consumoArena, 'KG', Icons.grain, const Color(0xFFD97706))
+                      _buildModernCard('Arena (KG)', _ingresoArena, _consumoArena, 'KG', Icons.grain, const Color(0xFF004899))
                           .animate().fade(delay: 200.ms).slideX(begin: 0.05),
                       const SizedBox(height: 16),
-                      _buildModernCard('Piedra Chancada (KG)', _ingresoPiedra, _consumoPiedra, 'KG', Icons.terrain, const Color(0xFF475569))
+                      _buildModernCard('Piedra Chancada (KG)', _ingresoPiedra, _consumoPiedra, 'KG', Icons.terrain, const Color(0xFF0284C7))
                           .animate().fade(delay: 300.ms).slideX(begin: 0.05),
                       const SizedBox(height: 16),
-                      _buildModernCard('Aditivo (LT)', _ingresoAditivo, _consumoAditivo, 'LT', Icons.water_drop, const Color(0xFF8B5CF6))
+                      _buildModernCard('Aditivo (LT)', _ingresoAditivo, _consumoAditivo, 'LT', Icons.water_drop, const Color(0xFF38BDF8))
                           .animate().fade(delay: 400.ms).slideX(begin: 0.05),
                       const SizedBox(height: 40),
                     ],
@@ -210,10 +210,10 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          gradient: act ? const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]) : null,
+          gradient: act ? const LinearGradient(colors: [Color(0xFF002244), Color(0xFF004899)]) : null,
           color: act ? null : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(30),
-          boxShadow: act ? [const BoxShadow(color: Color(0x330F172A), blurRadius: 8, offset: Offset(0, 4))] : [],
+          boxShadow: act ? [const BoxShadow(color: Color(0x33003366), blurRadius: 8, offset: Offset(0, 4))] : [],
         ),
         child: Row(
           children: [
@@ -243,10 +243,10 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF0F172A),
+              primary: Color(0xFF003366),
               onPrimary: Colors.white,
               surface: Colors.white,
-              onSurface: Color(0xFF0F172A),
+              onSurface: Color(0xFF002244),
             ),
           ),
           child: child!,
@@ -276,10 +276,10 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
-          gradient: act ? const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]) : null,
+          gradient: act ? const LinearGradient(colors: [Color(0xFF002244), Color(0xFF004899)]) : null,
           color: act ? null : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(30),
-          boxShadow: act ? [const BoxShadow(color: Color(0x330F172A), blurRadius: 8, offset: Offset(0, 4))] : [],
+          boxShadow: act ? [const BoxShadow(color: Color(0x33003366), blurRadius: 8, offset: Offset(0, 4))] : [],
         ),
         child: Text(label, style: TextStyle(color: act ? Colors.white : const Color(0xFF64748B), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.5)),
       ),
@@ -316,9 +316,9 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                      gradient: const LinearGradient(colors: [Color(0xFF002244), Color(0xFF004899)]),
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: const Color(0xFF0F172A).withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                      boxShadow: [BoxShadow(color: const Color(0xFF002244).withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))],
                     ),
                     child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 22),
                   ),
@@ -326,7 +326,7 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Nivel de Consumo vs Ingreso', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF0F172A), letterSpacing: -0.5)),
+                      const Text('Nivel de Consumo vs Ingreso', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF002244), letterSpacing: -0.5)),
                       Text('Porcentaje de uso del stock en planta', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.bold)),
                     ],
                   ),
@@ -513,7 +513,7 @@ class _ComparativaConsumosPageState extends State<ComparativaConsumosPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(titulo, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF0F172A), letterSpacing: -0.5)),
+                      Text(titulo, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF002244), letterSpacing: -0.5)),
                       Text('Medido en $unidad', style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.bold)),
                     ],
                   ),

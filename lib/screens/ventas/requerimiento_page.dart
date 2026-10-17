@@ -1,13 +1,9 @@
 // lib/screens/ventas/requerimiento_page.dart
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/notificacion_service.dart';
-
-const _GAS_URL =
-    'https://script.google.com/macros/s/AKfycbzKlmfOBqCQSewWueYIdBwvjj_RP7uUty2qGRjGeS3i1XrS3a0qiLeUMl8I8SfT3ut2Fg/exec';
 
 class RequerimientoPage extends StatefulWidget {
   final Map<String, dynamic> cotizacion;
@@ -44,10 +40,6 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
 
   Map<String, dynamic> get _cot => widget.cotizacion;
   List get _items => (_cot['cotizacion_items'] as List? ?? []);
-  Map<String, dynamic> get _item => _items.firstWhere(
-    (i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto',
-    orElse: () => _items.isNotEmpty ? _items.first : <String, dynamic>{},
-  );
 
   // Solo el tipo sin prefijo YURA
   String _cleanCemento(String raw) {
@@ -76,73 +68,100 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
   Future<void> _enviar() async {
     setState(() => _enviando = true);
     try {
-      final it = _item;
-      final resistencia = it['resistencia']?.toString() ?? '';
-      final fuerza = resistencia.isNotEmpty ? "F'c=$resistencia" : (it['descripcion'] ?? '');
       final bombasStr = _bombas.entries.where((e) => e.value).map((e) => e.key).join(',');
 
-      final params = {
-        'asesor':           _cot['asesor_nombre'] ?? '',
-        'day':              DateFormat('dd/MM/yyyy').format(_fecha),
-        'hour':             DateFormat('HH:mm').format(_fecha),
-        'client':           (_cot['cliente_nombre'] ?? '').toString().toUpperCase(),
-        'tipoDocumento':    _cot['tipo_comprobante'] ?? 'Factura',
-        'document':         _cot['cliente_documento'] ?? '',
-        'address':          _cot['obra_direccion'] ?? '',
-        'phone':            _cot['cliente_telefono'] ?? '',
-        'distrito':         _cot['obra_distrito'] ?? '',
-        'volumen':          (it['cantidad'] ?? '').toString(),
-        'fuerza':           fuerza,
-        'elemento':         it['elemento'] ?? '',
-        'huso':             it['huso'] ?? '',
-        'slump':            it['slump'] ?? '',
-        'aditivo':          _aditivoCtrl.text.trim().isNotEmpty
-                                ? _aditivoCtrl.text.trim() : (it['aditivo'] ?? ''),
-        'cemento':          _cleanCemento(it['tipo_cemento']?.toString() ?? ''),
-        'bombas':           bombasStr,
-        'extensiones':      _extensiones ? 'SI' : '',
-        'selectedMixer':    _mixer,
-        'selectedCapacity': _capacidad,
-        'time':             _tiempo,
-        'quality':          _calidad ? 'SI' : '',
-        'commentReturn':    _comentarioCtrl.text.trim(),
-        'location':         _cot['obra_maps_link'] ?? '',
-        'urlVoucher':       '',
-        'emisionReq':       DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-        'observaciones':    '',
-      };
+      // Filtrar solo items de concreto
+      final concretoItems = _items.where(
+        (i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto'
+      ).toList();
 
-      final body = params.entries
-          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-          .join('&');
+      if (concretoItems.isEmpty) {
+        // Si no hay concreto, enviar con el primer item que haya
+        concretoItems.add(_items.isNotEmpty ? _items.first : <String, dynamic>{});
+      }
 
-      final res = await http.post(Uri.parse(_GAS_URL),
-          headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body);
+      int enviados = 0;
+      for (int idx = 0; idx < concretoItems.length; idx++) {
+        final it = concretoItems[idx];
+        final resistencia = it['resistencia']?.toString() ?? '';
+        final fuerza = resistencia.isNotEmpty ? "F'c=$resistencia" : (it['descripcion'] ?? '');
 
-      // GAS retorna 302 en POST exitoso → es éxito
-      final ok = res.statusCode == 200 || res.statusCode == 302;
-      if (ok) {
+        String codigoLimpio = _cot['clave_unica']?.toString() ?? '';
+        String claveUnicaSupabase = codigoLimpio;
+        if (concretoItems.length > 1 && idx > 0) {
+          claveUnicaSupabase = '${codigoLimpio}_item$idx';
+        }
+        if (claveUnicaSupabase.isEmpty) {
+          claveUnicaSupabase = 'REQ-${DateTime.now().millisecondsSinceEpoch}-$idx';
+        }
+
+        final volItem = double.tryParse((it['cantidad'] ?? '0').toString()) ?? 0.0;
+
+        final payload = {
+          'asesor_comercial':       _cot['asesor_nombre'] ?? '',
+          'fecha_entrega':          DateFormat('yyyy-MM-dd').format(_fecha),
+          'hora_entrega':           DateFormat('HH:mm').format(_fecha),
+          'nombre_razon_social':    (_cot['cliente_nombre'] ?? '').toString().toUpperCase(),
+          'tipo_documento':         _cot['tipo_comprobante'] ?? 'Factura',
+          'dni_ruc':                _cot['cliente_documento'] ?? '',
+          'direccion':              _cot['obra_direccion'] ?? '',
+          'telefono':               _cot['cliente_telefono'] ?? '',
+          'distrito':               _cot['obra_distrito'] ?? '',
+          'numero_atencion':        '1',
+          'volumen':                volItem,
+          'volumen_programado':     volItem,
+          'volumen_despachado':     0.0,
+          'diseno':                 fuerza,
+          'elemento':               it['elemento'] ?? '',
+          'huso':                   it['huso'] ?? '',
+          'slump':                  it['slump'] ?? '',
+          'aditivo':                _aditivoCtrl.text.trim().isNotEmpty ? _aditivoCtrl.text.trim() : (it['aditivo'] ?? ''),
+          'aditivo_adicional':      '',
+          'tipo_cemento':           _cleanCemento(it['tipo_cemento']?.toString() ?? ''),
+          'bombas':                 bombasStr.isNotEmpty ? bombasStr : 'DIRECTO',
+          'cbp_12':                 _bombas['CBP12'] == true ? 'SI' : null,
+          'cbp_13':                 _bombas['CBP13'] == true ? 'SI' : null,
+          'cbp_15':                 _bombas['CBP15'] == true ? 'SI' : null,
+          'cbp_16':                 _bombas['CBP16'] == true ? 'SI' : null,
+          'cbp_17':                 _bombas['CBP17'] == true ? 'SI' : null,
+          'cbp_21':                 _bombas['CBP21'] == true ? 'SI' : null,
+          'be_12':                  _bombas['BE12'] == true ? 'SI' : null,
+          'mixers':                 _mixer,
+          'capacidad_maxima':       _capacidad,
+          'tiempo_estimado_vaciado': _tiempo,
+          'personal_calidad':       _calidad ? 'SI' : 'NO',
+          'observaciones':          _comentarioCtrl.text.trim(),
+          'mapa_coordenadas':       _cot['obra_maps_link'] ?? '',
+          'orden_pedido':           _cot['numero_cotizacion'] ?? '',
+          'clave_unica':            claveUnicaSupabase,
+        };
+
+        await Supabase.instance.client.from('ventas_programacion').insert(payload);
+        enviados++;
+      }
+
+      if (enviados > 0) {
         final cotId = _cot['id'];
         if (cotId != null) {
           await Supabase.instance.client
               .from('cotizaciones').update({'estado': 'enviada'}).eq('id', cotId);
         }
 
-        // Notificar a Ventas
+        // Notificar a Ventas y Programación
         await NotificationService().notificarPorRoles(
-          roles: ['ventas'],
+          roles: ['ventas', 'programacion', 'logistica'],
           titulo: '📝 Nuevo Requerimiento',
-          cuerpo: 'El asesor ${_cot['asesor_nombre'] ?? ''} ha enviado un requerimiento para ${_cot['cliente_nombre'] ?? ''}.',
+          cuerpo: 'El asesor ${_cot['asesor_nombre'] ?? ''} ha creado un requerimiento para ${_cot['cliente_nombre'] ?? ''} ($enviados ítem${enviados > 1 ? 's' : ''}).',
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Requerimiento enviado al Drive'),
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$enviados requerimiento${enviados > 1 ? 's generados' : ' generado'} exitosamente ✅'),
             backgroundColor: AppColors.primaryDark));
           Navigator.pop(context, true);
         }
       } else {
-        _snack('Error al enviar (${res.statusCode})', err: true);
+        _snack('Error al generar los requerimientos', err: true);
       }
     } catch (e) { _snack('Error: $e', err: true); }
     finally { setState(() => _enviando = false); }

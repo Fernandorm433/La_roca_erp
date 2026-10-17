@@ -1134,7 +1134,7 @@ Future<void> _cargarMixers() async {
 
     pw.MemoryImage? logoImage;
     try {
-      final bytes = await rootBundle.load('assets/images/LOGO2023.png');
+      final bytes = await rootBundle.load('assets/images/LOGO_NOVA.png');
       logoImage = pw.MemoryImage(bytes.buffer.asUint8List());
     } catch (_) {}
 

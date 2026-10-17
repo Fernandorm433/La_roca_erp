@@ -136,7 +136,7 @@ class _VentasPageState extends State<VentasPage> {
             primary: AppColors.primaryDark,
             onPrimary: Colors.white,
             surface: Colors.white,
-            onSurface: Colors.indigo.shade900,
+            onSurface: const Color(0xFF0F172A),
           ),
           dialogBackgroundColor: Colors.white,
         ),
@@ -492,7 +492,7 @@ class _VentasPageState extends State<VentasPage> {
                                                     ]
                                                   : [
                                                       AppColors.accent,
-                                                      Colors.indigo.shade600,
+                                                      const Color(0xFF004899),
                                                     ],
                                             ),
                                             borderRadius: BorderRadius.circular(
@@ -765,7 +765,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
               child: TextField(
                 decoration: InputDecoration(
                   hintText: "Buscar cliente o proyecto...",
-                  prefixIcon: const Icon(Icons.search, color: Colors.indigo),
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF004899)),
                   filled: true,
                   fillColor: Theme.of(context).cardColor,
                   contentPadding: const EdgeInsets.symmetric(
@@ -783,7 +783,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                      color: Colors.indigo,
+                      color: const Color(0xFF004899),
                       width: 2,
                     ),
                   ),
@@ -792,9 +792,9 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
               ),
             ),
             const TabBar(
-              labelColor: Colors.indigo,
+              labelColor: const Color(0xFF004899),
               unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.indigo,
+              indicatorColor: const Color(0xFF0090F0),
               tabs: [
                 Tab(text: "Efectivos"),
                 Tab(text: "Cancelados"),
@@ -914,7 +914,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.shade50.withOpacity(0.5),
+                  color: const Color(0xFFEFF6FF).withOpacity(0.5),
                   borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(12),
                   ),
@@ -926,7 +926,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
                       "🚚 Despachos Reales Ejecutados:",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.indigo,
+                        color: const Color(0xFF004899),
                         fontSize: 13,
                       ),
                     ),
@@ -969,7 +969,7 @@ class _PortafolioAsesorModalState extends State<_PortafolioAsesorModal> {
                                 child: const Icon(
                                   Icons.receipt_long,
                                   size: 16,
-                                  color: Colors.indigo,
+                                  color: const Color(0xFF004899),
                                 ),
                               ),
                               const SizedBox(width: 10),

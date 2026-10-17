@@ -71,8 +71,8 @@ class Empleado {
 // ──────────────────────────────────────────────────────────────────
 
 const _avatarPalette = [
-  Color(0xFF4F46E5),
-  Color(0xFF0D9488),
+  const Color(0xFF004899),
+  Color(0xFF0284C7),
   Color(0xFFD97706),
   Color(0xFFDB2777),
   Color(0xFF7C3AED),
@@ -223,12 +223,26 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       final hoy = DateTime.now().toIso8601String().split('T')[0];
       final data = await supabase
           .from('asistencia_empleados')
-          .select('*, empleados(nombres, apellidos, cargo, area)')
+          .select()
           .eq('fecha', hoy)
           .order('hora_entrada');
       if (mounted) {
+        final list = <Map<String, dynamic>>[];
+        for (final a in (data as List)) {
+          final row = Map<String, dynamic>.from(a);
+          final emp = _empleados.where((e) => e.id.toString() == row['empleado_id']?.toString()).firstOrNull;
+          if (emp != null) {
+            row['empleados'] = {
+              'nombres': emp.nombres,
+              'apellidos': emp.apellidos,
+              'cargo': emp.cargo,
+              'area': emp.area,
+            };
+          }
+          list.add(row);
+        }
         setState(() {
-          _asistencias = List<Map<String, dynamic>>.from(data);
+          _asistencias = list;
           _loadingA = false;
         });
       }
@@ -243,7 +257,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       final mes = '$_anio-${_mesSeleccionado.toString().padLeft(2, '0')}';
       final data = await supabase
           .from('planilla_mensual')
-          .select('*, empleados(nombres, apellidos, cargo)')
+          .select()
           .like('periodo', '$mes%')
           .order('id');
       if (mounted) {
@@ -253,7 +267,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _loadingP = false);
+      if (mounted) setState(() { _planilla = []; _loadingP = false; });
     }
   }
 
@@ -329,7 +343,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
             case 0:
               return FloatingActionButton.extended(
                 onPressed: () => _abrirFormEmpleado(),
-                backgroundColor: const Color(0xFF4F46E5),
+                backgroundColor: const Color(0xFF004899),
                 foregroundColor: Colors.white,
                 icon: const Icon(Icons.person_add_outlined),
                 label: const Text('Empleado'),
@@ -337,7 +351,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
             case 1:
               return FloatingActionButton.extended(
                 onPressed: _registrarAsistencia,
-                backgroundColor: const Color(0xFF0D9488),
+                backgroundColor: const Color(0xFF0284C7),
                 foregroundColor: Colors.white,
                 icon: const Icon(Icons.how_to_reg_outlined),
                 label: const Text('Asistencia'),
@@ -352,8 +366,8 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
               );
             case 4:
               return FloatingActionButton.extended(
-                onPressed: _subirCapacitacion,
-                backgroundColor: Colors.purple.shade700,
+                onPressed: _nuevaCapacitacionDialog,
+                backgroundColor: const Color(0xFF0284C7),
                 foregroundColor: Colors.white,
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Subir Capacitación'),
@@ -361,7 +375,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
             case 6:
               return FloatingActionButton.extended(
                 onPressed: () => _abrirFormUsuario(),
-                backgroundColor: Colors.indigo.shade800,
+                backgroundColor: const Color(0xFF004899),
                 foregroundColor: Colors.white,
                 icon: const Icon(Icons.vpn_key_outlined),
                 label: const Text('Nuevo Acceso'),
@@ -378,118 +392,137 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   // HERO CABECERA con gradiente y KPIs
   // ══════════════════════════════════════════════════════════════
 
+  // ══════════════════════════════════════════════════════════════
+  // HERO CABECERA corporativo NovaConcret
+  // ══════════════════════════════════════════════════════════════
+
   Widget _buildHero() {
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(
-        color: Color(0xFF0F172A), // Premium dark slate
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFF002244), // Deep Navy
+            Color(0xFF003366),
+            Color(0xFF004899), // Nova Blue
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
       child: Stack(
         children: [
-          // Dynamic mesh gradients
+          // Subtle brand ambient circles
           Positioned(
-            top: -100,
-            left: -50,
+            top: -50,
+            right: -30,
             child: Container(
-              width: 250,
-              height: 250,
+              width: 180,
+              height: 180,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF6366F1).withOpacity(0.4),
+                color: const Color(0xFF0284C7).withOpacity(0.15),
               ),
             ),
-          ).animate(onPlay: (c) => c.repeat()).rotate(duration: 20.seconds),
+          ),
           Positioned(
-            bottom: -50,
-            right: -80,
+            bottom: -40,
+            left: 80,
             child: Container(
-              width: 300,
-              height: 300,
+              width: 160,
+              height: 160,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFEC4899).withOpacity(0.3),
+                color: const Color(0xFF004899).withOpacity(0.2),
               ),
-            ),
-          ).animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(end: 1.2, duration: 8.seconds),
-          // Blur layer for glass effect
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-              child: const SizedBox(),
             ),
           ),
           // Content
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Recursos Humanos',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withOpacity(0.2)),
+                            ),
+                            child: const Icon(Icons.badge_outlined, color: Colors.white, size: 24),
+                          ),
+                          const SizedBox(width: 14),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Recursos Humanos',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
-                            ).animate().fade().slideX(begin: -0.1),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Gestión integral del capital humano',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                              const SizedBox(height: 2),
+                              Text(
+                                'Gestión integral del personal · NovaConcret',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ).animate().fade(delay: 100.ms).slideX(begin: -0.1),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _cargarTodo,
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.white.withOpacity(0.2)),
-                            boxShadow: [
-                              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10),
                             ],
                           ),
-                          child: const Icon(Icons.sync_rounded, color: Colors.white, size: 22),
+                        ],
+                      ),
+                      Tooltip(
+                        message: 'Actualizar datos',
+                        child: InkWell(
+                          onTap: _cargarTodo,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white.withOpacity(0.2)),
+                            ),
+                            child: const Icon(Icons.sync_rounded, color: Colors.white, size: 20),
+                          ),
                         ),
-                      ).animate().fade(delay: 200.ms).scale(),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      if (constraints.maxWidth < 600) {
+                      final isSmall = constraints.maxWidth < 650;
+                      if (isSmall) {
                         return Column(
                           children: [
                             Row(
                               children: [
-                                _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF818CF8)),
-                                const SizedBox(width: 12),
-                                _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF34D399)),
+                                _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF0284C7)),
+                                const SizedBox(width: 10),
+                                _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF10B981)),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFFBBF24)),
-                                const SizedBox(width: 12),
-                                _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFFF472B6)),
+                                _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFF59E0B)),
+                                const SizedBox(width: 10),
+                                _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFF38BDF8)),
                               ],
                             ),
                           ],
@@ -497,17 +530,17 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                       }
                       return Row(
                         children: [
-                          _kpiHero('Personal', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF818CF8)),
-                          const SizedBox(width: 12),
-                          _kpiHero('Accesos', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF34D399)),
-                          const SizedBox(width: 12),
-                          _kpiHero('Avisos', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFFBBF24)),
-                          const SizedBox(width: 12),
-                          _kpiHero('Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFFF472B6)),
+                          _kpiHero('Personal Activo', '${_empleados.length}', Icons.people_alt_rounded, const Color(0xFF0284C7)),
+                          const SizedBox(width: 10),
+                          _kpiHero('Accesos Sistema', '${_usuarios.length}', Icons.admin_panel_settings_rounded, const Color(0xFF10B981)),
+                          const SizedBox(width: 10),
+                          _kpiHero('Comunicados', '${_comunicados.length}', Icons.campaign_rounded, const Color(0xFFF59E0B)),
+                          const SizedBox(width: 10),
+                          _kpiHero('Total Planilla', 'S/${_planillaTotal >= 1000 ? '${(_planillaTotal / 1000).toStringAsFixed(1)}K' : _planillaTotal.toStringAsFixed(0)}', Icons.account_balance_wallet_rounded, const Color(0xFF38BDF8)),
                         ],
                       );
                     },
-                  ).animate().fade(delay: 300.ms).slideY(begin: 0.1),
+                  ),
                 ],
               ),
             ),
@@ -520,43 +553,57 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   Widget _kpiHero(String title, String value, IconData icon, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.14)),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(9),
               ),
-              child: Icon(icon, color: color, size: 18),
+              child: Icon(icon, color: Colors.white, size: 16),
             ),
-            const SizedBox(height: 14),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.75),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -571,46 +618,122 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
 
   Widget _buildTabBar() {
     return Container(
-      color: const Color(0xFF0F172A), // Match the hero background to avoid seam
+      color: const Color(0xFF002244), // Continúa el azul de la cabecera
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: const BoxDecoration(
-          color: Color(0xFFF4F7FA), // Transition to body color
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          color: Color(0xFFF4F7FA), // Transición a fondo limpio
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+              BoxShadow(
+                color: const Color(0xFF003366).withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
           child: TabBar(
             controller: _tabController,
             isScrollable: true,
+            tabAlignment: TabAlignment.start,
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.grey.shade500,
+            unselectedLabelColor: const Color(0xFF64748B),
+            indicatorSize: TabBarIndicatorSize.tab,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
             indicator: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
-              borderRadius: BorderRadius.circular(14),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF003366), Color(0xFF004899)],
+              ),
+              borderRadius: BorderRadius.circular(10),
               boxShadow: [
-                BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: const Color(0xFF004899).withOpacity(0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
               ],
             ),
-            indicatorPadding: const EdgeInsets.all(6),
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             dividerColor: Colors.transparent,
             tabs: const [
-              Tab(icon: Icon(Icons.badge_rounded, size: 18), text: 'Personal'),
-              Tab(icon: Icon(Icons.calendar_today_rounded, size: 18), text: 'Asistencia'),
-              Tab(icon: Icon(Icons.account_balance_wallet_rounded, size: 18), text: 'Planilla'),
-              Tab(icon: Icon(Icons.campaign_rounded, size: 18), text: 'Avisos'),
-              Tab(icon: Icon(Icons.school_rounded, size: 18), text: 'Capacitaciones'),
-              Tab(icon: Icon(Icons.assignment_rounded, size: 18), text: 'Solicitudes'),
-              Tab(icon: Icon(Icons.admin_panel_settings_rounded, size: 18), text: 'Accesos'),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.badge_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Personal'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Asistencia'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.account_balance_wallet_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Planilla'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.campaign_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Avisos'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.school_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Capacitaciones'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.assignment_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Solicitudes'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.admin_panel_settings_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Accesos'),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -625,7 +748,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   Widget _tabPersonal() {
     if (_loadingE) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+        child: CircularProgressIndicator(color: const Color(0xFF004899)),
       );
     }
 
@@ -669,7 +792,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
             decoration: InputDecoration(
               hintText: 'Buscar por nombre o cargo...',
               hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF4F46E5)),
+              prefixIcon: const Icon(Icons.search, color: const Color(0xFF004899)),
               filled: true,
               fillColor: const Color(0xFFF4F7FA),
               border: OutlineInputBorder(
@@ -728,10 +851,10 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF4F46E5) : const Color(0xFFF4F7FA),
+          color: selected ? const Color(0xFF004899) : const Color(0xFFF4F7FA),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? const Color(0xFF4F46E5) : Colors.grey.shade200,
+            color: selected ? const Color(0xFF004899) : Colors.grey.shade200,
           ),
         ),
         child: Text(
@@ -809,7 +932,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         _miniTag(
                           e.area,
                           const Color(0xFFEDE9FE),
-                          const Color(0xFF4F46E5),
+                          const Color(0xFF004899),
                         ),
                         const SizedBox(width: 6),
                         _miniTag(
@@ -834,7 +957,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     'S/${e.sueldoBase.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF4F46E5),
+                      color: const Color(0xFF004899),
                       fontSize: 14,
                     ),
                   ),
@@ -844,14 +967,14 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     children: [
                       _iconAction(
                         Icons.edit_outlined,
-                        const Color(0xFF4F46E5),
+                        const Color(0xFF004899),
                         () => _abrirFormEmpleado(empleado: e),
                         'Editar',
                       ),
                       const SizedBox(width: 2),
                       _iconAction(
                         Icons.receipt_long_outlined,
-                        const Color(0xFF0D9488),
+                        const Color(0xFF0284C7),
                         () => _mostrarDialogBoleta(e),
                         'Boleta',
                       ),
@@ -904,7 +1027,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   Widget _tabAsistencia() {
     if (_loadingA) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+        child: CircularProgressIndicator(color: const Color(0xFF004899)),
       );
     }
 
@@ -950,7 +1073,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     ),
                     child: const Icon(
                       Icons.calendar_today,
-                      color: Color(0xFF4F46E5),
+                      color: const Color(0xFF004899),
                       size: 20,
                     ),
                   ),
@@ -1008,7 +1131,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                       '${_asistencias.length}',
                       'Total',
                       const Color(0xFFEDE9FE),
-                      const Color(0xFF4F46E5),
+                      const Color(0xFF004899),
                     ),
                   ],
                 ),
@@ -1187,7 +1310,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                 children: [
                   const Icon(
                     Icons.date_range,
-                    color: Color(0xFF4F46E5),
+                    color: const Color(0xFF004899),
                     size: 16,
                   ),
                   const SizedBox(width: 6),
@@ -1223,12 +1346,12 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         ),
                         decoration: BoxDecoration(
                           color: sel
-                              ? const Color(0xFF4F46E5)
+                              ? const Color(0xFF004899)
                               : const Color(0xFFF4F7FA),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: sel
-                                ? const Color(0xFF4F46E5)
+                                ? const Color(0xFF004899)
                                 : Colors.grey.shade200,
                           ),
                         ),
@@ -1256,7 +1379,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                   ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF4F46E5), Color(0xFF6366F1)],
+                      colors: [const Color(0xFF004899), const Color(0xFF0090F0)],
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1296,7 +1419,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
         Expanded(
           child: _loadingP
               ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+                  child: CircularProgressIndicator(color: const Color(0xFF004899)),
                 )
               : _planilla.isEmpty
               ? _emptyState(
@@ -1379,7 +1502,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 17,
-                                      color: Color(0xFF4F46E5),
+                                      color: const Color(0xFF004899),
                                     ),
                                   ),
                                   Text(
@@ -1462,7 +1585,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   Widget _tabComunicados() {
     if (_loadingC) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+        child: CircularProgressIndicator(color: const Color(0xFF004899)),
       );
     }
     if (_comunicados.isEmpty) {
@@ -1574,24 +1697,88 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   // ══════════════════════════════════════════════════════════════
 
   Widget _tabCapacitaciones() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
       children: [
-        _emptyState(
-          'Las capacitaciones se mostrarán aquí',
-          Icons.school_outlined,
-          accion: 'Subir Capacitación',
-          onAccion: _subirCapacitacion,
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _nuevaCapacitacionDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva Capacitación'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: supabase.from('capacitaciones').select().order('created_at', ascending: false),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              final caps = snapshot.data ?? [];
+              if (caps.isEmpty) return _emptyState('No hay capacitaciones', Icons.school_outlined);
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: caps.length,
+                itemBuilder: (ctx, i) {
+                  final c = caps[i];
+                  return Card(
+                    child: ListTile(
+                      title: Text(c['titulo']),
+                      subtitle: Text(c['descripcion'] ?? ''),
+                      trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async {
+                        await supabase.from('capacitaciones').delete().eq('id', c['id']);
+                        setState((){});
+                      }),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ),
       ],
     );
   }
 
-  Future<void> _subirCapacitacion() async {
+  void _nuevaCapacitacionDialog() {
+    final tituloCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nueva Capacitación'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: tituloCtrl, decoration: const InputDecoration(labelText: 'Título')),
+            const SizedBox(height: 8),
+            TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Descripción')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _subirCapacitacion(tituloCtrl.text.trim(), descCtrl.text.trim());
+            }, 
+            child: const Text('Siguiente (Elegir PDF)')
+          ),
+        ],
+      )
+    );
+  }
+
+  Future<void> _subirCapacitacion(String titulo, String descripcion) async {
+    if (titulo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El título es requerido')));
+      return;
+    }
     try {
       final result = await official_picker.FilePicker.pickFiles(
         type: official_picker.FileType.custom,
-        allowedExtensions: ['pdf', 'ppt', 'pptx'],
+        allowedExtensions: ['pdf'],
         withData: true,
       );
       
@@ -1601,19 +1788,27 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subiendo archivo...')),
+          const SnackBar(content: Text('Subiendo archivo y creando capacitación...')),
         );
-        final path = 'capacitaciones/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-        await supabase.storage.from('archivos_rrhh').uploadBinary(
+        final path = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        await supabase.storage.from('capacitaciones').uploadBinary(
           path, 
           fileBytes,
-          fileOptions: const FileOptions(upsert: true),
+          fileOptions: const FileOptions(upsert: true, contentType: 'application/pdf'),
         );
+
+        // Guardar en DB
+        await supabase.from('capacitaciones').insert({
+          'titulo': titulo,
+          'descripcion': descripcion,
+          'archivo_pdf_url': path
+        });
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Capacitación subida exitosamente'), backgroundColor: Colors.green),
         );
+        setState((){});
       }
     } catch (e) {
       if (!mounted) return;
@@ -1628,15 +1823,66 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   // ══════════════════════════════════════════════════════════════
 
   Widget _tabSolicitudes() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _emptyState(
-          'No hay solicitudes pendientes',
-          Icons.assignment_outlined,
-        ),
-      ],
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: supabase.from('solicitudes_empleados').select().order('created_at', ascending: false),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final solicitudes = snapshot.data ?? [];
+        if (solicitudes.isEmpty) {
+          return _emptyState('No hay solicitudes pendientes', Icons.assignment_outlined);
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: solicitudes.length,
+          itemBuilder: (ctx, i) {
+            final sol = solicitudes[i];
+            final empObj = _empleados.where((e) => e.id.toString() == sol['empleado_id']?.toString()).firstOrNull;
+            final nombreEmpleado = empObj != null 
+                ? empObj.nombreCompleto 
+                : (sol['empleado_nombre'] ?? 'Empleado');
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                title: Text('${sol['tipo_solicitud']} - $nombreEmpleado', style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('Fecha Solicitada: ${sol['fecha_solicitada']}\nEstado: ${sol['estado']}'),
+                isThreeLine: true,
+                trailing: sol['estado'] == 'Pendiente' ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.check_circle, color: Colors.green),
+                      onPressed: () => _actualizarEstadoSolicitud(sol['id'], 'Aprobado'),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      onPressed: () => _actualizarEstadoSolicitud(sol['id'], 'Rechazado'),
+                    ),
+                  ],
+                ) : Icon(
+                  sol['estado'] == 'Aprobado' ? Icons.check_circle : Icons.cancel,
+                  color: sol['estado'] == 'Aprobado' ? Colors.green : Colors.red,
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
+  }
+
+  Future<void> _actualizarEstadoSolicitud(String id, String estado) async {
+    try {
+      await supabase.from('solicitudes_empleados').update({'estado': estado}).eq('id', id);
+      setState(() {}); 
+    } catch(e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1646,7 +1892,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   Widget _tabAccesos() {
     if (_loadingU) {
       return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+        child: CircularProgressIndicator(color: const Color(0xFF004899)),
       );
     }
     if (_usuarios.isEmpty) {
@@ -1714,7 +1960,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined, color: Color(0xFF4F46E5)),
+                      icon: const Icon(Icons.edit_outlined, color: const Color(0xFF004899)),
                       tooltip: 'Editar Acceso',
                       onPressed: () => _abrirFormUsuario(usuario: u),
                     ),
@@ -1736,7 +1982,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
   (Color, Color) _rolColors(String rol) {
     return switch (rol) {
       'admin' => (const Color(0xFF7C3AED), const Color(0xFFF5F3FF)),
-      'programacion' => (const Color(0xFF0D9488), const Color(0xFFF0FDFA)),
+      'programacion' => (const Color(0xFF0284C7), const Color(0xFFF0F9FF)),
       'calidad' => (const Color(0xFFD97706), const Color(0xFFFFFBEB)),
       'ventas' => (const Color(0xFF2563EB), const Color(0xFFEFF6FF)),
       'asesor' => (const Color(0xFFDB2777), const Color(0xFFFDF2F8)),
@@ -1808,7 +2054,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                   _miniTag(
                     e.area,
                     const Color(0xFFEDE9FE),
-                    const Color(0xFF4F46E5),
+                    const Color(0xFF004899),
                   ),
                   const SizedBox(width: 8),
                   _miniTag(
@@ -1830,7 +2076,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                 Icons.payments_outlined,
                 'Sueldo Base',
                 'S/${e.sueldoBase.toStringAsFixed(2)}',
-                color: const Color(0xFF4F46E5),
+                color: const Color(0xFF004899),
               ),
               if (e.telefono != null && e.telefono!.isNotEmpty)
                 _perfilFila(Icons.phone_outlined, 'Teléfono', e.telefono!),
@@ -1852,8 +2098,8 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Editar'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF4F46E5),
-                        side: const BorderSide(color: Color(0xFF4F46E5)),
+                        foregroundColor: const Color(0xFF004899),
+                        side: const BorderSide(color: const Color(0xFF004899)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -1871,7 +2117,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                       icon: const Icon(Icons.upload_file_outlined),
                       label: const Text('Subir Boleta'),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0D9488),
+                        backgroundColor: const Color(0xFF0284C7),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -2062,7 +2308,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         labelText: 'Área de Trabajo *',
                         prefixIcon: const Icon(
                           Icons.business_outlined,
-                          color: Color(0xFF4F46E5),
+                          color: const Color(0xFF004899),
                           size: 18,
                         ),
                         border: OutlineInputBorder(
@@ -2091,7 +2337,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         labelText: 'Cargo Específico *',
                         prefixIcon: const Icon(
                           Icons.work_outline,
-                          color: Color(0xFF4F46E5),
+                          color: const Color(0xFF004899),
                           size: 18,
                         ),
                         border: OutlineInputBorder(
@@ -2120,7 +2366,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         const Spacer(),
                         Switch(
                           value: activo,
-                          activeThumbColor: const Color(0xFF4F46E5),
+                          activeThumbColor: const Color(0xFF004899),
                           onChanged: (v) => setS(() => activo = v),
                         ),
                         _miniTag(
@@ -2217,7 +2463,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                               : 'Registrar Empleado',
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF4F46E5),
+                          backgroundColor: const Color(0xFF004899),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -2294,7 +2540,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     labelText: 'Empleado *',
                     prefixIcon: const Icon(
                       Icons.person_outline,
-                      color: Color(0xFF0D9488),
+                      color: Color(0xFF0284C7),
                       size: 18,
                     ),
                     border: OutlineInputBorder(
@@ -2324,7 +2570,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     labelText: 'Estado',
                     prefixIcon: const Icon(
                       Icons.flag_outlined,
-                      color: Color(0xFF0D9488),
+                      color: Color(0xFF0284C7),
                       size: 18,
                     ),
                     border: OutlineInputBorder(
@@ -2406,7 +2652,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         : const Icon(Icons.how_to_reg_outlined),
                     label: const Text('Guardar Asistencia'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0D9488),
+                      backgroundColor: const Color(0xFF0284C7),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2508,7 +2754,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
             icon: const Icon(Icons.upload_file_outlined),
             label: const Text('Seleccionar PDF'),
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF4F46E5),
+              backgroundColor: const Color(0xFF004899),
             ),
           ),
         ],
@@ -2634,7 +2880,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         alignLabelWithHint: true,
                         prefixIcon: const Icon(
                           Icons.description_outlined,
-                          color: Color(0xFF4F46E5),
+                          color: const Color(0xFF004899),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -2649,7 +2895,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                         labelText: 'Importancia',
                         prefixIcon: const Icon(
                           Icons.priority_high,
-                          color: Color(0xFF4F46E5),
+                          color: const Color(0xFF004899),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -2910,7 +3156,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [Colors.indigo.shade800, Colors.indigo.shade600]),
+                        gradient: LinearGradient(colors: [const Color(0xFF004899), const Color(0xFF0090F0)]),
                       ),
                       child: Row(
                         children: [
@@ -2968,9 +3214,9 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                 value: rol,
                                 decoration: InputDecoration(
                                   labelText: 'Rol Principal en el Sistema *',
-                                  prefixIcon: const Icon(Icons.admin_panel_settings_outlined, color: Color(0xFF4F46E5)),
+                                  prefixIcon: const Icon(Icons.admin_panel_settings_outlined, color: const Color(0xFF004899)),
                                   filled: true,
-                                  fillColor: Colors.indigo.shade50.withOpacity(0.5),
+                                  fillColor: const Color(0xFFEFF6FF).withOpacity(0.5),
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                                 ),
@@ -2986,7 +3232,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                               const SizedBox(height: 32),
                               const Row(
                                 children: [
-                                  Icon(Icons.dashboard_customize_outlined, color: Color(0xFF4F46E5)),
+                                  Icon(Icons.dashboard_customize_outlined, color: const Color(0xFF004899)),
                                   SizedBox(width: 8),
                                   Text('Panel de Accesos (Módulos)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                                 ],
@@ -3012,13 +3258,13 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                   
                                   if (tieneAcceso) {
                                     if (esBase) {
-                                      bgColor = Colors.indigo.shade50;
-                                      borderColor = Colors.indigo.shade300;
-                                      iconColor = Colors.indigo.shade700;
-                                      textColor = Colors.indigo.shade900;
+                                      bgColor = const Color(0xFFEFF6FF);
+                                      borderColor = const Color(0xFF93C5FD);
+                                      iconColor = const Color(0xFF004899);
+                                      textColor = const Color(0xFF0F172A);
                                     } else {
-                                      bgColor = const Color(0xFF4F46E5);
-                                      borderColor = const Color(0xFF4F46E5);
+                                      bgColor = const Color(0xFF004899);
+                                      borderColor = const Color(0xFF004899);
                                       iconColor = Colors.white;
                                       textColor = Colors.white;
                                     }
@@ -3051,7 +3297,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                         color: bgColor,
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(color: borderColor, width: 1.5),
-                                        boxShadow: tieneAcceso && !esBase ? [BoxShadow(color: const Color(0xFF4F46E5).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
+                                        boxShadow: tieneAcceso && !esBase ? [BoxShadow(color: const Color(0xFF004899).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
                                       ),
                                       child: Row(
                                         children: [
@@ -3122,7 +3368,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                                   }
                                 } else {
                                   final tempClient = SupabaseClient(
-                                    "http://91.98.135.205:8000",
+                                    "http://167.233.215.224:8000",
                                     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
                                     authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
                                   );
@@ -3198,7 +3444,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
                             icon: guardando ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.save_outlined),
                             label: Text(esEdicion ? 'Guardar Cambios' : 'Crear Acceso'),
                             style: FilledButton.styleFrom(
-                               backgroundColor: Colors.indigo.shade800,
+                               backgroundColor: const Color(0xFF004899),
                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -3232,7 +3478,7 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
       keyboardType: kb,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF4F46E5), size: 18),
+        prefixIcon: Icon(icon, color: const Color(0xFF004899), size: 18),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
@@ -3252,56 +3498,57 @@ class _RecursosHumanosPageState extends State<RecursosHumanosPage>
     VoidCallback? onAccion,
   }) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 10)),
+                  BoxShadow(
+                    color: const Color(0xFF003366).withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
                 ],
               ),
-              child: Icon(icon, size: 54, color: const Color(0xFF6366F1).withOpacity(0.4)),
-            ).animate().scale(delay: 200.ms, duration: 400.ms, curve: Curves.easeOutBack),
-            const SizedBox(height: 24),
+              child: Icon(icon, size: 40, color: const Color(0xFF004899).withOpacity(0.6)),
+            ).animate().scale(delay: 150.ms, duration: 350.ms, curve: Curves.easeOutBack),
+            const SizedBox(height: 14),
             Text(
               msg,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.3,
+              style: const TextStyle(
+                color: Color(0xFF475569),
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
               ),
-            ).animate().fade(delay: 400.ms).slideY(begin: 0.2),
+            ).animate().fade(delay: 250.ms).slideY(begin: 0.2),
             if (accion != null && onAccion != null) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onAccion,
-                icon: const Icon(Icons.add_rounded, size: 20),
+                icon: const Icon(Icons.add_rounded, size: 18),
                 label: Text(accion),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  backgroundColor: const Color(0xFF004899),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-              ).animate().fade(delay: 600.ms).scale(),
+              ).animate().fade(delay: 350.ms).scale(),
             ],
           ],
         ),
       ),
     );
   }
-}
-
-extension _StrExt on String {
-  String capitalize() =>
-      isNotEmpty ? '${this[0].toUpperCase()}${substring(1)}' : this;
 }

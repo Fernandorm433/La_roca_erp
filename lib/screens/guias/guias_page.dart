@@ -265,7 +265,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
       await CierreDiarioService.cerrarDia(fechaFiltro);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Día Cerrado y enviado a Historial', style: TextStyle(color: Colors.white)), backgroundColor: Colors.purple));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Día Cerrado y enviado a Historial', style: TextStyle(color: Colors.white)), backgroundColor: const Color(0xFF0284C7)));
         setState(() {
           diaCerrado = true;
           cerrando = false;
@@ -339,12 +339,12 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
               Container(
                 margin: const EdgeInsets.only(left: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.purple.shade200)),
+                decoration: BoxDecoration(color: Colors.lightBlue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.lightBlue.shade200)),
                 child: Row(
                   children: [
-                    Icon(Icons.lock, size: 14, color: Colors.purple.shade700),
+                    Icon(Icons.lock, size: 14, color: Colors.lightBlue.shade700),
                     const SizedBox(width: 4),
-                    Text("HISTORIAL CERRADO", style: TextStyle(color: Colors.purple.shade700, fontSize: 11, fontWeight: FontWeight.w800)),
+                    Text("HISTORIAL CERRADO", style: TextStyle(color: Colors.lightBlue.shade700, fontSize: 11, fontWeight: FontWeight.w800)),
                   ],
                 ),
               ),
@@ -378,7 +378,7 @@ class _GuiasDespachoPageState extends State<GuiasDespachoPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
               child: ElevatedButton.icon(
                 onPressed: cerrando ? null : _cerrarDia,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade700, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(horizontal: 16)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue.shade700, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(horizontal: 16)),
                 icon: cerrando ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.archive_outlined, size: 20),
                 label: const Text("Cerrar Día", style: TextStyle(fontWeight: FontWeight.w700)),
               ),

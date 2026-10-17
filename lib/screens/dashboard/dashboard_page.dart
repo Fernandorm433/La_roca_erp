@@ -44,14 +44,14 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
   bool loading = true;
 
   final List<Color> mixerColors = [
-    const Color(0xFF4F46E5),
-    const Color(0xFF0D9488),
-    const Color(0xFFF59E0B),
-    const Color(0xFFE11D48),
-    const Color(0xFF0284C7),
-    const Color(0xFF7C3AED),
-    const Color(0xFF16A34A),
-    const Color(0xFFD97706),
+    const Color(0xFF004899), // Azul Corporativo NOVA
+    const Color(0xFF0090F0), // Celeste Vibrante
+    const Color(0xFF64748B), // Gris Pizarra
+    const Color(0xFF0284C7), // Azul Cielo
+    const Color(0xFF0D9488), // Teal Petróleo
+    const Color(0xFF2563EB), // Azul Royal
+    const Color(0xFF10B981), // Verde Esmeralda
+    const Color(0xFFF59E0B), // Ámbar
   ];
 
   @override
@@ -444,7 +444,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
           titulo,
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: activo ? AppColors.accent : Colors.grey.shade600,
+            color: activo ? AppColors.primary : AppColors.grey,
             fontSize: 13,
           ),
           overflow: TextOverflow.ellipsis,
@@ -474,7 +474,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                       "Programado",
                       "${totalProgramado.toStringAsFixed(1)} m³",
                       Icons.insert_chart,
-                      AppColors.accent,
+                      AppColors.primary,
                     ),
                   ),
                   const SizedBox(height: 15),
@@ -484,7 +484,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                       "Despachado",
                       "${totalDespachado.toStringAsFixed(1)} m³",
                       Icons.local_shipping,
-                      const Color(0xFF0D9488),
+                      AppColors.accent,
                     ),
                   ),
                 ],
@@ -497,7 +497,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                     "Programado",
                     "${totalProgramado.toStringAsFixed(1)} m³",
                     Icons.insert_chart,
-                    AppColors.accent,
+                    AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: 15),
@@ -506,7 +506,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                     "Despachado",
                     "${totalDespachado.toStringAsFixed(1)} m³",
                     Icons.local_shipping,
-                    const Color(0xFF0D9488),
+                    AppColors.accent,
                   ),
                 ),
               ],
@@ -640,7 +640,7 @@ class _DashboardGerencialState extends State<DashboardGerencial> {
                         fontSize: 16,
                         color: idx == 0
                             ? const Color(0xFFB59410)
-                            : const Color(0xFF0D9488),
+                            : AppColors.primary,
                       ),
                     ),
                   ),

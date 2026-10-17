@@ -22,7 +22,7 @@ class GuiasMainPage extends StatelessWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.purple.shade600, Colors.indigo.shade600],
+                    colors: [Colors.lightBlue.shade600, Colors.blue.shade600],
                   ),
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -64,7 +64,7 @@ class GuiasMainPage extends StatelessWidget {
               child: TabBar(
                 labelColor: const Color(0xFF0F172A),
                 unselectedLabelColor: Colors.grey.shade400,
-                indicatorColor: Colors.purple.shade600,
+                indicatorColor: Colors.lightBlue.shade600,
                 indicatorWeight: 3,
                 indicatorSize: TabBarIndicatorSize.label,
                 labelStyle: const TextStyle(

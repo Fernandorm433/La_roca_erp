@@ -229,7 +229,7 @@ class GranulometriaPdfExport {
                 mainAxisAlignment: pw.MainAxisAlignment.center,
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  _kv('Codigo:', 'ROCA-MC-F04-001', bold, reg),
+                  _kv('Codigo:', 'NOVA-MC-F04-001', bold, reg),
                   pw.SizedBox(height: 3),
                   _kv('Revision:', '01', bold, reg),
                   pw.SizedBox(height: 3),

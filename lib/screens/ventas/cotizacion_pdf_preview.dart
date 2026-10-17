@@ -13,6 +13,9 @@ class CotizacionPdfPreview extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Vista Previa de Cotización')),
       body: PdfPreview(
+        pdfFileName: '${cotizacion.numeroCotizacion.replaceAll("/", "_")}.pdf',
+        canChangeOrientation: false,
+        canChangePageFormat: false,
         build: (format) async {
           return await CotizacionPdfGenerator.generar(cotizacion: cotizacion);
         },

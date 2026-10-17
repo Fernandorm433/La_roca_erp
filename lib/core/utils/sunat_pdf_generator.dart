@@ -1,6 +1,6 @@
 // lib/core/utils/sunat_pdf_generator.dart
-// Guía de Remisión Electrónica & Factura — La Roca Concretos
-// Diseño IDÉNTICO al formato físico de referencia (pdf_generator.dart)
+// Guía de Remisión Electrónica & Factura / Boleta — NOVACONCRET
+// Formato Corporativo Elegante (Azul Marino, Celeste y Gris)
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
@@ -8,100 +8,109 @@ import 'package:pdf/widgets.dart' as pw;
 import 'dart:typed_data';
 
 // ─────────────────────────────────────────────────────────────
-// CONSTANTES
+// CONSTANTES CORPORATIVAS
 // ─────────────────────────────────────────────────────────────
 const double _factorPesoKgM3 = 2355.0;
 
-const String _domFiscal =
-    'Domicilio Fiscal: Mz-A Lte-7A Urb. Quinta Gamero Arequipa - Arequipa';
-const String _viaGRE = 'Vía Evitamiento km 4.5. - Cerro Colorado - Arequipa';
-const String _horarioGRE =
-    'Horario de Atención: Domingo a Viernes de 7 am. a 5 pm';
-const String _telfGRE = 'Telf: 950 703257 - 931473002';
-const String _emailGRE = 'E-mail: venta@laroca.pe';
-const String _domPartida =
-    'VIA EVITAMIENTO KM 4.2 CERRO COLORADO AREQUIPA';
+const _azulOscuro = PdfColor.fromInt(0xFF0C3866);     // Navy profundo
+const _azulPrimario = PdfColor.fromInt(0xFF0284C7);   // Cyan corporativo
+const _azulClaroFondo = PdfColor.fromInt(0xFFF0F9FF); // Fondo suave hielo
+const _azulBorde = PdfColor.fromInt(0xFFBAE6FD);      // Borde celeste suave
+const _grisTexto = PdfColor.fromInt(0xFF475569);      // Gris textos
+const _grisMuted = PdfColor.fromInt(0xFF64748B);      // Gris secundario
+const _negro = PdfColor.fromInt(0xFF0F172A);          // Texto oscuro
+const _blanco = PdfColor.fromInt(0xFFFFFFFF);
+
+const String _domicilioFiscal = 'AV. ATAHUALPA NRO. 204 URB. ALTO SELVA ALEGRE - AREQUIPA';
+const String _plantaUchumayo = 'VARIANTE UCHUMAYO - CERRO COLORADO - AREQUIPA - AREQUIPA';
+const String _telfEmpresa = '+51 982 503 604';
+const String _emailEmpresa = 'novaconcretsac@gmail.com';
+const String _rucEmpresa = '20616487141';
 
 class SunatPdfGenerator {
   // ═════════════════════════════════════════════════════════════
-  // GUÍA DE REMISIÓN ELECTRÓNICA
+  // 1. GUÍA DE REMISIÓN ELECTRÓNICA (GRE SUNAT)
   // ═════════════════════════════════════════════════════════════
   static Future<Uint8List> generarGRE(Map<String, dynamic> datos) async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(
+      title: 'GRE_${datos['serie_correlativo'] ?? ''}',
+      author: 'ERP NOVACONCRET',
+    );
 
     pw.MemoryImage? logo;
     try {
-      final bytes = await rootBundle.load('assets/images/LOGO2023.png');
+      final bytes = await rootBundle.load('assets/images/LOGO_NOVA.png');
       logo = pw.MemoryImage(bytes.buffer.asUint8List());
-    } catch (_) {}
+    } catch (_) {
+      try {
+        final bytes2 = await rootBundle.load('assets/images/ICONO_NOVA.png');
+        logo = pw.MemoryImage(bytes2.buffer.asUint8List());
+      } catch (_) {
+        logo = null;
+      }
+    }
 
-    final serieCorrelativo = datos['serie_correlativo'] ?? 'T001 - 00000000';
-    final fechaEmision = datos['fecha_emision'] ?? '';
-    final fechaTraslado = datos['fecha_traslado'] ?? '';
-    final opNro = datos['op_nro'] ?? '';
+    final serieCorrelativo = datos['serie_correlativo']?.toString() ?? 'T001 - 00000000';
+    final fechaEmision = datos['fecha_emision']?.toString() ?? '';
+    final fechaTraslado = datos['fecha_traslado']?.toString() ?? '';
+    final opNro = datos['op_nro']?.toString() ?? '';
 
-    final double volM3 =
-        double.tryParse(datos['volumen']?.toString() ?? '0') ?? 0.0;
+    final double volM3 = double.tryParse(datos['volumen']?.toString() ?? '0') ?? 0.0;
     final double peso = volM3 * _factorPesoKgM3;
-    final String volStr =
-        volM3 % 1 == 0 ? volM3.toInt().toString() : volM3.toStringAsFixed(1);
+    final String volStr = volM3 % 1 == 0 ? volM3.toInt().toString() : volM3.toStringAsFixed(1);
     final String pesoStr = _numFormato(peso);
+
+    final baseFont = pw.Font.helvetica();
+    final boldFont = pw.Font.helveticaBold();
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.fromLTRB(30, 55, 30, 25),
+        margin: const pw.EdgeInsets.fromLTRB(28, 24, 28, 20),
         build: (pw.Context ctx) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            // ── 1. ENCABEZADO ─────────────────────────────────
-            _encabezadoGRE(logo, serieCorrelativo),
-            pw.SizedBox(height: 15),
-
-            // ── 2. FECHAS Y OP ────────────────────────────────
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                _labelValor('Fecha de Emisión :', fechaEmision),
-                _labelValor('Fecha de traslado :', fechaTraslado),
-                pw.Text(
-                  opNro,
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ],
+            // ── 1. ENCABEZADO Y RECUADRO SUNAT ────────────────
+            _buildEncabezadoDoc(
+              logo: logo,
+              tituloDoc: 'GUÍA DE REMISIÓN ELECTRÓNICA',
+              subtituloDoc: 'REMITENTE',
+              serieCorrelativo: serieCorrelativo,
+              bold: boldFont,
+              regular: baseFont,
             ),
+            pw.SizedBox(height: 8),
+
+            // ── 2. BARRA DE FECHAS Y OP ───────────────────────
+            _buildBarraFechas(fechaEmision, fechaTraslado, opNro, boldFont, baseFont),
             pw.SizedBox(height: 7),
 
-            // ── 3. DOMICILIOS ─────────────────────────────────
+            // ── 3. DOMICILIOS (PARTIDA Y LLEGADA) ─────────────
             pw.Row(
               children: [
                 pw.Expanded(
-                  child: _cajaTitulo(
-                    'DOMICILIO DE PARTIDA',
-                    pw.Text(
-                      _domPartida,
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: pw.FontWeight.bold,
+                  child: _buildTarjeta(
+                    titulo: 'DOMICILIO DE PARTIDA',
+                    bold: boldFont,
+                    child: pw.Center(
+                      child: pw.Text(
+                        _plantaUchumayo,
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(font: boldFont, fontSize: 7.2, color: _azulOscuro),
                       ),
                     ),
                   ),
                 ),
                 pw.SizedBox(width: 8),
                 pw.Expanded(
-                  child: _cajaTitulo(
-                    'DOMICILIO LLEGADA',
-                    pw.Text(
-                      (datos['domicilio_llegada']?.toString() ?? 'S/D')
-                          .toUpperCase(),
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: pw.FontWeight.bold,
+                  child: _buildTarjeta(
+                    titulo: 'DOMICILIO DE LLEGADA (OBRA)',
+                    bold: boldFont,
+                    child: pw.Center(
+                      child: pw.Text(
+                        (datos['domicilio_llegada']?.toString() ?? 'S/D').toUpperCase(),
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(font: boldFont, fontSize: 7.2, color: _azulOscuro),
                       ),
                     ),
                   ),
@@ -110,49 +119,34 @@ class SunatPdfGenerator {
             ),
             pw.SizedBox(height: 7),
 
-            // ── 4. DESTINATARIO / TRANSPORTE ──────────────────
+            // ── 4. DESTINATARIO Y TRANSPORTE ──────────────────
             pw.Row(
               children: [
                 pw.Expanded(
-                  child: _cajaTitulo(
-                    'DESTINATARIO',
-                    pw.Column(
+                  child: _buildTarjeta(
+                    titulo: 'DATOS DEL DESTINATARIO',
+                    bold: boldFont,
+                    child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        _richtextFila(
-                          'Cliente :',
-                          datos['cliente_nombre']?.toString() ?? '',
-                        ),
-                        pw.SizedBox(height: 4),
-                        _richtextFila(
-                          'RUC / DNI :',
-                          datos['cliente_documento']?.toString() ?? '',
-                        ),
+                        _buildFilaDato('RAZÓN SOCIAL:', (datos['cliente_nombre'] ?? '-').toString().toUpperCase(), boldFont, baseFont),
+                        pw.SizedBox(height: 2.5),
+                        _buildFilaDato('RUC / DNI:', datos['cliente_documento']?.toString() ?? '-', boldFont, baseFont),
                       ],
                     ),
                   ),
                 ),
                 pw.SizedBox(width: 8),
                 pw.Expanded(
-                  child: _cajaTitulo(
-                    'UNIDAD DE TRANSPORTE / CONDUCTOR',
-                    pw.Column(
+                  child: _buildTarjeta(
+                    titulo: 'UNIDAD DE TRANSPORTE Y CONDUCTOR',
+                    bold: boldFont,
+                    child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        _richtextFila(
-                          'Conductor :',
-                          (datos['conductor']?.toString() ?? '').toUpperCase(),
-                        ),
-                        pw.SizedBox(height: 4),
-                        _richtextFila(
-                          'N° Licencia :',
-                          datos['licencia']?.toString() ?? '',
-                        ),
-                        pw.SizedBox(height: 4),
-                        _richtextFila(
-                          'Marca y placa :',
-                          (datos['placa']?.toString() ?? '').toUpperCase(),
-                        ),
+                        _buildFilaDato('CONDUCTOR:', (datos['conductor'] ?? '-').toString().toUpperCase(), boldFont, baseFont),
+                        pw.SizedBox(height: 2.5),
+                        _buildFilaDato('LICENCIA / PLACA:', '${datos['licencia'] ?? '-'}  /  ${(datos['placa'] ?? '-').toString().toUpperCase()}', boldFont, baseFont),
                       ],
                     ),
                   ),
@@ -161,131 +155,97 @@ class SunatPdfGenerator {
             ),
             pw.SizedBox(height: 7),
 
-            // ── 5. TABLA DETALLE (ESTIRADA HASTA EL FONDO) ────
+            // ── 5. TABLA DETALLE (ESTIRADA) ───────────────────
             pw.Expanded(
-              child: pw.Container(
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black, width: 0.8),
-                ),
-                child: pw.Column(
-                  children: [
-                    // Cabecera de tabla
-                    pw.Container(
-                      decoration: const pw.BoxDecoration(
-                        border: pw.Border(
-                          bottom: pw.BorderSide(
-                            color: PdfColors.black,
-                            width: 0.8,
-                          ),
-                        ),
-                      ),
-                      child: pw.Row(
-                        children: [
-                          _thStretched('ITEM', 35),
-                          _thStretched('CÓDIGO', 55),
-                          _thStretched('DESCRIPCIÓN', 230),
-                          _thStretched('CANT.', 45),
-                          _thStretched('U.M', 35),
-                          _thStretched('PESO', 70, isLast: true),
-                        ],
-                      ),
-                    ),
-
-                    // Cuerpo expandible
-                    pw.Expanded(
-                      child: pw.Row(
-                        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                        children: [
-                          _tdStretchedC('1', 35),
-                          _tdStretchedC(
-                              datos['codigo_producto'] ?? 'PD00022', 55),
-                          _tdStretchedDesc(datos, 230),
-                          _tdStretchedC(volStr, 45),
-                          _tdStretchedC('M3', 35),
-                          _tdStretchedC(pesoStr, 70, isLast: true),
-                        ],
-                      ),
-                    ),
-
-                    // Footer Peso Bruto
-                    pw.Container(
-                      decoration: const pw.BoxDecoration(
-                        border: pw.Border(
-                          top: pw.BorderSide(
-                            color: PdfColors.black,
-                            width: 0.8,
-                          ),
-                        ),
-                      ),
-                      child: pw.Row(
-                        children: [
-                          _tdStretchedEmpty(35),
-                          _tdStretchedFooter('PESO BRUTO (KG) :', 285),
-                          _tdStretchedEmpty(45),
-                          _tdStretchedEmpty(35),
-                          _tdStretchedFooterVal(pesoStr, 70, isLast: true),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: _buildTablaDetalleGRE(datos, volStr, pesoStr, boldFont, baseFont),
             ),
-            pw.SizedBox(height: 10),
+            pw.SizedBox(height: 7),
 
-            // ── 6. COMPROBANTE + MOTIVO DEL TRASLADO ──────────
+            // ── 6. COMPROBANTE + MOTIVOS DEL TRASLADO ─────────
             pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Expanded(
+                  flex: 5,
                   child: pw.Column(
                     children: [
-                      _cajaTitulo(
-                        'COMPROBANTE DE PAGO',
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      _buildTarjeta(
+                        titulo: 'COMPROBANTE DE PAGO ASOCIADO',
+                        bold: boldFont,
+                        child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            _campoBorde('Tip. Doc :', valor: ''),
-                            pw.SizedBox(height: 6),
-                            _campoBorde('N° Doc. :',
-                                valor: datos['factura_ref'] ?? ''),
+                            _buildFilaDato('TIPO:', 'FACTURA ELECTRÓNICA', boldFont, baseFont),
+                            _buildFilaDato('N° DOC:', datos['factura_ref']?.toString().isNotEmpty == true ? datos['factura_ref'] : '-', boldFont, baseFont),
                           ],
                         ),
                       ),
-                      pw.SizedBox(height: 5),
-                      _cajaTitulo(
-                        'TRANSPORTISTA',
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      pw.SizedBox(height: 6),
+                      _buildTarjeta(
+                        titulo: 'MODALIDAD DE TRANSPORTE',
+                        bold: boldFont,
+                        child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                           children: [
-                            _campoBorde('Tip. Doc :'),
-                            pw.SizedBox(height: 6),
-                            _campoBorde('N° Doc. :'),
+                            _buildCheckOption('Transporte Privado', true, boldFont, baseFont),
+                            _buildCheckOption('Transporte Público', false, boldFont, baseFont),
                           ],
                         ),
                       ),
-                      pw.SizedBox(height: 5),
-                      _cajaTipoTransporte(),
                     ],
                   ),
                 ),
                 pw.SizedBox(width: 8),
                 pw.Expanded(
-                  child: _motivoTraslado(),
+                  flex: 6,
+                  child: _buildTarjeta(
+                    titulo: 'MOTIVO DEL TRASLADO',
+                    bold: boldFont,
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              _buildMotivoItem('1. Venta', true, boldFont, baseFont),
+                              _buildMotivoItem('2. Compra', false, boldFont, baseFont),
+                              _buildMotivoItem('3. Consignación', false, boldFont, baseFont),
+                              _buildMotivoItem('4. Devolución', false, boldFont, baseFont),
+                            ],
+                          ),
+                        ),
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              _buildMotivoItem('5. Traslado entre plantas', false, boldFont, baseFont),
+                              _buildMotivoItem('6. Transformación', false, boldFont, baseFont),
+                              _buildMotivoItem('7. Entrega a terceros', false, boldFont, baseFont),
+                              _buildMotivoItem('8. Otros', false, boldFont, baseFont),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
+            pw.SizedBox(height: 10),
 
-            pw.SizedBox(height: 60),
-
-            // ── 7. FIRMAS ─────────────────────────────────────
+            // ── 7. SECCIÓN DE FIRMAS ──────────────────────────
             pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
               children: [
-                _firma('ENTREGUÉ CONFORME'),
-                _firma('RECIBÍ CONFORME'),
+                _buildFirmaBox('ENTREGUÉ CONFORME\n(CONDUCTOR / OPERADOR)', boldFont, baseFont),
+                _buildFirmaBox('RECIBÍ CONFORME\n(CLIENTE / RESPONSABLE OBRA)', boldFont, baseFont),
               ],
             ),
+            pw.SizedBox(height: 8),
+
+            // ── 8. PIE DE PÁGINA CORPORATIVO ──────────────────
+            _buildFooterBar(boldFont, baseFont, 'Representación impresa de la Guía de Remisión Electrónica remitente generada desde el ERP NOVACONCRET.'),
           ],
         ),
       ),
@@ -295,139 +255,163 @@ class SunatPdfGenerator {
   }
 
   // ═════════════════════════════════════════════════════════════
-  // FACTURA ELECTRÓNICA
+  // 2. FACTURA / BOLETA ELECTRÓNICA SUNAT
   // ═════════════════════════════════════════════════════════════
   static Future<Uint8List> generarFactura(Map<String, dynamic> datos) async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(
+      title: 'Factura_${datos['serie_correlativo'] ?? ''}',
+      author: 'ERP NOVACONCRET',
+    );
 
     pw.MemoryImage? logo;
     try {
-      final bytes = await rootBundle.load('assets/images/LOGO2023.png');
+      final bytes = await rootBundle.load('assets/images/LOGO_NOVA.png');
       logo = pw.MemoryImage(bytes.buffer.asUint8List());
-    } catch (_) {}
+    } catch (_) {
+      try {
+        final bytes2 = await rootBundle.load('assets/images/ICONO_NOVA.png');
+        logo = pw.MemoryImage(bytes2.buffer.asUint8List());
+      } catch (_) {
+        logo = null;
+      }
+    }
 
-    final serieCorrelativo = datos['serie_correlativo'] ?? 'F001 - 00000000';
-    final fechaEmision = datos['fecha_emision'] ?? '';
+    final serieCorrelativo = datos['serie_correlativo']?.toString() ?? 'F001 - 00000000';
+    final fechaEmision = datos['fecha_emision']?.toString() ?? '';
     final isFactura = (datos['tipo_doc'] ?? '01') == '01';
-    final titulo = isFactura ? 'FACTURA ELECTRÓNICA' : 'BOLETA ELECTRÓNICA';
+    final tituloDoc = isFactura ? 'FACTURA ELECTRÓNICA' : 'BOLETA ELECTRÓNICA';
+
+    final subtotal = (datos['subtotal'] as num?)?.toDouble() ?? 0.0;
+    final igv = (datos['igv'] as num?)?.toDouble() ?? (subtotal * 0.18);
+    final total = (datos['total'] as num?)?.toDouble() ?? (subtotal + igv);
+
+    final baseFont = pw.Font.helvetica();
+    final boldFont = pw.Font.helveticaBold();
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.fromLTRB(30, 55, 30, 25),
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // HEADER
-              _encabezadoFactura(logo, titulo, serieCorrelativo),
-              pw.SizedBox(height: 20),
+        margin: const pw.EdgeInsets.fromLTRB(28, 24, 28, 20),
+        build: (pw.Context ctx) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            // ── 1. ENCABEZADO SUNAT ───────────────────────────
+            _buildEncabezadoDoc(
+              logo: logo,
+              tituloDoc: tituloDoc,
+              subtituloDoc: 'VENTA DE CONCRETO PREMEZCLADO',
+              serieCorrelativo: serieCorrelativo,
+              bold: boldFont,
+              regular: baseFont,
+            ),
+            pw.SizedBox(height: 10),
 
-              // DATOS CLIENTE
-              pw.Container(
-                decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.black, width: 0.8)),
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Expanded(
-                      flex: 2,
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          _richtextFila('Cliente:',
-                              datos['cliente_nombre'] ?? ''),
-                          pw.SizedBox(height: 4),
-                          _richtextFila('RUC/DNI:',
-                              datos['cliente_documento'] ?? ''),
-                          pw.SizedBox(height: 4),
-                          _richtextFila('Dirección:',
-                              datos['cliente_direccion'] ?? ''),
-                        ],
-                      ),
-                    ),
-                    pw.Expanded(
-                      flex: 1,
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          _richtextFila('Fecha Emisión:', fechaEmision),
-                          pw.SizedBox(height: 4),
-                          _richtextFila('Moneda:', 'SOLES'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 10),
-
-              // TABLA ITEMS FACTURA
-              _buildTablaFactura(datos),
-
-              pw.SizedBox(height: 10),
-
-              // TOTALES
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
+            // ── 2. DATOS DEL CLIENTE (TARJETA) ────────────────
+            _buildTarjeta(
+              titulo: 'DATOS DEL RECEPTOR / CLIENTE',
+              bold: boldFont,
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Container(
-                    width: 200,
-                    decoration: pw.BoxDecoration(
-                        border:
-                            pw.Border.all(color: PdfColors.black, width: 0.8)),
-                    padding: const pw.EdgeInsets.all(8),
+                  pw.Expanded(
+                    flex: 6,
                     child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('SUBTOTAL:',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 9)),
-                            pw.Text(
-                                'S/ ${(datos['subtotal'] ?? 0.0).toStringAsFixed(2)}',
-                                style: const pw.TextStyle(fontSize: 9)),
-                          ],
-                        ),
-                        pw.SizedBox(height: 4),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('IGV (18%):',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 9)),
-                            pw.Text(
-                                'S/ ${(datos['igv'] ?? 0.0).toStringAsFixed(2)}',
-                                style: const pw.TextStyle(fontSize: 9)),
-                          ],
-                        ),
-                        pw.Divider(),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('TOTAL:',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 10)),
-                            pw.Text(
-                                'S/ ${(datos['total'] ?? 0.0).toStringAsFixed(2)}',
-                                style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: 10)),
-                          ],
-                        ),
+                        _buildFilaDato('SEÑOR(ES):', (datos['cliente_nombre'] ?? 'CLIENTE GENERAL').toString().toUpperCase(), boldFont, baseFont),
+                        pw.SizedBox(height: 3),
+                        _buildFilaDato('RUC / DNI:', datos['cliente_documento']?.toString() ?? '-', boldFont, baseFont),
+                        pw.SizedBox(height: 3),
+                        _buildFilaDato('DIRECCIÓN:', (datos['cliente_direccion'] ?? 'AREQUIPA').toString().toUpperCase(), boldFont, baseFont),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(width: 12),
+                  pw.Expanded(
+                    flex: 4,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        _buildFilaDato('FECHA EMISIÓN:', fechaEmision, boldFont, baseFont),
+                        pw.SizedBox(height: 3),
+                        _buildFilaDato('MONEDA:', 'SOLES (PEN)', boldFont, baseFont),
+                        pw.SizedBox(height: 3),
+                        _buildFilaDato('CONDICIÓN PAGO:', 'CONTADO / CRÉDITO', boldFont, baseFont),
                       ],
                     ),
                   ),
                 ],
               ),
-            ],
-          );
-        },
+            ),
+            pw.SizedBox(height: 10),
+
+            // ── 3. TABLA DE DETALLE FACTURA ───────────────────
+            pw.Expanded(
+              child: _buildTablaDetalleFactura(datos, boldFont, baseFont),
+            ),
+            pw.SizedBox(height: 10),
+
+            // ── 4. RESUMEN DE TOTALES ─────────────────────────
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Caja Bancaria de Pago
+                pw.Container(
+                  width: 270,
+                  padding: const pw.EdgeInsets.all(7),
+                  decoration: pw.BoxDecoration(
+                    color: _azulClaroFondo,
+                    borderRadius: pw.BorderRadius.circular(4),
+                    border: pw.Border.all(color: _azulBorde, width: 0.8),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('DEPÓSITOS Y TRANSFERENCIAS (BCP):', style: pw.TextStyle(font: boldFont, fontSize: 7, color: _azulOscuro)),
+                      pw.SizedBox(height: 2),
+                      pw.Text('Cta. Cte: 215-7214815-0-34  |  CCI: 002-2150072148150342-4', style: pw.TextStyle(font: baseFont, fontSize: 6.5, color: _negro)),
+                      pw.Text('Titular: NOVACONCRET S.A.C.', style: pw.TextStyle(font: boldFont, fontSize: 6.5, color: _azulOscuro)),
+                    ],
+                  ),
+                ),
+
+                // Caja de Totales Factura
+                pw.Container(
+                  width: 200,
+                  decoration: pw.BoxDecoration(
+                    borderRadius: pw.BorderRadius.circular(5),
+                    border: pw.Border.all(color: _azulBorde, width: 1),
+                  ),
+                  child: pw.Column(
+                    children: [
+                      _buildFilaTotal('OP. GRAVADA:', 'S/ ${_numFormato(subtotal)}', boldFont, baseFont),
+                      _buildFilaTotal('I.G.V. (18%):', 'S/ ${_numFormato(igv)}', boldFont, baseFont),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: const pw.BoxDecoration(
+                          color: _azulOscuro,
+                          borderRadius: pw.BorderRadius.vertical(bottom: pw.Radius.circular(4)),
+                        ),
+                        child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('IMPORTE TOTAL:', style: pw.TextStyle(font: boldFont, fontSize: 8.5, color: _blanco)),
+                            pw.Text('S/ ${_numFormato(total)}', style: pw.TextStyle(font: boldFont, fontSize: 9.5, color: _blanco)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 12),
+
+            // ── 5. PIE DE PÁGINA ──────────────────────────────
+            _buildFooterBar(boldFont, baseFont, 'Representación impresa de la Factura Electrónica generada desde el Sistema ERP NOVACONCRET autorizado por SUNAT.'),
+          ],
+        ),
       ),
     );
 
@@ -435,101 +419,118 @@ class SunatPdfGenerator {
   }
 
   // ═════════════════════════════════════════════════════════════
-  // ENCABEZADOS
+  // COMPONENTES COMPARTIDOS
   // ═════════════════════════════════════════════════════════════
-  static pw.Widget _encabezadoGRE(
-      pw.MemoryImage? logo, String serieCorrelativo) {
+
+  static pw.Widget _buildEncabezadoDoc({
+    required pw.MemoryImage? logo,
+    required String tituloDoc,
+    required String subtituloDoc,
+    required String serieCorrelativo,
+    required pw.Font bold,
+    required pw.Font regular,
+  }) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Expanded(
-          flex: 6,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              if (logo != null)
-                pw.SizedBox(
-                  width: 160,
-                  height: 60,
-                  child: pw.Image(
-                    logo,
-                    fit: pw.BoxFit.contain,
-                    alignment: pw.Alignment.centerLeft,
-                  ),
-                ),
-              pw.SizedBox(height: 8),
-              ...[_domFiscal, _viaGRE, _horarioGRE, _telfGRE, _emailGRE].map(
-                (l) => pw.Padding(
-                  padding: const pw.EdgeInsets.only(bottom: 2),
-                  child: pw.Text(
-                    l,
-                    style: pw.TextStyle(
-                      fontSize: 7.5,
-                      fontWeight: pw.FontWeight.bold,
+        // Lado izquierdo: Logo + Datos Fiscales
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Image(logo, height: 42, fit: pw.BoxFit.contain)
+            else
+              pw.Row(
+                children: [
+                  pw.Container(
+                    width: 30,
+                    height: 30,
+                    decoration: pw.BoxDecoration(
+                      color: _azulPrimario,
+                      borderRadius: pw.BorderRadius.circular(5),
                     ),
+                    alignment: pw.Alignment.center,
+                    child: pw.Text('N', style: pw.TextStyle(color: _blanco, font: bold, fontSize: 18)),
                   ),
-                ),
+                  pw.SizedBox(width: 6),
+                  pw.Text('NOVACON', style: pw.TextStyle(font: bold, fontSize: 20, color: _azulOscuro)),
+                ],
               ),
-            ],
-          ),
+            pw.SizedBox(height: 3),
+            pw.Text(
+              'NOVACONCRET S.A.C.  |  RUC: $_rucEmpresa',
+              style: pw.TextStyle(font: bold, fontSize: 7, color: _azulOscuro),
+            ),
+            pw.Text(
+              'Planta: $_plantaUchumayo',
+              style: pw.TextStyle(font: regular, fontSize: 5.8, color: _grisTexto),
+            ),
+            pw.Text(
+              'Oficina: $_domicilioFiscal',
+              style: pw.TextStyle(font: regular, fontSize: 5.8, color: _grisTexto),
+            ),
+            pw.Text(
+              'Telf: $_telfEmpresa  |  $_emailEmpresa',
+              style: pw.TextStyle(font: bold, fontSize: 5.8, color: _azulPrimario),
+            ),
+          ],
         ),
+
+        // Lado derecho: Tarjeta Oficial SUNAT
         pw.Container(
-          width: 200,
-          margin: const pw.EdgeInsets.only(top: 10),
+          width: 185,
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black, width: 1.3),
+            borderRadius: pw.BorderRadius.circular(6),
+            border: pw.Border.all(color: _azulOscuro, width: 1.2),
           ),
           child: pw.Column(
             children: [
               pw.Container(
                 width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                decoration: const pw.BoxDecoration(
+                  color: _azulOscuro,
+                  borderRadius: pw.BorderRadius.vertical(top: pw.Radius.circular(4.5)),
+                ),
+                alignment: pw.Alignment.center,
+                child: pw.Text(
+                  'R.U.C. N° $_rucEmpresa',
+                  style: pw.TextStyle(font: bold, fontSize: 8.5, color: _blanco),
+                ),
+              ),
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                color: _blanco,
+                alignment: pw.Alignment.center,
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      'R.U.C N° 20614288095',
+                      tituloDoc,
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 11,
-                      ),
+                      style: pw.TextStyle(font: bold, fontSize: 9.5, color: _azulOscuro, letterSpacing: 0.3),
                     ),
-                    pw.SizedBox(height: 6),
-                    pw.Text(
-                      'GUÍA DE REMISIÓN',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 11,
+                    if (subtituloDoc.isNotEmpty)
+                      pw.Text(
+                        subtituloDoc,
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(font: bold, fontSize: 6.5, color: _azulPrimario),
                       ),
-                    ),
-                    pw.Text(
-                      'ELECTRÓNICA',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
                   ],
                 ),
               ),
               pw.Container(
                 width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(vertical: 10),
+                padding: const pw.EdgeInsets.symmetric(vertical: 4),
                 decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    top: pw.BorderSide(color: PdfColors.black, width: 0.8),
-                  ),
+                  color: _azulClaroFondo,
+                  borderRadius: pw.BorderRadius.vertical(bottom: pw.Radius.circular(4.5)),
                 ),
+                alignment: pw.Alignment.center,
                 child: pw.Text(
                   serieCorrelativo,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+                  style: pw.TextStyle(font: bold, fontSize: 12, color: _azulPrimario),
                 ),
               ),
             ],
@@ -539,104 +540,213 @@ class SunatPdfGenerator {
     );
   }
 
-  static pw.Widget _encabezadoFactura(
-      pw.MemoryImage? logo, String titulo, String serieCorrelativo) {
+  static pw.Widget _buildBarraFechas(
+    String emision,
+    String traslado,
+    String opNro,
+    pw.Font bold,
+    pw.Font regular,
+  ) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+      decoration: pw.BoxDecoration(
+        color: _azulClaroFondo,
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: _azulBorde, width: 0.8),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          _buildItemBarra('Fecha de Emisión:', emision, bold, regular),
+          _buildItemBarra('Fecha de Traslado:', traslado, bold, regular),
+          _buildItemBarra('Orden de Pedido:', opNro.isNotEmpty ? opNro : 'PROGRAMADO', bold, regular),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildItemBarra(String label, String valor, pw.Font bold, pw.Font regular) {
     return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      mainAxisSize: pw.MainAxisSize.min,
       children: [
-        pw.Expanded(
-          flex: 6,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              if (logo != null)
-                pw.SizedBox(
-                  width: 160,
-                  height: 60,
-                  child: pw.Image(
-                    logo,
-                    fit: pw.BoxFit.contain,
-                    alignment: pw.Alignment.centerLeft,
-                  ),
-                ),
-              pw.SizedBox(height: 8),
-              ...[_domFiscal, _viaGRE, _horarioGRE, _telfGRE, _emailGRE].map(
-                (l) => pw.Padding(
-                  padding: const pw.EdgeInsets.only(bottom: 2),
-                  child: pw.Text(
-                    l,
-                    style: pw.TextStyle(
-                      fontSize: 7.5,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        pw.Text(label, style: pw.TextStyle(font: bold, fontSize: 7.5, color: _azulOscuro)),
+        pw.SizedBox(width: 4),
+        pw.Text(valor, style: pw.TextStyle(font: regular, fontSize: 7.5, color: _negro)),
+      ],
+    );
+  }
+
+  static pw.Widget _buildTarjeta({
+    required String titulo,
+    required pw.Widget child,
+    required pw.Font bold,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: const pw.BoxDecoration(
+            color: _azulPrimario,
+            borderRadius: pw.BorderRadius.vertical(top: pw.Radius.circular(4)),
+          ),
+          child: pw.Text(
+            titulo,
+            style: pw.TextStyle(font: bold, fontSize: 7.5, color: _blanco, letterSpacing: 0.3),
           ),
         ),
         pw.Container(
-          width: 200,
-          margin: const pw.EdgeInsets.only(top: 10),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black, width: 1.3),
+            color: _blanco,
+            borderRadius: const pw.BorderRadius.vertical(bottom: pw.Radius.circular(4)),
+            border: pw.Border.all(color: _azulBorde, width: 0.8),
           ),
-          child: pw.Column(
-            children: [
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(vertical: 8),
-                child: pw.Column(
-                  children: [
-                    pw.Text(
-                      'R.U.C N° 20614288095',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                    pw.SizedBox(height: 6),
-                    pw.Text(
-                      titulo,
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              pw.Container(
-                width: double.infinity,
-                padding: const pw.EdgeInsets.symmetric(vertical: 10),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    top: pw.BorderSide(color: PdfColors.black, width: 0.8),
-                  ),
-                ),
-                child: pw.Text(
-                  serieCorrelativo,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+          child: child,
+        ),
+      ],
+    );
+  }
+
+  static pw.Widget _buildFilaDato(String label, String valor, pw.Font bold, pw.Font regular) {
+    return pw.Row(
+      mainAxisSize: pw.MainAxisSize.min,
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text('$label ', style: pw.TextStyle(font: bold, fontSize: 7.2, color: _azulOscuro)),
+        pw.Expanded(
+          child: pw.Text(
+            valor,
+            style: pw.TextStyle(font: regular, fontSize: 7.2, color: _negro),
+            maxLines: 1,
+            overflow: pw.TextOverflow.clip,
           ),
         ),
       ],
     );
   }
 
-  // ═════════════════════════════════════════════════════════════
-  // COLUMNA DESCRIPCIÓN (igual que pdf_generator.dart)
-  // ═════════════════════════════════════════════════════════════
-  static pw.Widget _columnaDescripcionGRE(Map<String, dynamic> d) {
+  // ─────────────────────────────────────────────────────────────
+  // TABLA DETALLE GRE
+  // ─────────────────────────────────────────────────────────────
+  static pw.Widget _buildTablaDetalleGRE(
+    Map<String, dynamic> datos,
+    String volStr,
+    String pesoStr,
+    pw.Font bold,
+    pw.Font regular,
+  ) {
+    const colWidths = [
+      pw.FlexColumnWidth(0.8), // ITEM
+      pw.FlexColumnWidth(1.2), // CÓDIGO
+      pw.FlexColumnWidth(4.5), // DESCRIPCIÓN TÉCNICA
+      pw.FlexColumnWidth(1.0), // CANTIDAD
+      pw.FlexColumnWidth(0.9), // UNIDAD
+      pw.FlexColumnWidth(1.4), // PESO TOTAL
+    ];
+
+    final headers = ['ITEM', 'CÓDIGO', 'DESCRIPCIÓN DEL PRODUCTO', 'CANTIDAD', 'UNIDAD', 'PESO (KG)'];
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: _azulBorde, width: 0.8),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              color: _azulOscuro,
+              borderRadius: pw.BorderRadius.vertical(top: pw.Radius.circular(3.5)),
+            ),
+            child: pw.Table(
+              columnWidths: {for (int i = 0; i < colWidths.length; i++) i: colWidths[i]},
+              children: [
+                pw.TableRow(
+                  children: headers.map((h) {
+                    final isLeft = h.contains('DESCRIPCIÓN');
+                    return pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                      alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center,
+                      child: pw.Text(
+                        h,
+                        style: pw.TextStyle(font: bold, fontSize: 7.5, color: _blanco),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Container(
+              color: _blanco,
+              child: pw.Table(
+                columnWidths: {for (int i = 0; i < colWidths.length; i++) i: colWidths[i]},
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text('1', style: pw.TextStyle(font: bold, fontSize: 8, color: _azulOscuro)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text(datos['codigo_producto']?.toString() ?? 'PD00022', style: pw.TextStyle(font: regular, fontSize: 7.5, color: _grisTexto)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                        child: _buildDescripcionTecnicaGRE(datos, bold, regular),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text(volStr, style: pw.TextStyle(font: bold, fontSize: 9, color: _negro)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text('M3', style: pw.TextStyle(font: regular, fontSize: 8, color: _grisTexto)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text(pesoStr, style: pw.TextStyle(font: bold, fontSize: 8.5, color: _negro)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: const pw.BoxDecoration(
+              color: _azulClaroFondo,
+              borderRadius: pw.BorderRadius.vertical(bottom: pw.Radius.circular(3.5)),
+              border: pw.Border(top: pw.BorderSide(color: _azulBorde, width: 0.8)),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('CONCRETO PREMEZCLADO DESPACHADO EN MIXER', style: pw.TextStyle(font: regular, fontSize: 6.5, color: _grisTexto)),
+                pw.Row(
+                  children: [
+                    pw.Text('PESO BRUTO TOTAL (KG): ', style: pw.TextStyle(font: bold, fontSize: 7.5, color: _azulOscuro)),
+                    pw.Text('$pesoStr KG', style: pw.TextStyle(font: bold, fontSize: 8, color: _azulPrimario)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildDescripcionTecnicaGRE(Map<String, dynamic> d, pw.Font bold, pw.Font regular) {
     String diseno = (d['diseno']?.toString() ?? '')
         .toUpperCase()
         .replaceAll("F'C=", '')
@@ -649,496 +759,305 @@ class SunatPdfGenerator {
     final bomba = d['bomba']?.toString() ?? '';
     final hora = d['hora_salida']?.toString() ?? '';
     final precinto = d['precinto']?.toString() ?? '';
-
-    String cemento =
-        (d['cemento']?.toString() ?? 'CEMENTO YURA PRO').toUpperCase();
-    if (!cemento.contains('CEMENTO') && cemento.isNotEmpty && cemento != '-') {
-      cemento = 'CEMENTO $cemento';
-    }
-
-    String aditivo = (d['aditivo']?.toString() ?? '').toUpperCase();
-    if (!aditivo.contains('ADITIVO') && aditivo.isNotEmpty && aditivo != '-') {
-      aditivo = 'ADITIVO $aditivo';
-    }
+    final cemento = (d['cemento']?.toString() ?? 'CEMENTO YURA PRO').toUpperCase();
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text(
-          'CONCRETO PRE-MEZCLADO FC=$diseno KG/CM2, BOMBEABLE',
-          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          'CONCRETO PRE-MEZCLADO FC=$diseno KG/CM2',
+          style: pw.TextStyle(font: bold, fontSize: 8.5, color: _azulOscuro),
         ),
-        pw.SizedBox(height: 4),
-        if (cemento.isNotEmpty && cemento != '-')
-          pw.Text('* $cemento', style: const pw.TextStyle(fontSize: 8.5)),
-        pw.SizedBox(height: 4),
-        if (slump.isNotEmpty && slump != '-')
-          pw.Text('* SLUMP $slump', style: const pw.TextStyle(fontSize: 8.5)),
-        pw.SizedBox(height: 4),
-        if (huso.isNotEmpty && huso != '-')
-          pw.Text('* HUSO $huso', style: const pw.TextStyle(fontSize: 8.5)),
-        pw.SizedBox(height: 4),
-        if (aditivo.isNotEmpty && aditivo != '-')
-          pw.Text('* $aditivo', style: const pw.TextStyle(fontSize: 8.5)),
+        pw.SizedBox(height: 3),
+        _buildBulletItem('CEMENTO: $cemento', regular),
+        if (slump.isNotEmpty) _buildBulletItem('SLUMP: $slump', regular),
+        if (huso.isNotEmpty) _buildBulletItem('HUSO: $huso', regular),
+        if (bomba.isNotEmpty && bomba != '-') _buildBulletItem('SERVICIO: BOMBA $bomba', regular),
+        if (hora.isNotEmpty) _buildBulletItem('HORA DE SALIDA: $hora', regular),
+        if (precinto.isNotEmpty) _buildBulletItem('PRECINTO: $precinto', regular),
+      ],
+    );
+  }
 
-        // Empuja el contenido inferior contra el borde inferior
-        pw.Spacer(),
+  // ─────────────────────────────────────────────────────────────
+  // TABLA DETALLE FACTURA
+  // ─────────────────────────────────────────────────────────────
+  static pw.Widget _buildTablaDetalleFactura(Map<String, dynamic> datos, pw.Font bold, pw.Font regular) {
+    const colWidths = [
+      pw.FlexColumnWidth(0.8), // ITEM
+      pw.FlexColumnWidth(1.2), // CÓDIGO
+      pw.FlexColumnWidth(4.5), // DESCRIPCIÓN
+      pw.FlexColumnWidth(1.2), // CANTIDAD
+      pw.FlexColumnWidth(1.0), // UNIDAD
+      pw.FlexColumnWidth(1.5), // P. UNIT
+      pw.FlexColumnWidth(1.5), // TOTAL
+    ];
 
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.center,
-          children: [
-            if (bomba.isNotEmpty && bomba != '-')
-              pw.Text(
-                'BOMBA $bomba',
-                style: pw.TextStyle(
-                  fontSize: 8.5,
-                  fontWeight: pw.FontWeight.bold,
+    final headers = ['ITEM', 'CÓDIGO', 'DESCRIPCIÓN', 'CANTIDAD', 'UNIDAD', 'P. UNIT (S/)', 'TOTAL (S/)'];
+    final descripcion = (datos['descripcion']?.toString() ?? 'CONCRETO PREMEZCLADO').replaceAll('\\n', '\n');
+    final volumen = datos['volumen']?.toString() ?? '0.00';
+    final unitario = datos['unitario']?.toString() ?? '0.00';
+    final totalItem = datos['total_item']?.toString() ?? '0.00';
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: _azulBorde, width: 0.8),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              color: _azulOscuro,
+              borderRadius: pw.BorderRadius.vertical(top: pw.Radius.circular(3.5)),
+            ),
+            child: pw.Table(
+              columnWidths: {for (int i = 0; i < colWidths.length; i++) i: colWidths[i]},
+              children: [
+                pw.TableRow(
+                  children: headers.map((h) {
+                    final isLeft = h.contains('DESCRIPCIÓN');
+                    return pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                      alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center,
+                      child: pw.Text(
+                        h,
+                        style: pw.TextStyle(font: bold, fontSize: 7.5, color: _blanco),
+                      ),
+                    );
+                  }).toList(),
                 ),
-              ),
-            pw.SizedBox(width: 30),
-            pw.Text(
-              'Hora de Salida: $hora',
-              style: pw.TextStyle(
-                fontSize: 8.5,
-                fontWeight: pw.FontWeight.bold,
+              ],
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Container(
+              color: _blanco,
+              child: pw.Table(
+                columnWidths: {for (int i = 0; i < colWidths.length; i++) i: colWidths[i]},
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text('1', style: pw.TextStyle(font: bold, fontSize: 8, color: _azulOscuro)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text('PD00022', style: pw.TextStyle(font: regular, fontSize: 7.5, color: _grisTexto)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                        child: pw.Text(
+                          descripcion.toUpperCase(),
+                          style: pw.TextStyle(font: bold, fontSize: 8, color: _negro),
+                        ),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text(volumen, style: pw.TextStyle(font: bold, fontSize: 8.5, color: _negro)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topCenter,
+                        child: pw.Text('M3', style: pw.TextStyle(font: regular, fontSize: 8, color: _grisTexto)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        alignment: pw.Alignment.topRight,
+                        child: pw.Text(unitario, style: pw.TextStyle(font: regular, fontSize: 8.5, color: _negro)),
+                      ),
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                        alignment: pw.Alignment.topRight,
+                        child: pw.Text(totalItem, style: pw.TextStyle(font: bold, fontSize: 8.5, color: _azulOscuro)),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            if (precinto.isNotEmpty) ...[
-              pw.SizedBox(width: 30),
-              pw.Text(
-                precinto,
-                style: pw.TextStyle(
-                  fontSize: 8.5,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // HELPERS AUXILIARES
+  // ─────────────────────────────────────────────────────────────
+  static pw.Widget _buildBulletItem(String texto, pw.Font regular) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2, left: 3),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Container(
+            width: 3.2,
+            height: 3.2,
+            margin: const pw.EdgeInsets.only(right: 4),
+            decoration: const pw.BoxDecoration(
+              color: _azulPrimario,
+              shape: pw.BoxShape.circle,
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Text(
+              texto,
+              style: pw.TextStyle(font: regular, fontSize: 6.8, color: _grisTexto),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildCheckOption(String label, bool checked, pw.Font bold, pw.Font regular) {
+    return pw.Row(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        pw.Container(
+          width: 8.5,
+          height: 8.5,
+          decoration: pw.BoxDecoration(
+            color: checked ? _azulPrimario : _blanco,
+            borderRadius: pw.BorderRadius.circular(2),
+            border: pw.Border.all(color: _azulPrimario, width: 1),
+          ),
+          alignment: pw.Alignment.center,
+          child: checked
+              ? _buildVectorCheckmark(color: _blanco, width: 5.5, height: 5.5, strokeWidth: 1.1)
+              : null,
+        ),
+        pw.SizedBox(width: 4),
+        pw.Text(label, style: pw.TextStyle(font: regular, fontSize: 6.8, color: _negro)),
+      ],
+    );
+  }
+
+  static pw.Widget _buildMotivoItem(String texto, bool checked, pw.Font bold, pw.Font regular) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2.5),
+      child: pw.Row(
+        children: [
+          pw.Container(
+            width: 7.5,
+            height: 7.5,
+            decoration: pw.BoxDecoration(
+              color: checked ? _azulPrimario : _blanco,
+              borderRadius: pw.BorderRadius.circular(1.5),
+              border: pw.Border.all(color: _azulPrimario, width: 0.8),
+            ),
+            alignment: pw.Alignment.center,
+            child: checked
+                ? _buildVectorCheckmark(color: _blanco, width: 4.5, height: 4.5, strokeWidth: 1.0)
+                : null,
+          ),
+          pw.SizedBox(width: 3.5),
+          pw.Text(texto, style: pw.TextStyle(font: regular, fontSize: 6.3, color: checked ? _azulOscuro : _grisTexto)),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildVectorCheckmark({
+    PdfColor color = _blanco,
+    double width = 8,
+    double height = 8,
+    double strokeWidth = 1.3,
+  }) {
+    return pw.CustomPaint(
+      size: PdfPoint(width, height),
+      painter: (canvas, size) {
+        canvas.setColor(color);
+        canvas.setLineWidth(strokeWidth);
+        canvas.moveTo(size.x * 0.15, size.y * 0.45);
+        canvas.lineTo(size.x * 0.42, size.y * 0.18);
+        canvas.lineTo(size.x * 0.88, size.y * 0.82);
+        canvas.strokePath();
+      },
+    );
+  }
+
+  static pw.Widget _buildFilaTotal(String label, String valor, pw.Font bold, pw.Font regular) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(font: bold, fontSize: 7.5, color: _grisTexto)),
+          pw.Text(valor, style: pw.TextStyle(font: bold, fontSize: 8, color: _negro)),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildFirmaBox(String cargo, pw.Font bold, pw.Font regular) {
+    return pw.Container(
+      width: 200,
+      child: pw.Column(
+        children: [
+          pw.Container(height: 28),
+          pw.Container(
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(top: pw.BorderSide(color: _azulOscuro, width: 1)),
+            ),
+          ),
+          pw.SizedBox(height: 3),
+          pw.Text(
+            cargo,
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(font: bold, fontSize: 7, color: _azulOscuro),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildFooterBar(pw.Font bold, pw.Font regular, String notaLegal) {
+    return pw.Column(
+      children: [
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+          decoration: pw.BoxDecoration(
+            color: _azulOscuro,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Column(
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('PLANTA: $_plantaUchumayo', style: pw.TextStyle(font: bold, fontSize: 6.2, color: _blanco)),
+                  pw.Text('OFICINA: $_domicilioFiscal', style: pw.TextStyle(font: regular, fontSize: 6.2, color: const PdfColor(0.85, 0.92, 1.0))),
+                ],
+              ),
+              pw.SizedBox(height: 2),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Telf / Cel: $_telfEmpresa', style: pw.TextStyle(font: bold, fontSize: 6.5, color: _blanco)),
+                  pw.Text(_emailEmpresa, style: pw.TextStyle(font: bold, fontSize: 6.5, color: const PdfColor(0.75, 0.9, 1.0))),
+                  pw.Text('NOVACONCRET S.A.C. - RUC: $_rucEmpresa', style: pw.TextStyle(font: bold, fontSize: 6.2, color: _blanco)),
+                ],
               ),
             ],
-          ],
+          ),
         ),
-        pw.SizedBox(height: 5),
+        pw.SizedBox(height: 2),
+        pw.Center(
+          child: pw.Text(
+            notaLegal,
+            style: pw.TextStyle(font: regular, fontSize: 5.6, color: _grisMuted),
+          ),
+        ),
       ],
     );
   }
 
-  // ═════════════════════════════════════════════════════════════
-  // HELPERS TABLA ESTIRABLE (misma arquitectura que pdf_generator)
-  // ═════════════════════════════════════════════════════════════
-  static pw.Widget _thStretched(String texto, int flex,
-      {bool isLast = false}) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
-        decoration: pw.BoxDecoration(
-          border: isLast
-              ? null
-              : const pw.Border(
-                  right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-                ),
-        ),
-        child: pw.Text(
-          texto,
-          textAlign: pw.TextAlign.center,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.2),
-        ),
-      ),
-    );
-  }
-
-  static pw.Widget _tdStretchedC(String texto, int flex,
-      {bool isLast = false}) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        padding: const pw.EdgeInsets.fromLTRB(4, 10, 4, 10),
-        decoration: pw.BoxDecoration(
-          border: isLast
-              ? null
-              : const pw.Border(
-                  right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-                ),
-        ),
-        child: pw.Text(
-          texto,
-          textAlign: pw.TextAlign.center,
-          style: const pw.TextStyle(fontSize: 8.5),
-        ),
-      ),
-    );
-  }
-
-  static pw.Widget _tdStretchedDesc(Map<String, dynamic> datos, int flex) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        padding: const pw.EdgeInsets.all(10),
-        decoration: const pw.BoxDecoration(
-          border: pw.Border(
-            right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-          ),
-        ),
-        child: _columnaDescripcionGRE(datos),
-      ),
-    );
-  }
-
-  static pw.Widget _tdStretchedEmpty(int flex) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        decoration: const pw.BoxDecoration(
-          border: pw.Border(
-            right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static pw.Widget _tdStretchedFooter(String texto, int flex) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        padding: const pw.EdgeInsets.fromLTRB(8, 5, 8, 5),
-        decoration: const pw.BoxDecoration(
-          border: pw.Border(
-            right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-          ),
-        ),
-        child: pw.Text(
-          texto,
-          textAlign: pw.TextAlign.right,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5),
-        ),
-      ),
-    );
-  }
-
-  static pw.Widget _tdStretchedFooterVal(String texto, int flex,
-      {bool isLast = false}) {
-    return pw.Expanded(
-      flex: flex,
-      child: pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-        decoration: pw.BoxDecoration(
-          border: isLast
-              ? null
-              : const pw.Border(
-                  right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-                ),
-        ),
-        child: pw.Text(
-          texto,
-          textAlign: pw.TextAlign.center,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5),
-        ),
-      ),
-    );
-  }
-
-  // ═════════════════════════════════════════════════════════════
-  // HELPERS REUTILIZABLES
-  // ═════════════════════════════════════════════════════════════
-  static pw.Widget _cajaTitulo(String titulo, pw.Widget contenido) {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(vertical: 4),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              ),
-            ),
-            child: pw.Text(
-              titulo,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 8.2,
-              ),
-            ),
-          ),
-          pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-            child: contenido,
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _richtextFila(String label, String valor) {
-    return pw.RichText(
-      text: pw.TextSpan(
-        children: [
-          pw.TextSpan(
-            text: '$label ',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5),
-          ),
-          pw.TextSpan(text: valor, style: const pw.TextStyle(fontSize: 8.5)),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _labelValor(String label, String valor) {
-    return pw.Row(
-      children: [
-        if (label.isNotEmpty)
-          pw.Text(
-            '$label  ',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-          ),
-        pw.Text(valor, style: const pw.TextStyle(fontSize: 9)),
-      ],
-    );
-  }
-
-  static pw.Widget _campoBorde(String label, {String valor = ''}) {
-    return pw.Row(
-      children: [
-        pw.Text(
-          label,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
-        ),
-        pw.SizedBox(width: 6),
-        pw.Text(valor, style: const pw.TextStyle(fontSize: 8)),
-      ],
-    );
-  }
-
-  static pw.Widget _firma(String texto) {
-    return pw.Container(
-      width: 195,
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          top: pw.BorderSide(color: PdfColors.black, width: 0.8),
-        ),
-      ),
-      padding: const pw.EdgeInsets.only(top: 5),
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        texto,
-        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
-      ),
-    );
-  }
-
-  // ── TIPO DE TRANSPORTE ──────────────────────────────────────
-  static pw.Widget _cajaTipoTransporte() {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(vertical: 4),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              ),
-            ),
-            child: pw.Text(
-              'TIPO DE TRANSPORTE',
-              textAlign: pw.TextAlign.center,
-              style:
-                  pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.2),
-            ),
-          ),
-          pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-              children: [
-                pw.Row(
-                  children: [
-                    pw.Text('Transporte\nPúblico',
-                        style: const pw.TextStyle(fontSize: 7)),
-                    pw.SizedBox(width: 4),
-                    _checkbox(false),
-                  ],
-                ),
-                pw.Row(
-                  children: [
-                    pw.Text('Transporte\nPrivado',
-                        style: const pw.TextStyle(fontSize: 7)),
-                    pw.SizedBox(width: 4),
-                    _checkbox(true),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── MOTIVO DEL TRASLADO ─────────────────────────────────────
-  static pw.Widget _motivoTraslado() {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(vertical: 4),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              ),
-            ),
-            child: pw.Text(
-              'MOTIVO DEL TRASLADO',
-              textAlign: pw.TextAlign.center,
-              style:
-                  pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.2),
-            ),
-          ),
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(8),
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      _motivoItem('1. Venta', true),
-                      _motivoItem('2. Venta sujeta a confirmación del\n    comprador', false),
-                      _motivoItem('3. Compra', false),
-                      _motivoItem('4. Consignación', false),
-                      _motivoItem('5. Devolución', false),
-                      _motivoItem('6. Traslado entre establecimientos', false),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(width: 4),
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      _motivoItem('7. Traslado de Bienes para\n    Transformación', false),
-                      _motivoItem('8. Recojo de Bienes\n    Transformados', false),
-                      _motivoItem('9. Traslado Emisor Itinerante CP', false),
-                      _motivoItem('10. Venta con Entrega a Terceros', false),
-                      _motivoItem('11. Otros', false),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _motivoItem(String texto, bool checked) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 4),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Expanded(
-            child: pw.Text(texto, style: const pw.TextStyle(fontSize: 7)),
-          ),
-          pw.SizedBox(width: 4),
-          _checkbox(checked),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _checkbox(bool checked) {
-    return pw.Container(
-      width: 10,
-      height: 10,
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black, width: 0.8),
-      ),
-      child: checked
-          ? pw.Center(
-              child: pw.Text('X',
-                  style: pw.TextStyle(
-                      fontSize: 7, fontWeight: pw.FontWeight.bold)),
-            )
-          : pw.Container(),
-    );
-  }
-
-  // ── TABLA FACTURA ───────────────────────────────────────────
-  static pw.Widget _buildTablaFactura(Map<String, dynamic> datos) {
-    final descripcion = datos['descripcion'] ?? 'CONCRETO PRE-MEZCLADO';
-    final volumen = datos['volumen'] ?? '0.00';
-    final unitario = datos['unitario'] ?? '0.00';
-    final total = datos['total_item'] ?? '0.00';
-
-    return pw.Container(
-      height: 250,
-      decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.black, width: 0.8)),
-      child: pw.Column(
-        children: [
-          pw.Container(
-            decoration: const pw.BoxDecoration(
-                border: pw.Border(
-                    bottom:
-                        pw.BorderSide(color: PdfColors.black, width: 0.8))),
-            child: pw.Row(
-              children: [
-                _thStretched('ITEM', 30),
-                _thStretched('CÓDIGO', 50),
-                _thStretched('DESCRIPCIÓN', 200),
-                _thStretched('CANT.', 40),
-                _thStretched('P. UNIT', 60),
-                _thStretched('TOTAL', 60, isLast: true),
-              ],
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Row(
-              children: [
-                _tdStretchedC('1', 30),
-                _tdStretchedC('P000002', 50),
-                pw.Expanded(
-                  flex: 200,
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(10),
-                    decoration: const pw.BoxDecoration(
-                      border: pw.Border(
-                        right: pw.BorderSide(
-                            color: PdfColors.black, width: 0.8),
-                      ),
-                    ),
-                    child: pw.Text(descripcion,
-                        style: const pw.TextStyle(fontSize: 8.5)),
-                  ),
-                ),
-                _tdStretchedC(volumen, 40),
-                _tdStretchedC(unitario, 60),
-                _tdStretchedC(total, 60, isLast: true),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── UTILIDADES ──────────────────────────────────────────────
   static String _numFormato(double v) {
     final partes = v.toStringAsFixed(2).split('.');
     final entero = partes[0];

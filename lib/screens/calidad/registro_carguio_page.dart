@@ -6,6 +6,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/helpers.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../core/services/notificacion_service.dart';
+import '../../core/services/disenos_service.dart';
+import 'historial_carguios_page.dart';
 
 class _CarguioItem {
   final Map<String, dynamic> carguioRaw;
@@ -209,7 +211,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
 
   Future<void> _cargarDisenos() async {
     try {
-      final data = await supabase.from('disenos_mezcla').select();
+      final data = await DisenosService().obtenerDisenos();
       
       final prefs = await SharedPreferences.getInstance();
       List<String> activos = prefs.getStringList('disenos_activos') ?? [];
@@ -491,7 +493,7 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
 
       if (fueraTol) {
         await NotificationService().notificarPorRoles(
-          roles: ['calidad', 'jefe_op'],
+          roles: ['jefe de calidad', 'calidad', 'produccion', 'programacion', 'jefe_op', 'jefe de operaciones'],
           titulo: '⚠️ Alerta de Calidad (> 5%)',
           cuerpo: 'El carguío del Mixer ${cMixer.text.trim()} para ${v['nombre_razon_social']} presenta variaciones fuera de norma.',
         );
@@ -536,6 +538,27 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
         shadowColor: Colors.black12,
         iconTheme: const IconThemeData(color: AppColors.primaryDark),
         centerTitle: false,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.history, size: 18, color: Colors.white),
+              label: const Text('Historial de Carguíos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A),
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HistorialCarguiosPage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
@@ -805,15 +828,50 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
             const SizedBox(height: 40),
             
             _buildSectionHeader("3. Control de Pesos (Balanza)", Icons.monitor_weight),
-            const SizedBox(height: 20),
-            if (disenoActual != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20, left: 4),
-                child: Text(
-                  "Diseño Extraído Automáticamente: f'c=${disenoActual!['resistencia']} • Huso ${disenoActual!['huso']} • ${disenoActual!['tipo_vaciado']}", 
-                  style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600, fontSize: 13)
+            const SizedBox(height: 16),
+            if (disenoActual != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_long, size: 16, color: AppColors.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Dosificación Calculada (${cVolumen.text.trim().isEmpty ? '0' : cVolumen.text.trim()} m³ · f'c ${disenoActual!['resistencia']} · Huso ${disenoActual!['huso']} · ${disenoActual!['tipo_vaciado']})",
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryDark),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildMiniDosificacionTile("CEMENTO", "${disenoCemento.toStringAsFixed(0)} kg", Icons.square_outlined, const Color(0xFF1E293B), const Color(0xFFF1F5F9)),
+                        _buildMiniDosificacionTile("ARENA", "${disenoArena.toStringAsFixed(0)} kg", Icons.grain, Colors.amber.shade800, const Color(0xFFFFFBEB)),
+                        _buildMiniDosificacionTile("PIEDRA 1/2", "${disenoPiedra12.toStringAsFixed(0)} kg", Icons.terrain, Colors.deepOrange.shade700, const Color(0xFFFFF7ED)),
+                        _buildMiniDosificacionTile("PIEDRA 3/4", "${disenoPiedra34.toStringAsFixed(0)} kg", Icons.terrain, Colors.brown.shade700, const Color(0xFFFDF4E7)),
+                        if (disenoPiedra38 > 0)
+                          _buildMiniDosificacionTile("PIEDRA 3/8", "${disenoPiedra38.toStringAsFixed(0)} kg", Icons.terrain, Colors.blueGrey.shade700, const Color(0xFFF8FAFC)),
+                        _buildMiniDosificacionTile("AGUA", "${disenoAgua.toStringAsFixed(0)} Lt", Icons.water_drop, const Color(0xFF0284C7), const Color(0xFFF0F9FF)),
+                        _buildMiniDosificacionTile("ADITIVO", "${disenoAditivo.toStringAsFixed(2)} kg", Icons.science, Colors.purple.shade700, const Color(0xFFFAF5FF)),
+                      ],
+                    ),
+                  ],
                 ),
               ),
+            ],
             
             LayoutBuilder(
               builder: (context, constraints) {
@@ -974,6 +1032,46 @@ class _RegistroCarguioPageState extends State<RegistroCarguioPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMiniDosificacionTile(String titulo, String valor, IconData icon, Color color, Color bgColor) {
+    return Container(
+      width: 88,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  titulo,
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            valor,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }

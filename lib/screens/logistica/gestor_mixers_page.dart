@@ -4,6 +4,8 @@ import '../../core/theme/app_colors.dart';
 
 import '../../core/services/notificacion_service.dart';
 import 'guia_pdf_preview.dart';
+import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
 class GestorMixersPage extends StatefulWidget {
   const GestorMixersPage({super.key});
@@ -28,8 +30,8 @@ class _FilaCarguioData {
   String horaPlanta;
   String precinto;
   String horaSalida;
-  bool mostrarOptRep;
-  bool yaNotificado;
+  bool mostrarOptRep = false;
+  bool yaNotificado = false;
   
   TextEditingController volCtrl;
   TextEditingController optCtrl;
@@ -65,8 +67,6 @@ class _FilaCarguioData {
     this.horaPlanta = '',
     this.precinto = '',
     this.horaSalida = '',
-    this.mostrarOptRep = false,
-    this.yaNotificado = false,
   })  : volCtrl = TextEditingController(text: volumen > 0 ? volumen.toStringAsFixed(2) : ''),
         optCtrl = TextEditingController(text: optVol > 0 ? optVol.toStringAsFixed(2) : ''),
         repCtrl = TextEditingController(text: repVol > 0 ? repVol.toStringAsFixed(2) : ''),
@@ -105,6 +105,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   List<String> usuariosPermitidos = [];
 
   List<Map<String, dynamic>> ventas = [];
+  List<Map<String, dynamic>> ventasInactivas = [];
   Map<String, List<_FilaCarguioData>> carguiosPorVenta = {};
   Map<String, String> bombasPorVenta = {};
   List<Map<String, dynamic>> conductores = [];
@@ -170,8 +171,36 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
           .select()
           .eq('fecha_entrega', fechaFiltro)
           .order("hora_entrega", ascending: true);
+          
+      // Obtener asesor_nombre y tipo_comprobante manualmente porque no hay Foreign Key directa en Supabase
+      final cotIds = ventasDataRaw.map((v) => v['cotizacion_id']).where((id) => id != null).toSet().toList();
+      if (cotIds.isNotEmpty) {
+        try {
+          final cots = await supabase.from('cotizaciones').select('id, asesor_nombre, tipo_comprobante').inFilter('id', cotIds);
+          final mapCots = {for (var c in cots) c['id']: c};
+          for (var v in ventasDataRaw) {
+            if (v['cotizacion_id'] != null) {
+              final cotInfo = mapCots[v['cotizacion_id']];
+              if (cotInfo != null) {
+                v['asesor_nombre'] = cotInfo['asesor_nombre'];
+                v['tipo_comprobante'] = cotInfo['tipo_comprobante'];
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error obteniendo datos de cotizaciones: $e');
+        }
+      }
 
-      final ventasData = ventasDataRaw.where((v) => v['numero_atencion']?.toString() != '0').toList();
+      final ventasData = ventasDataRaw.where((v) {
+        final esInactivo = v['numero_atencion']?.toString() == '0' || v['estado'] == 'CANCELADO' || v['estado'] == 'REPROGRAMADO' || v['estado'] == 'SUSPENDIDO';
+        return !esInactivo;
+      }).toList();
+
+      final inactivos = ventasDataRaw.where((v) {
+        final esInactivo = v['numero_atencion']?.toString() == '0' || v['estado'] == 'CANCELADO' || v['estado'] == 'REPROGRAMADO' || v['estado'] == 'SUSPENDIDO';
+        return esInactivo;
+      }).toList();
 
       final asignaciones = await supabase.from("asignacion_bombas").select();
       Map<String, String> mapaBombas = {};
@@ -264,6 +293,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
       if (mounted) {
         setState(() {
           ventas = List<Map<String, dynamic>>.from(ventasData);
+          ventasInactivas = List<Map<String, dynamic>>.from(inactivos);
           conductores = List<Map<String, dynamic>>.from(conductoresData);
           carguiosPorVenta = agrupados;
           bombasPorVenta = mapaBombas;
@@ -391,6 +421,8 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     setState(() {
       carguiosPorVenta[idVenta]?.remove(f);
     });
+    
+    await _syncVolumenVenta(idVenta);
     
     Future.delayed(const Duration(milliseconds: 100), () {
       f.dispose();
@@ -563,6 +595,10 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Viaje guardado'), duration: Duration(milliseconds: 600)));
       }
+      
+      if (!silently) {
+        await _syncVolumenVenta(idVenta);
+      }
     } catch (e) {
       debugPrint("Error crítico auto-guardando fila: $e");
       if (!silently && mounted) {
@@ -580,6 +616,308 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     if (estado == 'DESPACHADO' || estado == 'EN OBRA' || estado == 'DESCARGANDO' || estado == 'SALIO DE PLANTA') return Colors.green.shade600;
     return Colors.grey.shade500; 
   }
+
+  Future<void> _syncVolumenVenta(String idVenta) async {
+    double newTotal = 0.0;
+    for (var c in carguiosPorVenta[idVenta] ?? []) {
+      newTotal += c.volumen;
+    }
+    
+    int idx = ventas.indexWhere((v) => v['id'].toString() == idVenta);
+    if (idx != -1) {
+      double currentTotal = double.tryParse(ventas[idx]['volumen']?.toString() ?? '0') ?? 0.0;
+      if ((newTotal - currentTotal).abs() > 0.01) {
+        ventas[idx]['volumen'] = newTotal;
+        await supabase.from('ventas_programacion').update({'volumen': newTotal}).eq('id', idVenta);
+        if (mounted) setState(() {});
+        await _enviarRequerimientoDrive(ventas[idx], bombaAsignada: bombasPorVenta[idVenta]);
+      }
+    }
+  }
+
+  Future<void> _enviarRequerimientoDrive(Map<String, dynamic> v, {bool isCancel = false, bool isReprogram = false, String? bombaAsignada}) async {
+    try {
+      final gasUrl = 'https://script.google.com/macros/s/AKfycby1wKKYKWNvYknyyMkqm2XLE-E32kTr1WCRdLNVFlndMCsbKEQCp7qL-kITK6WafpcBHA/exec';
+
+      String doc = v['dni_ruc']?.toString() ?? '';
+      String tipoDoc = v['tipo_comprobante']?.toString() ?? (doc.length == 11 ? 'FACTURA' : 'BOLETA');
+
+      DateTime fecha = DateTime.tryParse(v['fecha_entrega']?.toString() ?? '') ?? DateTime.now();
+      String hora = v['hora_entrega']?.toString() ?? '';
+      if (hora.length >= 5) hora = hora.substring(0, 5);
+
+      String codigoLimpio = (v['clave_unica']?.toString() ?? '').split('_item').first.split('_R').first;
+
+      final params = {
+        'is_reprogram':     isReprogram ? 'true' : 'false',
+        'id_requerimiento': v['id']?.toString() ?? '',
+        'clave_unica':      codigoLimpio, // Enviamos el limpio a Drive
+        'cotizacion_id':    v['cotizacion_id']?.toString() ?? '',
+        'asesor':           v['asesor_nombre'] ?? v['creado_por'] ?? '',
+        'day':              DateFormat('yyyy-MM-dd').format(fecha), // Formato que espera el Drive
+        'hour':             hora,
+        'client':           (v['nombre_razon_social'] ?? '').toString().toUpperCase(),
+        'tipoDocumento':    tipoDoc,
+        'document':         doc,
+        'address':          v['direccion'] ?? '',
+        'phone':            v['telefono'] ?? '',
+        'distrito':         v['distrito'] ?? '',
+        'numero_atencion':  (v['numero_atencion']?.toString() == '0') ? '0' : 'CLEAR',
+        'volumen':          v['volumen']?.toString() ?? '0',
+        'fuerza':           v['diseno'] ?? '',
+        'diseno':           v['diseno'] ?? '',
+        'elemento':         v['elemento'] ?? '',
+        'huso':             v['huso'] ?? '',
+        'slump':            v['slump'] ?? '',
+        'aditivo':          v['aditivo'] ?? '',
+        'aditivo_adicional': '',
+        'cemento':          v['tipo_cemento'] ?? '',
+        'bombas':           bombaAsignada ?? bombasPorVenta[v['id']?.toString()] ?? '',
+        'extensiones':      v['extensiones'] ?? '',
+        'selectedMixer':    v['mixers'] ?? '',
+        'selectedCapacity': v['capacidad_maxima'] ?? '',
+        'time':             hora,
+        'quality':          v['personal_calidad'] ?? v['quality'] ?? '',
+        'commentReturn':    '',
+        'location':         v['obra_maps_link'] ?? '',
+        'urlVoucher':       '',
+        'emisionReq':       DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()),
+        'observaciones':    v['observaciones'] ?? '',
+      };
+
+      final bodyText = params.entries
+          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final res = await http.post(
+        Uri.parse(gasUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: bodyText,
+      );
+      
+      if (res.body.contains('"error"')) {
+        throw Exception("Drive Error: ${res.body}");
+      }
+    } catch (e) {
+      debugPrint("Error al enviar a Drive desde Despachos (ignorado): $e");
+    }
+  }
+
+  void _mostrarOpcionesEdicion(Map<String, dynamic> v) {
+    String estadoSeleccionado = v['estado'] ?? 'ACTIVO';
+    if (estadoSeleccionado == 'PENDIENTE') estadoSeleccionado = 'ACTIVO';
+    if (v['numero_atencion']?.toString() == '0') estadoSeleccionado = 'CANCELADO';
+    
+    DateTime nuevaFecha = DateTime.tryParse(v['fecha_entrega']?.toString() ?? '') ?? DateTime.now();
+    
+    TextEditingController volCtrl = TextEditingController(text: v['volumen']?.toString() ?? '');
+    TextEditingController disenoCtrl = TextEditingController(text: v['diseno']?.toString() ?? '');
+    TextEditingController husoCtrl = TextEditingController(text: v['huso']?.toString() ?? '');
+    TextEditingController slumpCtrl = TextEditingController(text: v['slump']?.toString() ?? '');
+    
+    String hora = v['hora_entrega']?.toString() ?? '';
+    if (hora.length >= 5) hora = hora.substring(0, 5);
+    TextEditingController horaCtrl = TextEditingController(text: hora);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Editar Requerimiento", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 10),
+                  
+                  // Estado
+                  const Text("Estado", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 5),
+                  DropdownButtonFormField<String>(
+                    value: ['ACTIVO', 'REPROGRAMADO', 'CANCELADO', 'SUSPENDIDO'].contains(estadoSeleccionado) ? estadoSeleccionado : 'ACTIVO',
+                    decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), isDense: true),
+                    items: ['ACTIVO', 'REPROGRAMADO', 'CANCELADO', 'SUSPENDIDO'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                    onChanged: (val) async {
+                      setStateModal(() => estadoSeleccionado = val!);
+                      if (val == 'REPROGRAMADO') {
+                        final res = await showDatePicker(
+                          context: context,
+                          initialDate: nuevaFecha,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (res != null) {
+                          setStateModal(() => nuevaFecha = DateTime(res.year, res.month, res.day, nuevaFecha.hour, nuevaFecha.minute));
+                        } else {
+                          setStateModal(() => estadoSeleccionado = 'ACTIVO');
+                        }
+                      }
+                    },
+                  ),
+                  
+                  if (estadoSeleccionado == 'REPROGRAMADO') ...[
+                    const SizedBox(height: 10),
+                    Text("Nueva Fecha: ${DateFormat('dd/MM/yyyy').format(nuevaFecha)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ],
+
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Expanded(child: _buildModalTextField("Hora (HH:mm)", horaCtrl)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildModalTextField("Volumen", volCtrl, isNumeric: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildModalTextField("Diseño", disenoCtrl)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: _buildModalTextField("Huso", husoCtrl)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildModalTextField("Slump", slumpCtrl)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _guardarCambiosEdicion(v, estadoSeleccionado, nuevaFecha, volCtrl.text, disenoCtrl.text, husoCtrl.text, slumpCtrl.text, horaCtrl.text);
+                      },
+                      child: const Text("Guardar Cambios", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Widget _buildModalTextField(String label, TextEditingController ctrl, {bool isNumeric = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        const SizedBox(height: 5),
+        TextField(
+          controller: ctrl,
+          keyboardType: isNumeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          ),
+        )
+      ],
+    );
+  }
+
+  Future<void> _guardarCambiosEdicion(Map<String, dynamic> v, String estado, DateTime nuevaFecha, String volumen, String diseno, String huso, String slump, String hora) async {
+    setState(() => loading = true);
+    try {
+      String idVenta = v['id'].toString();
+      bool isCancel = estado == 'CANCELADO' || estado == 'SUSPENDIDO';
+      bool isReprogramado = estado == 'REPROGRAMADO';
+      
+      Map<String, dynamic> updates = {
+        'volumen': double.tryParse(volumen) ?? 0,
+        'diseno': diseno,
+        'huso': huso,
+        'slump': slump,
+        'hora_entrega': hora,
+      };
+
+      if (isCancel) {
+        updates['numero_atencion'] = '0';
+        updates['observaciones'] = 'CANCELADO';
+      } else if (estado == 'ACTIVO') {
+        updates['numero_atencion'] = '1';
+      }
+
+      if (isCancel) {
+        await supabase.from('ventas_programacion').update(updates).eq('id', idVenta);
+        var vCancel = Map<String, dynamic>.from(v);
+        vCancel.addAll(updates);
+        vCancel['numero_atencion'] = '0';
+        await _enviarRequerimientoDrive(vCancel, isCancel: true, bombaAsignada: bombasPorVenta[idVenta]);
+      } else if (isReprogramado) {
+        String obsRepro = "REPROGRAMADO PARA EL ${DateFormat('dd/MM/yyyy').format(nuevaFecha)}";
+        String obsAntigua = (v['observaciones'] ?? '').toString();
+        String obsNueva = obsAntigua.isNotEmpty ? "$obsAntigua | $obsRepro" : obsRepro;
+
+        await supabase.from('ventas_programacion').update({
+          'numero_atencion': '0',
+          'observaciones': obsNueva
+        }).eq('id', idVenta);
+        
+        var vCancel = Map<String, dynamic>.from(v);
+        vCancel['observaciones'] = obsNueva;
+        vCancel['numero_atencion'] = '0';
+        await _enviarRequerimientoDrive(vCancel, isCancel: true, bombaAsignada: bombasPorVenta[idVenta]); 
+        
+        // New row
+        Map<String, dynamic> vCopy = Map<String, dynamic>.from(v);
+        vCopy.remove('id');
+        vCopy.remove('created_at');
+        // Aseguramos que la clave única en Supabase sea única al reprogramar
+        vCopy['clave_unica'] = '${(v['clave_unica']?.toString() ?? '').split('_R').first}_R${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+        vCopy['fecha_entrega'] = DateFormat('yyyy-MM-dd').format(nuevaFecha);
+        vCopy['hora_entrega'] = hora; // Usar la hora editada manualmente
+        if (vCopy.containsKey('numero_atencion') && vCopy['numero_atencion'].toString() == '0') {
+          vCopy['numero_atencion'] = '1';
+        }
+        if (vCopy.containsKey('estado')) {
+          vCopy.remove('estado');
+        }
+        vCopy['volumen'] = double.tryParse(volumen) ?? 0;
+        vCopy['diseno'] = diseno;
+        vCopy['huso'] = huso;
+        vCopy['slump'] = slump;
+        
+        final inserted = await supabase.from('ventas_programacion').insert(vCopy).select();
+        if (inserted.isNotEmpty) {
+          final newRow = inserted.first;
+          newRow['asesor_nombre'] = v['asesor_nombre'];
+          await _enviarRequerimientoDrive(newRow, isReprogram: true, bombaAsignada: bombasPorVenta[idVenta]);
+        }
+      } else {
+        await supabase.from('ventas_programacion').update(updates).eq('id', idVenta);
+        await _enviarRequerimientoDrive({...v, ...updates}, bombaAsignada: bombasPorVenta[idVenta]);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Requerimiento actualizado con éxito ✅'), backgroundColor: Colors.green));
+      }
+      
+      await _cargarDatos();
+    } catch (e) {
+      debugPrint("Error guardando cambios requerimiento: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+      setState(() => loading = false);
+    }
+  }
+
 
   InputDecoration _softInput({Color? fillColor}) {
     return InputDecoration(
@@ -673,7 +1011,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     );
   }
 
-  Widget _buildClientInfo(Map<String, dynamic> v, String bomba) {
+  Widget _buildClientInfo(Map<String, dynamic> v, String bomba, {bool isReadOnly = false}) {
     bool hasHuso = v['huso'] != null && v['huso'].toString().trim().isNotEmpty;
     bool hasSlump = v['slump'] != null && v['slump'].toString().trim().isNotEmpty;
     bool hasAditivo = v['aditivo'] != null && v['aditivo'].toString().trim().isNotEmpty && v['aditivo'].toString() != '-';
@@ -682,7 +1020,21 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(v['nombre_razon_social'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1E293B), fontSize: 15), overflow: TextOverflow.ellipsis),
+            ),
+            if (!isReadOnly && !pantallaOculta)
+              IconButton(
+                icon: const Icon(Icons.edit_note, color: AppColors.primaryDark, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => _mostrarOpcionesEdicion(v),
+              ),
+          ],
+        ),
         const SizedBox(height: 4),
         Wrap(
           spacing: 6,
@@ -690,6 +1042,26 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text("${v['diseno']} / $bomba", style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+            Builder(
+              builder: (context) {
+                String asesorBadge = (v['asesor_nombre'] ?? v['creado_por'] ?? '').toString().trim();
+                if (asesorBadge.isNotEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.person, size: 10, color: Colors.green.shade800),
+                        const SizedBox(width: 3),
+                        Text(asesorBadge, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox();
+              }
+            ),
             if (hasHuso)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -747,11 +1119,36 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
   }
 
   Widget _buildModernList(bool isReadOnly) {
+    int count = ventas.length;
+    if (ventasInactivas.isNotEmpty) {
+      count += 1 + ventasInactivas.length;
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(24),
-      itemCount: ventas.length,
+      itemCount: count,
       itemBuilder: (context, index) {
-        var v = ventas[index];
+        if (index == ventas.length && ventasInactivas.isNotEmpty) {
+          return Container(
+            margin: const EdgeInsets.only(top: 20, bottom: 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade200)
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.cancel_outlined, color: Colors.red.shade700),
+                const SizedBox(width: 8),
+                Text("Requerimientos Reprogramados, Postergados y/o suspendidos", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.red.shade800)),
+              ]
+            ),
+          );
+        }
+
+        bool isInactive = index > ventas.length;
+        var v = isInactive ? ventasInactivas[index - ventas.length - 1] : ventas[index];
         String idVenta = _obtenerIdSeguro(v);
         String bomba = bombasPorVenta[idVenta] ?? 'DIRECTO';
         List<_FilaCarguioData> carguios = carguiosPorVenta[idVenta] ?? [];
@@ -763,14 +1160,16 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
         }
         double saldo = volTotalMeta - volAcumulado;
         bool balanceado = (saldo.abs() < 0.05);
+        bool todosVerdes = carguios.isNotEmpty && carguios.every((c) => _getColorEstado(c.estado) == Colors.green.shade600);
+        bool esAtendido = balanceado && todosVerdes;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isInactive ? Colors.white70 : Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 8))],
+            border: isInactive ? Border.all(color: Colors.red.shade200, width: 1.5) : Border.all(color: Colors.grey.shade200),
+            boxShadow: isInactive ? null : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 8))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -779,9 +1178,9 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: isInactive ? Colors.red.shade50 : const Color(0xFFF8FAFC),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                  border: Border(bottom: BorderSide(color: isInactive ? Colors.red.shade200 : Colors.grey.shade200)),
                 ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -795,20 +1194,42 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                             children: [
                               Row(
                                 children: [
+                                  if (isInactive)
+                                    Container(
+                                      margin: const EdgeInsets.only(right: 10),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: Colors.red.shade600, borderRadius: BorderRadius.circular(6)),
+                                      child: Text(v['estado'] ?? 'INACTIVO', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                                    ),
                                   SizedBox(
                                     width: 80,
                                     child: TextField(
                                       controller: horaCtrls[idVenta],
                                       focusNode: horaFocus[idVenta],
-                                      enabled: !isReadOnly,
+                                      enabled: !isReadOnly && !isInactive,
                                       style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20, letterSpacing: -0.5),
                                       decoration: const InputDecoration(border: InputBorder.none, hintText: '00:00', isDense: true, contentPadding: EdgeInsets.zero),
                                     ),
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
-                                    child: Text(opCtrls[idVenta]?.text.isEmpty ?? true ? 'Sin OP' : opCtrls[idVenta]!.text, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
+                                  Builder(
+                                    builder: (context) {
+                                      String opText = opCtrls[idVenta]?.text ?? '';
+                                      bool isDefaultOp = opText.isEmpty || opText.toLowerCase() == 'sin op' || opText.toLowerCase() == 'pendiente';
+                                      
+                                      if (esAtendido) {
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(6)),
+                                          child: Text(isDefaultOp ? 'ATENDIDO' : 'ATENDIDO | $opText', style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 11)),
+                                        );
+                                      } else {
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                                          child: Text(isDefaultOp ? 'Pendiente' : opText, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
+                                        );
+                                      }
+                                    },
                                   ),
                                 ],
                               ),
@@ -816,14 +1237,15 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text("${volTotalMeta.toStringAsFixed(1)} m³", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20)),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
-                                      ),
-                                    ],
-                                  )
+                                  if (!isInactive)
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
+                                        ),
+                                      ],
+                                    )
                                 ],
                               )
                             ],
@@ -832,7 +1254,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildClientInfo(v, bomba),
+                              _buildClientInfo(v, bomba, isReadOnly: isReadOnly),
                             ],
                           ),
                         ],
@@ -840,6 +1262,13 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                     }
                     return Row(
                       children: [
+                        if (isInactive)
+                          Container(
+                            margin: const EdgeInsets.only(right: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.red.shade600, borderRadius: BorderRadius.circular(6)),
+                            child: Text(v['estado'] ?? 'INACTIVO', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                          ),
                         SizedBox(
                           width: 80,
                           child: TextField(
@@ -850,10 +1279,25 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                             decoration: const InputDecoration(border: InputBorder.none, hintText: '00:00', isDense: true, contentPadding: EdgeInsets.zero),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
-                          child: Text(opCtrls[idVenta]?.text.isEmpty ?? true ? 'Sin OP' : opCtrls[idVenta]!.text, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
+                        Builder(
+                          builder: (context) {
+                            String opText = opCtrls[idVenta]?.text ?? '';
+                            bool isDefaultOp = opText.isEmpty || opText.toLowerCase() == 'sin op' || opText.toLowerCase() == 'pendiente';
+                            
+                            if (esAtendido) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(6)),
+                                child: Text(isDefaultOp ? 'ATENDIDO' : 'ATENDIDO | $opText', style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 11)),
+                              );
+                            } else {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                                child: Text(isDefaultOp ? 'Pendiente' : opText, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue.shade700, fontSize: 13)),
+                              );
+                            }
+                          },
                         ),
                         const SizedBox(width: 24),
                         Expanded(
@@ -861,7 +1305,7 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildClientInfo(v, bomba),
+                              _buildClientInfo(v, bomba, isReadOnly: isReadOnly),
                             ],
                           ),
                         ),
@@ -872,14 +1316,15 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                             children: [
                               Text("${volTotalMeta.toStringAsFixed(1)} m³", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 20)),
                               const SizedBox(height: 4),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
-                                  ),
-                                ],
-                              )
+                              if (!isInactive)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(balanceado ? "✓ Completo" : "Saldo: ${saldo > 0 ? '+' : ''}${saldo.toStringAsFixed(1)} m³", 
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: balanceado ? Colors.green.shade600 : Colors.red.shade600)
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         ),
@@ -889,7 +1334,8 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
                 ),
               ),
               // TRIPS
-              Padding(
+              if (!isInactive)
+                Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   children: [

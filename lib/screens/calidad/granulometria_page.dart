@@ -2,34 +2,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:printing/printing.dart';
 import 'granulometria_export_dialog.dart';
 import 'granulometria_pdf_export.dart';
-import 'package:flutter/services.dart' show rootBundle;
 
-// ─── Paleta de colores del módulo ──────────────────────────────────────
+// ─── Paleta de colores del módulo (NovaConcret) ────────────────────────
 class _C {
-  static const bg = Color(0xFFF0F4F8);
-  static const navyDark = Color(0xFF0A1931);
-  static const navy = Color(0xFF1B3A6B);
-  static const navyLight = Color(0xFF2D5AA0);
-  static const teal = Color(0xFF0EA5A0);
+  static const bg = Color(0xFFF8FAFC);
+  static const navyDark = Color(0xFF002244);
+  static const navy = Color(0xFF003366);
+  static const navyLight = Color(0xFF004899);
+  static const teal = Color(0xFF0284C7); // Celeste vibrante corporativo
   static const amber = Color(0xFFF59E0B);
   static const rose = Color(0xFFEF4444);
-  static const green = Color(0xFF10B981);
+  static const green = Color(0xFF0284C7);
   static const cardBg = Colors.white;
   static const rowEven = Colors.white;
   static const rowOdd = Color(0xFFF8FAFC);
-  static const headerBg = Color(0xFFEEF3FB);
-  static const divider = Color(0xFFDDE3ED);
-  static const textDark = Color(0xFF0A1931);
-  static const textMid = Color(0xFF4A5568);
+  static const headerBg = Color(0xFFF1F5F9);
+  static const divider = Color(0xFFE2E8F0);
+  static const textDark = Color(0xFF0F172A);
+  static const textMid = Color(0xFF64748B);
   static const textLight = Color(0xFF94A3B8);
-  static const inputBg = Color(0xFFF0F7FF);
-  static const inputBorder = Color(0xFFB0C8F0);
+  static const inputBg = Color(0xFFF8FAFC);
+  static const inputBorder = Color(0xFFCBD5E1);
 }
 
 // ─── Constantes de mallas ───────────────────────────────────────────────
@@ -116,6 +114,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
   double _error = 0.0;
   bool _errorOk = true;
   bool _calculado = false;
+  int _vistaModo = 0; // 0: Dividida, 1: Gráfico Maximizado, 2: Solo Tabla
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
@@ -296,7 +295,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
     try {
       // Usamos rootBundle que ya tienes importado arriba
       final ByteData logoData = await rootBundle.load(
-        'assets/images/LOGO2023.png',
+        'assets/images/LOGO_NOVA.png',
       );
       logoBytes = logoData.buffer.asUint8List();
     } catch (e) {
@@ -357,52 +356,73 @@ class _GranulometriaPageState extends State<GranulometriaPage>
   // ─── BUILD ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _C.bg,
-      appBar: _buildAppBar(),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth;
-          if (w >= 1100) {
-            // ── ESCRITORIO ──────────────────────────────────────────────
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 650,
-                      maxWidth: 820,
-                    ),
-                    child: _buildLeftPanel(),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildRightPanelDesktop()),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final isMobile = w < 850;
+
+        Widget content;
+        if (isMobile) {
+          if (_vistaModo == 1) {
+            // Solo Gráfico Maximizado para celular
+            content = _buildRightPanelMobile(w, maximizado: true);
+          } else if (_vistaModo == 2) {
+            // Solo Tabla
+            content = _buildLeftPanel(isMobile: true);
+          } else {
+            // Vista ambas
+            content = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildLeftPanel(isMobile: true),
+                const SizedBox(height: 16),
+                _buildRightPanelMobile(w),
+              ],
+            );
+          }
+        } else {
+          if (_vistaModo == 1) {
+            // Gráfico maximizado al 100% de ancho en escritorio
+            content = _buildRightPanelDesktop(maximizado: true);
+          } else if (_vistaModo == 2) {
+            // Solo tabla centrada
+            content = Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 820),
+                child: _buildLeftPanel(isMobile: false),
               ),
             );
           } else {
-            // ── MÓVIL / TABLET ──────────────────────────────────────────
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildLeftPanel(),
-                  const SizedBox(height: 16),
-                  _buildRightPanelMobile(w),
-                ],
-              ),
+            // Vista dividida estándar
+            content = Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 720,
+                  child: _buildLeftPanel(isMobile: false),
+                ),
+                const SizedBox(width: 16),
+                Expanded(child: _buildRightPanelDesktop(maximizado: false)),
+              ],
             );
           }
-        },
-      ),
+        }
+
+        return Scaffold(
+          backgroundColor: _C.bg,
+          appBar: _buildAppBar(context, w),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
+            child: content,
+          ),
+        );
+      },
     );
   }
 
-  // ─── AppBar ───────────────────────────────────────────────────────────
-  PreferredSizeWidget _buildAppBar() {
+  // ─── AppBar con pestañas de ajuste de vista ───────────────────────────
+  PreferredSizeWidget _buildAppBar(BuildContext context, double screenW) {
+    final isNarrow = screenW < 520;
     return AppBar(
       elevation: 0,
       scrolledUnderElevation: 2,
@@ -417,67 +437,131 @@ class _GranulometriaPageState extends State<GranulometriaPage>
           child: const Icon(Icons.grain_rounded, color: _C.teal, size: 20),
         ),
       ),
-      title: const Column(
+      title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Análisis Granulométrico',
-            style: TextStyle(
+            isNarrow ? 'Granulometría' : 'Análisis Granulométrico',
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
-              fontSize: 15,
+              fontSize: 14.5,
               letterSpacing: 0.3,
             ),
           ),
-          Text(
+          const Text(
             'ASTM C136 / NTP 400.012',
             style: TextStyle(
               color: _C.teal,
-              fontSize: 10,
+              fontSize: 9.5,
               fontWeight: FontWeight.w500,
-              letterSpacing: 1.2,
+              letterSpacing: 1.0,
             ),
           ),
         ],
       ),
       actions: [
-        TextButton.icon(
-          onPressed: _limpiar,
-          icon: const Icon(
-            Icons.refresh_rounded,
-            size: 16,
-            color: _C.textLight,
+        if (isNarrow)
+          IconButton(
+            onPressed: _limpiar,
+            tooltip: 'Limpiar',
+            icon: const Icon(Icons.refresh_rounded, size: 18, color: _C.textLight),
+          )
+        else
+          TextButton.icon(
+            onPressed: _limpiar,
+            icon: const Icon(
+              Icons.refresh_rounded,
+              size: 16,
+              color: _C.textLight,
+            ),
+            label: const Text(
+              'Limpiar',
+              style: TextStyle(color: _C.textLight, fontSize: 12),
+            ),
           ),
-          label: const Text(
-            'Limpiar',
-            style: TextStyle(color: _C.textLight, fontSize: 12),
-          ),
-        ),
         const SizedBox(width: 4),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           child: FilledButton.icon(
             onPressed: _exportar,
             icon: const Icon(Icons.download_rounded, size: 16),
-            label: const Text('Exportar', style: TextStyle(fontSize: 12)),
+            label: Text(isNarrow ? 'PDF' : 'Exportar', style: const TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(
               backgroundColor: _C.green,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(42),
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: _C.navyDark,
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08))),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildViewPill(0, 'Vista Dividida', Icons.view_sidebar_rounded),
+                const SizedBox(width: 8),
+                _buildViewPill(1, 'Gráfico Maximizado', Icons.fullscreen_rounded),
+                const SizedBox(width: 8),
+                _buildViewPill(2, 'Solo Tabla', Icons.table_chart_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewPill(int index, String label, IconData icon) {
+    final isSel = _vistaModo == index;
+    return InkWell(
+      onTap: () => setState(() => _vistaModo = index),
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSel ? _C.teal : Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSel ? _C.teal : Colors.white.withOpacity(0.15),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isSel ? Colors.white : _C.textLight),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSel ? FontWeight.w800 : FontWeight.w600,
+                color: isSel ? Colors.white : _C.textLight,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   // ─── Panel Izquierdo (Tabla) ──────────────────────────────────────────
-  Widget _buildLeftPanel() {
+  Widget _buildLeftPanel({bool isMobile = false}) {
     return Container(
       decoration: BoxDecoration(
         color: _C.cardBg,
@@ -493,20 +577,47 @@ class _GranulometriaPageState extends State<GranulometriaPage>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: 740,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildTableTitle(),
-                _buildTableHeader(),
-                _buildTableRows(),
-                _buildTableTotal(),
-              ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTableTitle(),
+            if (isMobile)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                color: _C.teal.withOpacity(0.08),
+                child: const Row(
+                  children: [
+                    Icon(Icons.swipe_outlined, size: 15, color: _C.navyLight),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Desliza horizontalmente la tabla para ver pesos, límites y cálculo',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: _C.navy,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: 740,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTableHeader(),
+                    _buildTableRows(isMobile: isMobile),
+                    _buildTableTotal(),
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -614,7 +725,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
     );
   }
 
-  Widget _buildTableRows() {
+  Widget _buildTableRows({bool isMobile = false}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(16, (i) {
@@ -632,7 +743,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
         final isSpecRow = hasSpec;
 
         return Container(
-          height: 33,
+          height: isMobile ? 38 : 33,
           decoration: BoxDecoration(
             color: i.isEven ? _C.rowEven : _C.rowOdd,
             border: Border(
@@ -671,7 +782,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
                   ],
                 ),
               ),
-              Expanded(flex: 4, child: _buildNumInput(_ctrlPesos[i])),
+              Expanded(flex: 4, child: _buildNumInput(_ctrlPesos[i], isMobile: isMobile)),
               _dataCell(pctRet, 3),
               _dataCell(pctAcum, 3),
               // % Pasa – resaltado si calculado
@@ -786,14 +897,14 @@ class _GranulometriaPageState extends State<GranulometriaPage>
     );
   }
 
-  Widget _buildNumInput(TextEditingController ctrl) {
+  Widget _buildNumInput(TextEditingController ctrl, {bool isMobile = false}) {
     return Container(
-      height: 22,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      height: isMobile ? 28 : 24,
+      margin: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: isMobile ? 3 : 5),
       decoration: BoxDecoration(
         color: _C.inputBg,
         border: Border.all(color: _C.inputBorder, width: 0.9),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(6),
       ),
       alignment: Alignment.center,
       child: TextField(
@@ -804,8 +915,8 @@ class _GranulometriaPageState extends State<GranulometriaPage>
         ],
         textAlign: TextAlign.center,
         textAlignVertical: TextAlignVertical.center,
-        style: const TextStyle(
-          fontSize: 11,
+        style: TextStyle(
+          fontSize: isMobile ? 12 : 11,
           fontWeight: FontWeight.bold,
           color: _C.navyDark,
         ),
@@ -819,46 +930,58 @@ class _GranulometriaPageState extends State<GranulometriaPage>
     );
   }
 
-  // ─── Panel Derecho ESCRITORIO (usa Expanded para el chart) ────────────
-  Widget _buildRightPanelDesktop() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _C.divider),
-        boxShadow: [
-          BoxShadow(
-            color: _C.navy.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildChartHeader(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _buildFisicasPanel(),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: _buildChartContainer(),
+  // ─── Panel Derecho ESCRITORIO (adaptativo según ancho disponible) ────────
+  Widget _buildRightPanelDesktop({bool maximizado = false}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final panelW = constraints.maxWidth;
+        final compact = panelW < 560;
+        return Container(
+          decoration: BoxDecoration(
+            color: _C.cardBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _C.divider),
+            boxShadow: [
+              BoxShadow(
+                color: _C.navy.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildChartHeader(isMobile: compact),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 12 : 16,
+                    12,
+                    compact ? 12 : 16,
+                    0,
+                  ),
+                  child: _buildFisicasPanel(isMobile: compact),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: maximizado ? 600 : 480,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: _buildChartContainer(),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   // ─── Panel Derecho MÓVIL (SizedBox fijo para el chart) ───────────────
-  Widget _buildRightPanelMobile(double screenW) {
+  Widget _buildRightPanelMobile(double screenW, {bool maximizado = false}) {
     return Container(
       decoration: BoxDecoration(
         color: _C.cardBg,
@@ -877,17 +1000,17 @@ class _GranulometriaPageState extends State<GranulometriaPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildChartHeader(),
+            _buildChartHeader(isMobile: true),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _buildFisicasPanel(),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: _buildFisicasPanel(isMobile: true),
             ),
             const SizedBox(height: 12),
-            // ✅ FIX: En móvil usamos alto fijo, NO Expanded
+            // Alto adecuado para pantalla móvil
             SizedBox(
-              height: 320,
+              height: maximizado ? 420 : 330,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
                 child: _buildChartContainer(),
               ),
             ),
@@ -897,9 +1020,9 @@ class _GranulometriaPageState extends State<GranulometriaPage>
     );
   }
 
-  Widget _buildChartHeader() {
+  Widget _buildChartHeader({bool isMobile = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: isMobile ? 10 : 12),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [_C.navyDark, _C.navy],
@@ -907,39 +1030,119 @@ class _GranulometriaPageState extends State<GranulometriaPage>
           end: Alignment.centerRight,
         ),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.show_chart_rounded, color: _C.amber, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: const Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'GRÁFICO DE GRANULOMETRÍA DEL AGREGADO',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                  letterSpacing: 1.0,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.show_chart_rounded, color: _C.amber, size: 16),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'GRÁFICO DE GRANULOMETRÍA',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                    _botonMaximizarMinimizar(),
+                  ],
                 ),
-              ),
-              Text(
-                'Escala semi-logarítmica · ASTM C136',
-                style: TextStyle(
-                  color: _C.textLight,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w500,
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Escala semi-logarítmica · ASTM C136',
+                        style: TextStyle(
+                          color: _C.textLight,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    _legendItem(_C.navyLight, 'Muestra'),
+                    const SizedBox(width: 10),
+                    _legendItem(_C.green, 'Límite'),
+                  ],
                 ),
-              ),
+              ],
+            )
+          : Row(
+              children: [
+                const Icon(Icons.show_chart_rounded, color: _C.amber, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'GRÁFICO DE GRANULOMETRÍA DEL AGREGADO',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      Text(
+                        'Escala semi-logarítmica · ASTM C136',
+                        style: TextStyle(
+                          color: _C.textLight,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _legendItem(_C.navyLight, 'Muestra'),
+                const SizedBox(width: 12),
+                _legendItem(_C.green, 'Límite'),
+                const SizedBox(width: 12),
+                _botonMaximizarMinimizar(),
               ],
             ),
-          ),
-          _legendItem(_C.navyLight, 'Muestra'),
-          const SizedBox(width: 12),
-          _legendItem(_C.green, 'Límite'),
-        ],
+    );
+  }
+
+  Widget _botonMaximizarMinimizar() {
+    final maximizado = _vistaModo == 1;
+    return InkWell(
+      onTap: () => setState(() => _vistaModo = maximizado ? 0 : 1),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.white.withOpacity(0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              maximizado ? Icons.fullscreen_exit_rounded : Icons.open_in_full_rounded,
+              color: Colors.white,
+              size: 13,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              maximizado ? 'Restaurar' : 'Maximizar',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -982,7 +1185,137 @@ class _GranulometriaPageState extends State<GranulometriaPage>
   }
 
   // ─── Cuadros de Propiedades Físicas ──────────────────────────────────
-  Widget _buildFisicasPanel() {
+  Widget _buildFisicasPanel({bool isMobile = false}) {
+    if (isMobile) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'HUMEDAD',
+                  icon: Icons.water_drop_outlined,
+                  color: _C.teal,
+                  children: [
+                    _buildInputRow('Muestra', _ctrlPesoMuestraH),
+                    _buildInputRow('Seco', _ctrlPesoSecoH),
+                    _buildResultRow(
+                      '% Hum.',
+                      '${_humedad.toStringAsFixed(2)}%',
+                      color: _humedad > 0 ? _C.teal : _C.textLight,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'FINOS < #200',
+                  icon: Icons.filter_alt_outlined,
+                  color: _C.navyLight,
+                  children: [
+                    _buildReadOnlyRow(
+                      'P. Ini.',
+                      _ctrlPesoSecoH.text.isEmpty ? '—' : _ctrlPesoSecoH.text,
+                    ),
+                    _buildInputRow('Lavado', _ctrlPesoSecoL),
+                    _buildResultRow(
+                      '% < #200',
+                      '${_pctN200.toStringAsFixed(2)}%',
+                      color: _pctN200 > 0 ? _C.navyLight : _C.textLight,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildStatCard(
+            title: 'RESUMEN DEL ENSAYO',
+            icon: Icons.summarize_outlined,
+            color: _C.amber,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildResultRow(
+                      'M.F.',
+                      _mf.toStringAsFixed(2),
+                      color: _calculado ? _C.navyDark : _C.textLight,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildResultRow(
+                      'Error %',
+                      '${_error.toStringAsFixed(2)}%',
+                      color: _calculado
+                          ? (_errorOk ? _C.green : _C.rose)
+                          : _C.textLight,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildResultRow(
+                      'Total (g)',
+                      _pesoTotal.toStringAsFixed(0),
+                      color: _calculado ? _C.navy : _C.textLight,
+                    ),
+                  ),
+                ],
+              ),
+              if (_calculado) ...[
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _errorOk
+                        ? _C.green.withOpacity(0.1)
+                        : _C.rose.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: _errorOk
+                          ? _C.green.withOpacity(0.4)
+                          : _C.rose.withOpacity(0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _errorOk
+                            ? Icons.check_circle_rounded
+                            : Icons.warning_rounded,
+                        size: 13,
+                        color: _errorOk ? _C.green : _C.rose,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          _errorOk ? 'ACEPTABLE (ASTM C136)' : 'REHACER TAMIZADO',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.6,
+                            color: _errorOk ? _C.green : _C.rose,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
@@ -1006,7 +1339,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
           child: _buildStatCard(
             title: 'FINOS < #200',
             icon: Icons.filter_alt_outlined,
-            color: Colors.purple.shade400,
+            color: _C.navyLight,
             children: [
               _buildReadOnlyRow(
                 'P. Ini.',
@@ -1016,7 +1349,7 @@ class _GranulometriaPageState extends State<GranulometriaPage>
               _buildResultRow(
                 '% < #200',
                 '${_pctN200.toStringAsFixed(2)}%',
-                color: _pctN200 > 0 ? Colors.purple.shade400 : _C.textLight,
+                color: _pctN200 > 0 ? _C.navyLight : _C.textLight,
               ),
             ],
           ),
@@ -1068,13 +1401,17 @@ class _GranulometriaPageState extends State<GranulometriaPage>
                           color: _errorOk ? _C.green : _C.rose,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          _errorOk ? 'ACEPTABLE' : 'REHACER TAMIZADO',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.6,
-                            color: _errorOk ? _C.green : _C.rose,
+                        Flexible(
+                          child: Text(
+                            _errorOk ? 'ACEPTABLE' : 'REHACER TAMIZADO',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.6,
+                              color: _errorOk ? _C.green : _C.rose,
+                            ),
                           ),
                         ),
                       ],
@@ -1130,13 +1467,17 @@ class _GranulometriaPageState extends State<GranulometriaPage>
               children: [
                 Icon(icon, size: 13, color: color),
                 const SizedBox(width: 5),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: color,
+                Expanded(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: color,
+                    ),
                   ),
                 ),
               ],
@@ -1160,6 +1501,8 @@ class _GranulometriaPageState extends State<GranulometriaPage>
             flex: 3,
             child: Text(
               label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style: const TextStyle(
                 fontSize: 9.5,
                 color: _C.textMid,
@@ -1217,6 +1560,8 @@ class _GranulometriaPageState extends State<GranulometriaPage>
             flex: 3,
             child: Text(
               label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style: const TextStyle(
                 fontSize: 9.5,
                 color: _C.textMid,
@@ -1236,6 +1581,8 @@ class _GranulometriaPageState extends State<GranulometriaPage>
               alignment: Alignment.center,
               child: Text(
                 value,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: const TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,
@@ -1258,6 +1605,8 @@ class _GranulometriaPageState extends State<GranulometriaPage>
             flex: 3,
             child: Text(
               label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style: const TextStyle(
                 fontSize: 9.5,
                 color: _C.textMid,
@@ -1279,6 +1628,8 @@ class _GranulometriaPageState extends State<GranulometriaPage>
               alignment: Alignment.center,
               child: Text(
                 value,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w900,

@@ -323,12 +323,12 @@ class _ComunicadosPageState extends State<ComunicadosPage> {
         'accentBar': Colors.blue.shade400,
       },
       'capacitacion': {
-        'tagColor': Colors.purple.shade50,
-        'tagText': Colors.purple.shade700,
+        'tagColor': Colors.lightBlue.shade50,
+        'tagText': Colors.lightBlue.shade700,
         'icon': Icons.school_outlined,
         'label': 'Capacitación',
-        'borderColor': Colors.purple.shade100,
-        'accentBar': Colors.purple.shade400,
+        'borderColor': Colors.lightBlue.shade100,
+        'accentBar': Colors.lightBlue.shade400,
       },
     };
 

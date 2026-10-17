@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_database/services/sunat_service.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:app_database/core/utils/sunat_pdf_generator.dart';
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─────────────────────────────────────────────────────────────
 // DATA MODEL
 // ─────────────────────────────────────────────────────────────
 
-enum _GREStatus { pendiente, enviado, aceptado }
+enum _GREStatus { pendiente, aceptado, error }
 
 class _FilaGuiaGRE {
   final String idCarguio;
@@ -40,20 +40,26 @@ class _FilaGuiaGRE {
     if (guiaSunatData == null) return _GREStatus.pendiente;
     final estado = (guiaSunatData!['estado_sunat'] ?? '').toString().toUpperCase();
     if (estado == 'ACEPTADO') return _GREStatus.aceptado;
-    if (estado == 'ENVIADO') return _GREStatus.enviado;
+    if (estado == 'ERROR') return _GREStatus.error;
     return _GREStatus.pendiente;
   }
 
   String get serieCorrelativo {
-    if (guiaSunatData != null) {
-      return 'T001 - ${guiaSunatData!['correlativo'] ?? '00000000'}';
+    if (guiaSunatData != null && guiaSunatData!['correlativo'] != null) {
+      final cor = guiaSunatData!['correlativo'].toString().padLeft(8, '0');
+      return 'T001 - $cor';
     }
-    return 'T001 - PENDIENTE';
+    return 'T001 - POR ASIGNAR';
   }
 
-  String get clienteNombre => ventaData['nombre_razon_social'] ?? 'Sin cliente';
-  String get clienteRuc => ventaData['dni_ruc'] ?? '';
-  String get direccionDestino => ventaData['direccion'] ?? 'Dirección no registrada';
+  String? get mensajeSunat => guiaSunatData?['mensaje_sunat'];
+  String? get pdfUrl => guiaSunatData?['pdf_url'];
+  String? get xmlUrl => guiaSunatData?['xml_url'];
+  String? get cdrUrl => guiaSunatData?['cdr_url'];
+
+  String get clienteNombre => (ventaData['nombre_razon_social'] ?? 'Sin cliente').toString();
+  String get clienteRuc => (ventaData['dni_ruc'] ?? '').toString();
+  String get direccionDestino => (ventaData['direccion'] ?? 'Dirección no registrada').toString();
   String get fechaEmision {
     if (guiaSunatData != null && guiaSunatData!['created_at'] != null) {
       return guiaSunatData!['created_at'].toString().split('T').first;
@@ -63,24 +69,24 @@ class _FilaGuiaGRE {
 }
 
 // ─────────────────────────────────────────────────────────────
-// COLORS & CONSTANTS
+// PALETA DE COLORES CORPORATIVOS (AZUL, CELESTE, GRIS)
 // ─────────────────────────────────────────────────────────────
 
-const _kDarkBg = Color(0xFF0F172A);
-const _kDarkCard = Color(0xFF1E293B);
-const _kDarkSurface = Color(0xFF162032);
-const _kAccentPurple = Color(0xFF8B5CF6);
-const _kAccentBlue = Color(0xFF3B82F6);
-const _kAccentCyan = Color(0xFF06B6D4);
+const _kBrandNavy = Color(0xFF003366);
+const _kBrandBlue = Color(0xFF004899);
+const _kBrandCyan = Color(0xFF0284C7);
+const _kLightCyan = Color(0xFFE0F2FE);
+const _kPageBg = Color(0xFFF8FAFC);
+const _kCardBg = Colors.white;
+const _kBorderColor = Color(0xFFE2E8F0);
+const _kTextDark = Color(0xFF0F172A);
+const _kTextMuted = Color(0xFF64748B);
 const _kAccentGreen = Color(0xFF10B981);
 const _kAccentAmber = Color(0xFFF59E0B);
 const _kAccentRed = Color(0xFFEF4444);
-const _kTextPrimary = Color(0xFFF1F5F9);
-const _kTextSecondary = Color(0xFF94A3B8);
-const _kBorder = Color(0xFF334155);
 
 // ─────────────────────────────────────────────────────────────
-// MAIN PAGE WIDGET
+// PÁGINA PRINCIPAL: GUÍAS DE REMISIÓN SUNAT
 // ─────────────────────────────────────────────────────────────
 
 class GuiasSunatPage extends StatefulWidget {
@@ -90,22 +96,21 @@ class GuiasSunatPage extends StatefulWidget {
   State<GuiasSunatPage> createState() => _GuiasSunatPageState();
 }
 
-class _GuiasSunatPageState extends State<GuiasSunatPage>
-    with TickerProviderStateMixin {
+class _GuiasSunatPageState extends State<GuiasSunatPage> {
   final _supabase = Supabase.instance.client;
   final SunatService _sunatService = SunatService();
 
   bool _isLoading = false;
   List<_FilaGuiaGRE> _allItems = [];
 
-  // Date range filter
+  // Filtro de rango de fechas
   DateTimeRange? _dateRange;
 
-  // Search
+  // Búsqueda
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
-  // Filter
+  // Filtro por estado
   _GREStatus? _statusFilter;
 
   @override
@@ -120,16 +125,14 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     super.dispose();
   }
 
-  // ─── Computed filtered list ──────────────────────────────
+  // ─── Lista filtrada computada ─────────────────────────────
   List<_FilaGuiaGRE> get _filteredItems {
     var items = List<_FilaGuiaGRE>.from(_allItems);
 
-    // Status filter
     if (_statusFilter != null) {
       items = items.where((i) => i.status == _statusFilter).toList();
     }
 
-    // Search filter
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       items = items.where((i) {
@@ -147,29 +150,26 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
   int get _totalCount => _allItems.length;
   int get _pendientesCount =>
       _allItems.where((i) => i.status == _GREStatus.pendiente).length;
-  int get _enviadasCount =>
-      _allItems.where((i) => i.status == _GREStatus.enviado).length;
   int get _aceptadasCount =>
       _allItems.where((i) => i.status == _GREStatus.aceptado).length;
+  int get _errorCount =>
+      _allItems.where((i) => i.status == _GREStatus.error).length;
 
-  // ─── DATA LOADING ────────────────────────────────────────
+  // ─── CARGA DE DATOS DESDE SUPABASE ───────────────────────
   Future<void> _cargarDatos() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Ventas FACTURA/BOLETA
-      var ventasQuery = _supabase
+      // 1. Ventas FACTURA / BOLETA
+      final ventasRes = await _supabase
           .from('ventas_programacion')
           .select()
           .order('created_at', ascending: false)
           .limit(200);
 
-      final ventasRes = await ventasQuery;
-
       List<Map<String, dynamic>> ventasFiltradas = [];
       for (var v in ventasRes) {
         String tipo = (v['tipo_documento']?.toString() ?? '').toUpperCase();
-        if (tipo == 'FACTURA' || tipo == 'BOLETA') {
-          // Date range filter
+        if (tipo == 'FACTURA' || tipo == 'BOLETA' || tipo.contains('GUIA')) {
           if (_dateRange != null && v['created_at'] != null) {
             final createdAt = DateTime.tryParse(v['created_at'].toString());
             if (createdAt != null) {
@@ -197,21 +197,35 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
       List<String> idsVentas =
           ventasFiltradas.map((e) => e['id'].toString()).toList();
 
-      // 2. Carguios
-      final carguiosRes = await _supabase
-          .from('carguio_mezcla')
-          .select()
-          .inFilter('id_venta', idsVentas)
-          .order('orden_carga', ascending: true);
+      // 2. Carguíos de los mixers para estas ventas
+      List<dynamic> carguiosRes = [];
+      try {
+        carguiosRes = await _supabase
+            .from('carguios_mixers')
+            .select()
+            .inFilter('id_venta', idsVentas)
+            .order('orden_carga', ascending: true);
+      } catch (e) {
+        debugPrint('Error cargando carguios_mixers: $e');
+      }
 
-      // 3. Guías de remisión existentes (all states)
-      final guiasRes =
-          await _supabase.from('guias_remision').select();
+      // 3. Guías de remisión registradas en base de datos
+      List<dynamic> guiasRes = [];
+      try {
+        guiasRes = await _supabase.from('guias_remision').select();
+      } catch (e) {
+        debugPrint('Error cargando guias_remision: $e');
+      }
 
-      // Map guías by carguio id (stored in cotizacion_id)
+      // Mapear guías por carguio_id o cotizacion_id
       final Map<String, dynamic> guiasPorCarguio = {};
       for (var g in guiasRes) {
-        guiasPorCarguio[g['cotizacion_id'].toString()] = g;
+        if (g['carguio_id'] != null) {
+          guiasPorCarguio[g['carguio_id'].toString()] = g;
+        }
+        if (g['cotizacion_id'] != null) {
+          guiasPorCarguio[g['cotizacion_id'].toString()] = g;
+        }
       }
 
       List<_FilaGuiaGRE> allItems = [];
@@ -231,7 +245,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
           idCarguio: idCarguio,
           ordenCarga: c['orden_carga']?.toString() ?? '',
           numeroCarguioCA: c['numero_carguio']?.toString() ?? '',
-          volumen: double.tryParse(c['volumen_carguio'].toString()) ?? 0.0,
+          volumen: double.tryParse((c['volumen_carguio'] ?? c['volumen'] ?? 0).toString()) ?? 0.0,
           operadorNombre: c['operador_nombre']?.toString() ?? '',
           codigoMixer: c['codigo_mixer']?.toString() ?? '',
           precinto: c['precinto']?.toString() ?? '',
@@ -243,111 +257,50 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
 
       setState(() => _allItems = allItems);
     } catch (e) {
-      debugPrint('Error cargando guías: $e');
+      debugPrint('Error cargando datos de guías SUNAT: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ─── ACTIONS ─────────────────────────────────────────────
-  Future<void> _emitirGRE(_FilaGuiaGRE fila) async {
-    if (fila.precinto.isEmpty || fila.horaSalida.isEmpty) {
-      _showSnackbar(
-        'Complete el precinto y hora de salida en Despachos antes de emitir.',
-        _kAccentAmber,
-        Icons.warning_amber_rounded,
+  // ─────────────────────────────────────────────────────────────
+  // ETAPA 1: REGISTRAR GUÍA LOCALMENTE Y DESCARGAR PDF PARA CHOFER
+  // ─────────────────────────────────────────────────────────────
+  Future<void> _descargarPdfChofer(_FilaGuiaGRE fila) async {
+    Map<String, dynamic>? guiaData = fila.guiaSunatData;
+
+    // Si aún no tiene registro en guias_remision, obtener correlativo y registrar localmente
+    if (guiaData == null) {
+      _showSnackbar('Obteniendo correlativo oficial...', _kBrandCyan, Icons.sync_rounded);
+
+      final correlativo = await _sunatService.obtenerSiguienteCorrelativo(
+        tipoDoc: '09',
+        serie: 'T001',
       );
-      return;
-    }
 
-    // Confirm dialog
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _kDarkCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [_kAccentPurple, _kAccentBlue]),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child:
-                  const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 14),
-            const Text('Emitir GRE',
-                style: TextStyle(
-                    color: _kTextPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18)),
-          ],
-        ),
-        content: Text(
-          '¿Enviar Guía de Remisión a SUNAT para el viaje #${fila.ordenCarga} del mixer ${fila.codigoMixer}?',
-          style: const TextStyle(color: _kTextSecondary, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar',
-                style: TextStyle(color: _kTextSecondary)),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [_kAccentPurple, _kAccentBlue]),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Emitir',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700)),
-            ),
-          ),
-        ],
-      ),
-    );
+      final nuevaGuia = await _sunatService.registrarGuiaLocal(
+        cotizacionId: fila.ventaData['id']?.toString() ?? fila.idCarguio,
+        carguioId: fila.idCarguio,
+        serie: 'T001',
+        correlativo: correlativo,
+        clienteDocumento: (fila.ventaData['dni_ruc'] ?? '20000000001').toString(),
+        clienteNombre: (fila.ventaData['nombre_razon_social'] ?? 'CLIENTE GENERAL').toString(),
+      );
 
-    if (confirm != true) return;
-
-    _showSnackbar(
-        'Conectando con SUNAT...', _kAccentBlue, Icons.cloud_upload_outlined);
-
-    final res = await _sunatService.emitirGuiaRemision(
-      serie: 'T001',
-      correlativo: 101,
-      clienteDocumento: fila.ventaData['dni_ruc'] ?? '20123456789',
-      cotizacionId: fila.idCarguio,
-    );
-
-    if (res != null) {
-      if (mounted) {
-        _showSnackbar(
-          'GRE emitida exitosamente — Viaje #${fila.ordenCarga}',
-          _kAccentGreen,
-          Icons.check_circle_rounded,
-        );
-      }
-      _cargarDatos();
-    } else {
-      if (mounted) {
-        _showSnackbar(
-            'Error al emitir la GRE', _kAccentRed, Icons.error_outline);
+      if (nuevaGuia != null) {
+        guiaData = nuevaGuia;
+        fila.guiaSunatData = nuevaGuia;
       }
     }
-  }
 
-  Future<void> _verPdfGuia(_FilaGuiaGRE fila) async {
-    final guiaData = fila.guiaSunatData ?? {};
+    final correlativoStr = (guiaData != null && guiaData['correlativo'] != null)
+        ? guiaData['correlativo'].toString().padLeft(8, '0')
+        : '00000000';
+
     final venta = fila.ventaData;
 
     final dataPDF = {
-      'serie_correlativo': 'T001 - ${guiaData['correlativo'] ?? '00002048'}',
+      'serie_correlativo': 'T001 - $correlativoStr',
       'fecha_emision': fila.fechaEmision,
       'fecha_traslado': fila.fechaEmision,
       'op_nro': venta['orden_pedido'] ?? '',
@@ -362,7 +315,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
       'slump': venta['slump'] ?? '',
       'huso': venta['huso'] ?? '',
       'aditivo': venta['aditivo'] ?? '',
-      'bomba': venta['bomba'] ?? '',
+      'bomba': venta['bombas'] ?? '',
       'cemento': venta['tipo_cemento'] ?? '',
       'hora_salida': fila.horaSalida,
       'precinto': fila.precinto,
@@ -372,41 +325,258 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     try {
       final pdfBytes = await SunatPdfGenerator.generarGRE(dataPDF);
       await Printing.sharePdf(
-          bytes: pdfBytes,
-          filename: 'GRE_${dataPDF['serie_correlativo']}.pdf');
+        bytes: pdfBytes,
+        filename: 'GRE_${dataPDF['serie_correlativo']}.pdf',
+      );
+      _cargarDatos();
     } catch (e) {
       if (mounted) {
-        _showSnackbar(
-            'Error generando PDF: $e', _kAccentRed, Icons.error_outline);
+        _showSnackbar('Error al generar PDF: $e', _kAccentRed, Icons.error_outline);
       }
     }
   }
 
-  void _descargarXml(_FilaGuiaGRE fila) {
-    // Generate a simple XML representation and share
-    final guiaData = fila.guiaSunatData ?? {};
-    final xml = '''<?xml version="1.0" encoding="UTF-8"?>
-<GuiaRemision>
-  <Serie>T001</Serie>
-  <Correlativo>${guiaData['correlativo'] ?? '00000000'}</Correlativo>
-  <FechaEmision>${fila.fechaEmision}</FechaEmision>
-  <Destinatario>
-    <Nombre>${fila.clienteNombre}</Nombre>
-    <Documento>${fila.clienteRuc}</Documento>
-  </Destinatario>
-  <DirLlegada>${fila.direccionDestino}</DirLlegada>
-  <Conductor>${fila.operadorNombre}</Conductor>
-  <Placa>${fila.codigoMixer}</Placa>
-  <Volumen>${fila.volumen}</Volumen>
-  <EstadoSunat>${guiaData['estado_sunat'] ?? 'PENDIENTE'}</EstadoSunat>
-</GuiaRemision>''';
+  // ─────────────────────────────────────────────────────────────
+  // ETAPA 2: ENVIAR A SUNAT (AL CIERRE DEL DÍA O POR BOTÓN INDIVIDUAL)
+  // ─────────────────────────────────────────────────────────────
+  Future<void> _enviarASunat(_FilaGuiaGRE fila) async {
+    Map<String, dynamic>? guiaData = fila.guiaSunatData;
 
-    // Use Printing to share as text via PDF (simplest cross-platform approach)
-    _showSnackbar(
-      'XML generado (${xml.length} bytes) — compartir no disponible aún',
-      _kAccentCyan,
-      Icons.code_rounded,
+    // Asegurar que exista registro local previo con su número de correlativo
+    if (guiaData == null) {
+      final correlativo = await _sunatService.obtenerSiguienteCorrelativo(
+        tipoDoc: '09',
+        serie: 'T001',
+      );
+
+      guiaData = await _sunatService.registrarGuiaLocal(
+        cotizacionId: fila.ventaData['id']?.toString() ?? fila.idCarguio,
+        carguioId: fila.idCarguio,
+        serie: 'T001',
+        correlativo: correlativo,
+        clienteDocumento: (fila.ventaData['dni_ruc'] ?? '20000000001').toString(),
+        clienteNombre: (fila.ventaData['nombre_razon_social'] ?? 'CLIENTE GENERAL').toString(),
+      );
+
+      if (guiaData != null) {
+        fila.guiaSunatData = guiaData;
+      }
+    }
+
+    if (guiaData == null) {
+      _showSnackbar('No se pudo inicializar la guía para el envío', _kAccentRed, Icons.error_outline);
+      return;
+    }
+
+    final guiaId = guiaData['id'].toString();
+    final serieCorrelativo = 'T001-${guiaData['correlativo'].toString().padLeft(8, '0')}';
+
+    // Diálogo de confirmación antes de la transmisión oficial
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [_kBrandNavy, _kBrandCyan]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Text(
+                'Enviar Guía a SUNAT',
+                style: TextStyle(
+                  color: _kTextDark,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          '¿Desea transmitir oficialmente la Guía Electrónica $serieCorrelativo a SUNAT en PRODUCCIÓN?\n\n'
+          'Viaje #${fila.ordenCarga}  •  Mixer: ${fila.codigoMixer}\n'
+          'Cliente: ${fila.clienteNombre}',
+          style: const TextStyle(color: _kTextMuted, height: 1.5, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: _kTextMuted, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kBrandBlue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('🚀 Sí, Enviar a SUNAT', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
+
+    if (confirm != true) return;
+
+    // Diálogo de carga no cancelable mientras APISUNAT responde
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircularProgressIndicator(color: _kBrandCyan),
+              SizedBox(height: 18),
+              Text(
+                'Transmitiendo GRE a SUNAT...',
+                style: TextStyle(fontWeight: FontWeight.w800, color: _kTextDark, fontSize: 15),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Validando datos en APISUNAT en vivo',
+                style: TextStyle(color: _kTextMuted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final res = await _sunatService.enviarGuiaASunat(guiaId);
+
+    if (mounted) Navigator.pop(context); // Cierra diálogo de carga
+
+    if (res['exito'] == true) {
+      if (mounted) {
+        _showSnackbar(
+          '✅ GRE $serieCorrelativo ACEPTADA por SUNAT exitosamente',
+          _kAccentGreen,
+          Icons.verified_rounded,
+        );
+      }
+      _cargarDatos();
+    } else {
+      // SUNAT RECHAZÓ O HUBO ERROR: Mostrar ventana detallada con la especificación exacta
+      final errorDetalle = res['mensaje'] ?? 'Error desconocido al validar con SUNAT';
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _kAccentRed.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.error_outline_rounded, color: _kAccentRed, size: 26),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    'Rechazado por SUNAT',
+                    style: TextStyle(
+                      color: _kAccentRed,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'La Guía $serieCorrelativo no pudo ser procesada:',
+                  style: const TextStyle(fontWeight: FontWeight.w600, color: _kTextDark, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _kAccentRed.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _kAccentRed.withOpacity(0.2)),
+                  ),
+                  child: Text(
+                    errorDetalle,
+                    style: const TextStyle(
+                      color: Color(0xFFB91C1C),
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Corrija los datos correspondientes en Despachos (DNI chofer, placa o ubigeo) y presione Reintentar Envío.',
+                  style: TextStyle(color: _kTextMuted, fontSize: 12),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Entendido', style: TextStyle(color: _kTextMuted)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kAccentRed,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _enviarASunat(fila);
+                },
+                child: const Text('🔄 Reintentar Envío'),
+              ),
+            ],
+          ),
+        );
+      }
+      _cargarDatos();
+    }
+  }
+
+  void _abrirUrlOficial(String? url, String tipo) async {
+    if (url == null || url.isEmpty) {
+      _showSnackbar('Enlace no disponible', _kAccentAmber, Icons.warning_rounded);
+      return;
+    }
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      _showSnackbar('No se pudo abrir el archivo $tipo', _kAccentRed, Icons.error_outline);
+    }
   }
 
   void _showSnackbar(String msg, Color color, IconData icon) {
@@ -418,9 +588,10 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
           Icon(icon, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(msg,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600)),
+            child: Text(
+              msg,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -431,7 +602,6 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     ));
   }
 
-  // ─── DATE PICKER ─────────────────────────────────────────
   Future<void> _pickDateRange() async {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
@@ -443,20 +613,6 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
             start: now.subtract(const Duration(days: 30)),
             end: now,
           ),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: _kAccentPurple,
-              onPrimary: Colors.white,
-              surface: _kDarkCard,
-              onSurface: _kTextPrimary,
-            ),
-            dialogTheme: const DialogThemeData(backgroundColor: _kDarkBg),
-          ),
-          child: child!,
-        );
-      },
     );
 
     if (picked != null) {
@@ -474,7 +630,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     final filtered = _filteredItems;
 
     return Container(
-      color: _kDarkBg,
+      color: _kPageBg,
       child: Column(
         children: [
           _buildHeader(),
@@ -492,160 +648,166 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     );
   }
 
-  // ─── HEADER ──────────────────────────────────────────────
+  // ─── CABECERA CORPORATIVA CON LOGO Y TONALIDADES NOVA ─────
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 18),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1A1040),
-            Color(0xFF0F172A),
-            Color(0xFF0C1929),
-          ],
-        ),
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: _kBorderColor, width: 1)),
       ),
       child: Row(
         children: [
-          // Icon
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [_kAccentPurple, _kAccentBlue],
+                colors: [_kBrandNavy, _kBrandBlue],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: _kAccentPurple.withValues(alpha: 0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
+                  color: _kBrandBlue.withOpacity(0.25),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: const Icon(Icons.receipt_long_rounded,
-                color: Colors.white, size: 28),
-          ).animate().scale(
-                duration: 600.ms,
-                curve: Curves.elasticOut,
-              ),
-          const SizedBox(width: 20),
+            child: const Icon(Icons.local_shipping_rounded, color: Colors.white, size: 26),
+          ),
+          const SizedBox(width: 18),
 
-          // Title / Subtitle
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Historial de Guías de Remisión',
+                  'Guías de Remisión Electrónica (GRE)',
                   style: TextStyle(
-                    color: _kTextPrimary,
+                    color: _kTextDark,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
                   ),
-                )
-                    .animate()
-                    .fade(duration: 500.ms)
-                    .slideX(begin: -0.1, duration: 500.ms),
-                const SizedBox(height: 4),
-                Text(
-                  '$_totalCount guías registradas  •  GRE — SUNAT',
-                  style: const TextStyle(
-                    color: _kTextSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.3,
-                  ),
-                )
-                    .animate()
-                    .fade(delay: 200.ms, duration: 500.ms)
-                    .slideX(begin: -0.1, delay: 200.ms, duration: 500.ms),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _kLightCyan,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'SUNAT T001',
+                        style: TextStyle(
+                          color: _kBrandCyan,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$_totalCount guías de mixer registradas  •  Emisión local y envío programado',
+                      style: const TextStyle(
+                        color: _kTextMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
 
-          // Date range button
-          _GlassButton(
-            onTap: _pickDateRange,
-            icon: Icons.calendar_month_rounded,
-            label: _dateRange != null
-                ? '${_formatDate(_dateRange!.start)} — ${_formatDate(_dateRange!.end)}'
-                : 'Filtrar fechas',
-          ).animate().fade(delay: 300.ms, duration: 500.ms),
+          // Botón de filtro de fechas
+          OutlinedButton.icon(
+            onPressed: _pickDateRange,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _kTextDark,
+              side: const BorderSide(color: _kBorderColor),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+            icon: const Icon(Icons.calendar_month_rounded, size: 18, color: _kBrandBlue),
+            label: Text(
+              _dateRange != null
+                  ? '${_formatDate(_dateRange!.start)} — ${_formatDate(_dateRange!.end)}'
+                  : 'Filtrar fechas',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
 
           if (_dateRange != null) ...[
             const SizedBox(width: 8),
-            _GlassButton(
-              onTap: () {
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 18, color: _kTextMuted),
+              onPressed: () {
                 setState(() => _dateRange = null);
                 _cargarDatos();
               },
-              icon: Icons.close_rounded,
-              label: '',
-              compact: true,
-            ).animate().fade(delay: 350.ms, duration: 400.ms),
+            ),
           ],
 
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
 
-          // Refresh button
-          _GlassButton(
-            onTap: _cargarDatos,
-            icon: Icons.refresh_rounded,
-            label: '',
-            compact: true,
-          ).animate().fade(delay: 400.ms, duration: 500.ms),
+          IconButton.filledTonal(
+            onPressed: _cargarDatos,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: _kLightCyan,
+              foregroundColor: _kBrandCyan,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ─── STATS BAR ───────────────────────────────────────────
+  // ─── BARRA DE MÉTRICAS Y ESTADOS ──────────────────────────
   Widget _buildStatsBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
       decoration: const BoxDecoration(
-        color: _kDarkSurface,
-        border: Border(
-          bottom: BorderSide(color: _kBorder, width: 0.5),
-        ),
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: _kBorderColor, width: 0.8)),
       ),
       child: Row(
         children: [
           _buildStatCard(
-            'Total Guías',
+            'Total Despachos',
             _totalCount.toString(),
-            Icons.description_outlined,
-            _kAccentBlue,
+            Icons.receipt_long_rounded,
+            _kBrandBlue,
             0,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           _buildStatCard(
-            'Pendientes',
+            'Pendientes Envío',
             _pendientesCount.toString(),
             Icons.hourglass_bottom_rounded,
             _kAccentAmber,
             1,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           _buildStatCard(
-            'Enviadas',
-            _enviadasCount.toString(),
-            Icons.cloud_upload_outlined,
-            _kAccentCyan,
-            2,
-          ),
-          const SizedBox(width: 16),
-          _buildStatCard(
-            'Aceptadas',
+            'Aceptadas SUNAT',
             _aceptadasCount.toString(),
             Icons.verified_rounded,
             _kAccentGreen,
+            2,
+          ),
+          const SizedBox(width: 14),
+          _buildStatCard(
+            'Con Error / Observadas',
+            _errorCount.toString(),
+            Icons.error_outline_rounded,
+            _kAccentRed,
             3,
           ),
         ],
@@ -653,63 +815,58 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     );
   }
 
-  Widget _buildStatCard(
-      String label, String count, IconData icon, Color color, int index) {
+  Widget _buildStatCard(String label, String count, IconData icon, Color color, int index) {
     final isActive = (_statusFilter == null && index == 0) ||
         (_statusFilter == _GREStatus.pendiente && index == 1) ||
-        (_statusFilter == _GREStatus.enviado && index == 2) ||
-        (_statusFilter == _GREStatus.aceptado && index == 3);
+        (_statusFilter == _GREStatus.aceptado && index == 2) ||
+        (_statusFilter == _GREStatus.error && index == 3);
 
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: () {
           setState(() {
             if (index == 0) {
               _statusFilter = null;
             } else if (index == 1) {
-              _statusFilter =
-                  _statusFilter == _GREStatus.pendiente ? null : _GREStatus.pendiente;
+              _statusFilter = _statusFilter == _GREStatus.pendiente ? null : _GREStatus.pendiente;
             } else if (index == 2) {
-              _statusFilter =
-                  _statusFilter == _GREStatus.enviado ? null : _GREStatus.enviado;
+              _statusFilter = _statusFilter == _GREStatus.aceptado ? null : _GREStatus.aceptado;
             } else {
-              _statusFilter =
-                  _statusFilter == _GREStatus.aceptado ? null : _GREStatus.aceptado;
+              _statusFilter = _statusFilter == _GREStatus.error ? null : _GREStatus.error;
             }
           });
         },
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: isActive
-                ? color.withValues(alpha: 0.12)
-                : _kDarkCard.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(14),
+            color: isActive ? color.withOpacity(0.08) : _kPageBg,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isActive ? color.withValues(alpha: 0.4) : _kBorder.withValues(alpha: 0.4),
-              width: isActive ? 1.5 : 0.5,
+              color: isActive ? color : _kBorderColor,
+              width: isActive ? 1.8 : 1,
             ),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: color, size: 20),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     count,
                     style: TextStyle(
-                      color: _kTextPrimary,
-                      fontSize: 22,
+                      color: isActive ? color : _kTextDark,
+                      fontSize: 20,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
                     ),
@@ -717,10 +874,9 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
                   Text(
                     label,
                     style: TextStyle(
-                      color: _kTextSecondary,
+                      color: _kTextMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
@@ -728,55 +884,41 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
             ],
           ),
         ),
-      )
-          .animate()
-          .fade(delay: Duration(milliseconds: 100 + index * 80), duration: 500.ms)
-          .slideY(
-              begin: 0.15,
-              delay: Duration(milliseconds: 100 + index * 80),
-              duration: 500.ms),
+      ),
     );
   }
 
-  // ─── SEARCH & FILTER BAR ────────────────────────────────
+  // ─── BARRA DE BÚSQUEDA ────────────────────────────────────
   Widget _buildSearchAndFilter() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(28, 14, 28, 14),
+      padding: const EdgeInsets.fromLTRB(28, 12, 28, 12),
       decoration: const BoxDecoration(
-        color: _kDarkBg,
-        border: Border(bottom: BorderSide(color: _kBorder, width: 0.3)),
+        color: _kPageBg,
+        border: Border(bottom: BorderSide(color: _kBorderColor, width: 0.6)),
       ),
       child: Row(
         children: [
-          // Search field
           Expanded(
             child: Container(
-              height: 44,
+              height: 42,
               decoration: BoxDecoration(
-                color: _kDarkCard,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _kBorder.withValues(alpha: 0.5)),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _kBorderColor),
               ),
               child: TextField(
                 controller: _searchController,
                 onChanged: (v) => setState(() => _searchQuery = v),
-                style: const TextStyle(
-                    color: _kTextPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500),
+                style: const TextStyle(color: _kTextDark, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
-                  hintText: 'Buscar por cliente, RUC, mixer, conductor...',
-                  hintStyle: TextStyle(
-                      color: _kTextSecondary.withValues(alpha: 0.6),
-                      fontSize: 13),
-                  prefixIcon: const Icon(Icons.search_rounded,
-                      color: _kTextSecondary, size: 20),
+                  hintText: 'Buscar por cliente, RUC, mixer, chofer, correlativo...',
+                  hintStyle: const TextStyle(color: _kTextMuted, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded, color: _kTextMuted, size: 20),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.close_rounded,
-                              color: _kTextSecondary, size: 18),
+                          icon: const Icon(Icons.close_rounded, color: _kTextMuted, size: 18),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _searchQuery = '');
@@ -788,240 +930,172 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
             ),
           ),
           const SizedBox(width: 16),
-
-          // Results count
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: _kDarkCard.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kBorder.withValues(alpha: 0.3)),
-            ),
-            child: Text(
-              '${_filteredItems.length} resultados',
-              style: const TextStyle(
-                color: _kTextSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ).animate().fade(delay: 400.ms, duration: 400.ms);
-  }
-
-  // ─── LOADING STATE ───────────────────────────────────────
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation(
-                  _kAccentPurple.withValues(alpha: 0.8)),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Cargando guías de remisión...',
-            style: TextStyle(
-              color: _kTextSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+          Text(
+            '${_filteredItems.length} guías encontradas',
+            style: const TextStyle(color: _kTextMuted, fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ],
       ),
     );
   }
 
-  // ─── EMPTY STATE ─────────────────────────────────────────
+  Widget _buildLoadingState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: _kBrandCyan),
+          SizedBox(height: 16),
+          Text('Cargando registros de guías...', style: TextStyle(color: _kTextMuted, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: _kAccentPurple.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.receipt_long_rounded,
-                size: 52, color: _kAccentPurple.withValues(alpha: 0.5)),
-          ),
-          const SizedBox(height: 24),
+          Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
           const Text(
-            'Sin guías de remisión',
-            style: TextStyle(
-              color: _kTextPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
+            'No hay guías de remisión para mostrar',
+            style: TextStyle(color: _kTextDark, fontSize: 18, fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             _searchQuery.isNotEmpty
-                ? 'No se encontraron resultados para "$_searchQuery"'
-                : 'No hay despachos de Factura/Boleta en el rango seleccionado.',
-            style: const TextStyle(color: _kTextSecondary, fontSize: 14),
-            textAlign: TextAlign.center,
+                ? 'Ninguna guía coincide con "$_searchQuery"'
+                : 'No se encontraron despachos con comprobante en la fecha seleccionada.',
+            style: const TextStyle(color: _kTextMuted, fontSize: 13),
           ),
         ],
-      ).animate().fade(duration: 500.ms).scale(begin: const Offset(0.95, 0.95)),
+      ),
     );
   }
 
-  // ─── LIST ────────────────────────────────────────────────
   Widget _buildGreList(List<_FilaGuiaGRE> items) {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(28, 16, 28, 32),
       itemCount: items.length,
       itemBuilder: (context, index) {
-        return _buildGreCard(items[index], index);
+        return _buildGreCard(items[index]);
       },
     );
   }
 
-  // ─── CARD ────────────────────────────────────────────────
-  Widget _buildGreCard(_FilaGuiaGRE fila, int index) {
+  // ─── TARJETA DE GUÍA CON FLUJO DE 2 ETAPAS ────────────────
+  Widget _buildGreCard(_FilaGuiaGRE fila) {
     final status = fila.status;
-    final statusColor = _statusColor(status);
-    final statusLabel = _statusLabel(status);
-    final statusIcon = _statusIcon(status);
+    Color statusColor;
+    String statusLabel;
+    IconData statusIcon;
+
+    switch (status) {
+      case _GREStatus.pendiente:
+        statusColor = _kAccentAmber;
+        statusLabel = 'PENDIENTE DE ENVÍO';
+        statusIcon = Icons.hourglass_bottom_rounded;
+        break;
+      case _GREStatus.aceptado:
+        statusColor = _kAccentGreen;
+        statusLabel = 'ACEPTADO SUNAT';
+        statusIcon = Icons.verified_rounded;
+        break;
+      case _GREStatus.error:
+        statusColor = _kAccentRed;
+        statusLabel = 'ERROR SUNAT';
+        statusIcon = Icons.error_outline_rounded;
+        break;
+    }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: _kDarkCard.withValues(alpha: 0.7),
+        color: _kCardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: status == _GREStatus.error ? _kAccentRed.withOpacity(0.3) : _kBorderColor,
+          width: status == _GREStatus.error ? 1.5 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 16,
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          // ─── Card Header ───────────────────────────────
+          // Header de la tarjeta
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  statusColor.withValues(alpha: 0.08),
-                  Colors.transparent,
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
-              border:
-                  Border(bottom: BorderSide(color: _kBorder.withValues(alpha: 0.2))),
+              color: statusColor.withOpacity(0.04),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border(bottom: BorderSide(color: _kBorderColor.withOpacity(0.6))),
             ),
             child: Row(
               children: [
-                // Serie / Correlativo
+                // Correlativo T001
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: _kDarkBg,
+                    color: _kBrandNavy,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _kBorder.withValues(alpha: 0.4)),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.qr_code_2_rounded,
-                          size: 14, color: _kAccentPurple.withValues(alpha: 0.7)),
+                      const Icon(Icons.receipt_rounded, size: 14, color: Colors.white),
                       const SizedBox(width: 6),
                       Text(
                         fila.serieCorrelativo,
                         style: const TextStyle(
-                          color: _kTextPrimary,
-                          fontSize: 13,
+                          color: Colors.white,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           fontFamily: 'monospace',
-                          letterSpacing: 0.5,
                         ),
                       ),
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 14),
 
-                // Date
-                Icon(Icons.calendar_today_rounded,
-                    size: 13, color: _kTextSecondary.withValues(alpha: 0.6)),
+                Icon(Icons.calendar_today_rounded, size: 13, color: Colors.grey.shade500),
                 const SizedBox(width: 6),
                 Text(
                   fila.fechaEmision,
-                  style: const TextStyle(
-                      color: _kTextSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500),
+                  style: const TextStyle(color: _kTextMuted, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
 
                 const Spacer(),
 
-                // Volume badge
+                // Volumen
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        _kAccentCyan.withValues(alpha: 0.15),
-                        _kAccentBlue.withValues(alpha: 0.1),
-                      ],
-                    ),
+                    color: _kLightCyan,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: _kAccentCyan.withValues(alpha: 0.3)),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.water_drop_rounded,
-                          size: 13, color: _kAccentCyan),
-                      const SizedBox(width: 5),
-                      Text(
-                        '${fila.volumen.toStringAsFixed(1)} m³',
-                        style: const TextStyle(
-                          color: _kAccentCyan,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '${fila.volumen.toStringAsFixed(1)} m³ Concreto',
+                    style: const TextStyle(color: _kBrandCyan, fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ),
-
                 const SizedBox(width: 10),
 
-                // Status badge
+                // Badge de Estado SUNAT
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
+                    color: statusColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
-                    border:
-                        Border.all(color: statusColor.withValues(alpha: 0.35)),
+                    border: Border.all(color: statusColor.withOpacity(0.4)),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(statusIcon, size: 13, color: statusColor),
                       const SizedBox(width: 5),
@@ -1031,7 +1105,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
                           color: statusColor,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
@@ -1041,28 +1115,20 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
             ),
           ),
 
-          // ─── Card Body ─────────────────────────────────
+          // Cuerpo de datos del carguío
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            padding: const EdgeInsets.all(20),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Trip number
+                // Identificador de viaje
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        _kAccentPurple.withValues(alpha: 0.15),
-                        _kAccentBlue.withValues(alpha: 0.1),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: _kAccentPurple.withValues(alpha: 0.2)),
+                    color: _kLightCyan,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kBrandCyan.withOpacity(0.3)),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1070,7 +1136,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
                       Text(
                         '#${fila.ordenCarga}',
                         style: const TextStyle(
-                          color: _kAccentPurple,
+                          color: _kBrandBlue,
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
@@ -1078,117 +1144,124 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
                       const Text(
                         'VIAJE',
                         style: TextStyle(
-                          color: _kTextSecondary,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
+                          color: _kBrandCyan,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 18),
 
-                // Client + Details
+                // Información del cliente y del traslado
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Client name
                       Text(
                         fila.clienteNombre,
                         style: const TextStyle(
-                          color: _kTextPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                          color: _kTextDark,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 3),
-
-                      // RUC
-                      if (fila.clienteRuc.isNotEmpty)
+                      if (fila.clienteRuc.isNotEmpty) ...[
+                        const SizedBox(height: 2),
                         Text(
-                          'RUC: ${fila.clienteRuc}',
-                          style: TextStyle(
-                            color: _kTextSecondary.withValues(alpha: 0.7),
+                          'RUC/DNI: ${fila.clienteRuc}',
+                          style: const TextStyle(
+                            color: _kTextMuted,
                             fontSize: 12,
-                            fontWeight: FontWeight.w500,
                             fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-
+                      ],
                       const SizedBox(height: 10),
 
-                      // Detail chips row
+                      // Chips de detalles de obra y mixer
                       Wrap(
                         spacing: 8,
                         runSpacing: 6,
                         children: [
-                          _detailChip(Icons.location_on_outlined,
-                              fila.direccionDestino, _kAccentPurple),
-                          _detailChip(Icons.local_shipping_rounded,
-                              fila.codigoMixer.isEmpty ? 'Sin asignar' : fila.codigoMixer,
-                              _kAccentBlue),
-                          _detailChip(Icons.person_outline_rounded,
-                              fila.operadorNombre.isEmpty ? 'Sin operador' : fila.operadorNombre,
-                              _kAccentCyan),
+                          _chipDetalle(Icons.location_on_outlined, fila.direccionDestino, _kBrandCyan),
+                          _chipDetalle(Icons.local_shipping_rounded, 'Mixer: ${fila.codigoMixer.isEmpty ? "Sin asignar" : fila.codigoMixer}', _kBrandNavy),
+                          _chipDetalle(Icons.person_outline_rounded, 'Chofer: ${fila.operadorNombre.isEmpty ? "Sin chofer" : fila.operadorNombre}', _kBrandBlue),
                           if (fila.precinto.isNotEmpty)
-                            _detailChip(Icons.lock_outline_rounded,
-                                'Precinto: ${fila.precinto}', _kAccentAmber),
+                            _chipDetalle(Icons.lock_outline_rounded, 'Precinto: ${fila.precinto}', _kAccentAmber),
                           if (fila.horaSalida.isNotEmpty)
-                            _detailChip(Icons.schedule_rounded,
-                                'Salida: ${fila.horaSalida}', _kAccentGreen),
+                            _chipDetalle(Icons.schedule_rounded, 'Salida: ${fila.horaSalida}', _kAccentGreen),
                         ],
                       ),
+
+                      // Si el estado es ERROR, mostrar aviso visual con el error devuelto por SUNAT
+                      if (status == _GREStatus.error && fila.mensajeSunat != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _kAccentRed.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _kAccentRed.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, color: _kAccentRed, size: 18),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'SUNAT: ${fila.mensajeSunat}',
+                                  style: const TextStyle(
+                                    color: _kAccentRed,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
 
-                const SizedBox(width: 16),
+                const SizedBox(width: 20),
 
-                // Action buttons
-                _buildActionButtons(fila, status),
+                // ─── BOTONES DE ACCIÓN SEGÚN EL FLUJO OBLIGATORIO ───
+                _buildBotoneraAcciones(fila, status),
               ],
             ),
           ),
         ],
       ),
-    )
-        .animate()
-        .fade(
-            delay: Duration(milliseconds: 60 * index.clamp(0, 15)),
-            duration: 400.ms)
-        .slideY(
-            begin: 0.06,
-            delay: Duration(milliseconds: 60 * index.clamp(0, 15)),
-            duration: 400.ms,
-            curve: Curves.easeOut);
+    );
   }
 
-  Widget _detailChip(IconData icon, String label, Color color) {
+  Widget _chipDetalle(IconData icon, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
+        color: _kPageBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
+        border: Border.all(color: _kBorderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color.withValues(alpha: 0.7)),
-          const SizedBox(width: 5),
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 6),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 200),
+            constraints: const BoxConstraints(maxWidth: 240),
             child: Text(
               label,
-              style: TextStyle(
-                color: _kTextSecondary.withValues(alpha: 0.9),
+              style: const TextStyle(
+                color: _kTextDark,
                 fontSize: 11,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1199,258 +1272,110 @@ class _GuiasSunatPageState extends State<GuiasSunatPage>
     );
   }
 
-  // ─── ACTION BUTTONS ──────────────────────────────────────
-  Widget _buildActionButtons(_FilaGuiaGRE fila, _GREStatus status) {
+  Widget _buildBotoneraAcciones(_FilaGuiaGRE fila, _GREStatus status) {
     if (status == _GREStatus.pendiente) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Emitir GRE — prominent gradient button
-          _GradientActionButton(
-            onTap: () => _emitirGRE(fila),
-            icon: Icons.send_rounded,
-            label: 'Enviar a SUNAT',
-            colors: const [_kAccentPurple, _kAccentBlue],
+          // ETAPA 1: Descargar PDF local inmediatamente para el chofer / cliente
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _kBrandBlue,
+              side: const BorderSide(color: _kBrandBlue, width: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => _descargarPdfChofer(fila),
+            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+            label: const Text('Descargar PDF Chofer', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           ),
           const SizedBox(height: 8),
-          _ActionChip(
-            onTap: () => _verPdfGuia(fila),
-            icon: Icons.picture_as_pdf_rounded,
-            label: 'Ver PDF',
-            color: _kTextSecondary,
+
+          // ETAPA 2: Botón para transmitir a SUNAT al finalizar el día
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kBrandNavy,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => _enviarASunat(fila),
+            icon: const Icon(Icons.send_rounded, size: 15),
+            label: const Text('🚀 Enviar a SUNAT', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
           ),
         ],
       );
     }
 
-    // ENVIADO or ACEPTADO
+    if (status == _GREStatus.error) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _kTextDark,
+              side: const BorderSide(color: _kBorderColor),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => _descargarPdfChofer(fila),
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
+            label: const Text('Ver PDF Borrador', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+          ),
+          const SizedBox(height: 8),
+
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kAccentRed,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => _enviarASunat(fila),
+            icon: const Icon(Icons.replay_rounded, size: 16),
+            label: const Text('🔄 Reintentar Envío', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+          ),
+        ],
+      );
+    }
+
+    // ACEPTADO
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _ActionChip(
-          onTap: () => _verPdfGuia(fila),
-          icon: Icons.picture_as_pdf_rounded,
-          label: 'Ver PDF',
-          color: _kAccentGreen,
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _kAccentGreen,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: () {
+            if (fila.pdfUrl != null && fila.pdfUrl!.isNotEmpty) {
+              _abrirUrlOficial(fila.pdfUrl, 'PDF SUNAT');
+            } else {
+              _descargarPdfChofer(fila);
+            }
+          },
+          icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+          label: const Text('📄 Ver PDF SUNAT', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
         ),
-        const SizedBox(height: 6),
-        _ActionChip(
-          onTap: () => _descargarXml(fila),
-          icon: Icons.code_rounded,
-          label: 'XML',
-          color: _kAccentCyan,
-        ),
-        const SizedBox(height: 6),
-        _ActionChip(
-          onTap: () => _emitirGRE(fila),
-          icon: Icons.replay_rounded,
-          label: 'Reenviar',
-          color: _kTextSecondary,
-        ),
+        if (fila.xmlUrl != null && fila.xmlUrl!.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _abrirUrlOficial(fila.xmlUrl, 'XML'),
+            icon: const Icon(Icons.code_rounded, size: 14, color: _kBrandCyan),
+            label: const Text('Descargar XML', style: TextStyle(color: _kBrandCyan, fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
+        ],
       ],
     );
   }
 
-  // ─── HELPERS ─────────────────────────────────────────────
-  Color _statusColor(_GREStatus s) {
-    switch (s) {
-      case _GREStatus.pendiente:
-        return _kAccentAmber;
-      case _GREStatus.enviado:
-        return _kAccentCyan;
-      case _GREStatus.aceptado:
-        return _kAccentGreen;
-    }
-  }
-
-  String _statusLabel(_GREStatus s) {
-    switch (s) {
-      case _GREStatus.pendiente:
-        return 'PENDIENTE';
-      case _GREStatus.enviado:
-        return 'ENVIADO';
-      case _GREStatus.aceptado:
-        return 'ACEPTADO';
-    }
-  }
-
-  IconData _statusIcon(_GREStatus s) {
-    switch (s) {
-      case _GREStatus.pendiente:
-        return Icons.hourglass_bottom_rounded;
-      case _GREStatus.enviado:
-        return Icons.cloud_done_outlined;
-      case _GREStatus.aceptado:
-        return Icons.verified_rounded;
-    }
-  }
-
   String _formatDate(DateTime d) {
     return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// REUSABLE WIDGETS
-// ═══════════════════════════════════════════════════════════════
-
-/// Glass-effect header button
-class _GlassButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final IconData icon;
-  final String label;
-  final bool compact;
-
-  const _GlassButton({
-    required this.onTap,
-    required this.icon,
-    required this.label,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 10 : 16,
-            vertical: 10,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: _kTextSecondary, size: 18),
-              if (label.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: _kTextSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Gradient action button (prominent)
-class _GradientActionButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final IconData icon;
-  final String label;
-  final List<Color> colors;
-
-  const _GradientActionButton({
-    required this.onTap,
-    required this.icon,
-    required this.label,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: colors,
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: colors.first.withValues(alpha: 0.35),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Small action chip button
-class _ActionChip extends StatelessWidget {
-  final VoidCallback onTap;
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _ActionChip({
-    required this.onTap,
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

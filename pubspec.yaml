@@ -1,5 +1,5 @@
 name: app_database
-description: "ERP La Roca - Gestión Integral"
+description: "ERP NOVACONCRET - Gestión Integral"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -60,18 +60,27 @@ flutter:
 
   # 👉 Asegúrate de que el logo esté bien declarado aquí
   assets:
+    - assets/
     - assets/images/
     - assets/sounds/
 
 
 flutter_native_splash:
   color: "#ffffff" # Color de fondo de la pantalla de carga
-  image: assets/images/logo.png # Ruta de tu logo
+  image: assets/images/ICONO_NOVA.png # Ruta de tu logo
   android_12:
-    image: assets/images/logo.png # Para versiones nuevas de Android
+    image: assets/images/ICONO_NOVA.png # Para versiones nuevas de Android
     color: "#ffffff"  
       
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"      
+  image_path: "assets/images/ICONO_NOVA.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/ICONO_NOVA.png"
+  windows:
+    generate: true
+    image_path: "assets/images/ICONO_NOVA.png"
+    icon_size: 48      

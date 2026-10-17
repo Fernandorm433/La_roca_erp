@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "La Roca" "\0"
-            VALUE "FileDescription", "LA ROCA ERP" "\0"
+            VALUE "CompanyName", "NovaConcret" "\0"
+            VALUE "FileDescription", "ERP NOVACONCRET" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "la_roca_erp" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 La Roca. All rights reserved." "\0"
-            VALUE "OriginalFilename", "la_roca_erp.exe" "\0"
-            VALUE "ProductName", "LA ROCA ERP" "\0"
+            VALUE "InternalName", "erp_novaconcret" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 NovaConcret. All rights reserved." "\0"
+            VALUE "OriginalFilename", "erp_novaconcret.exe" "\0"
+            VALUE "ProductName", "ERP NOVACONCRET" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

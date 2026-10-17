@@ -5,7 +5,7 @@
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>App Database</string>
+		<string>ERP NOVACONCRET</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 		<key>CFBundleInfoDictionaryVersion</key>
 		<string>6.0</string>
 		<key>CFBundleName</key>
-		<string>ERP La Roca</string>
+		<string>ERP NOVACONCRET</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
@@ -48,32 +48,28 @@
 		<key>UIStatusBarHidden</key>
 		<false/>
 		<key>CADisableMinimumFrameDurationOnPhone</key>
-        <true/>
-        <key>UIApplicationSupportsIndirectInputEvents</key>
-        <true/>
-        <key>UIStatusBarHidden</key>
-        <false/>
-
-        <key>NSLocationWhenInUseUsageDescription</key>
-        <string>ERP La Roca necesita acceso a tu ubicación para registrar el posicionamiento en la aplicación.</string>
-        <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-        <string>ERP La Roca requiere acceso continuo a la ubicación para el rastreo de operaciones en segundo plano.</string>
-
-        <key>NSCameraUsageDescription</key>
-        <string>Necesitamos acceso a la cámara para tomar fotografías de los documentos o evidencias.</string>
-
-        <key>NSPhotoLibraryUsageDescription</key>
-        <string>Necesitamos acceso a la galería para subir imágenes y documentos al sistema.</string>
-        <key>UIFileSharingEnabled</key>
-        <true/>
-        <key>LSSupportsOpeningDocumentsInPlace</key>
-        <true/>
-
-        <key>LSApplicationQueriesSchemes</key>
-        <array>
-            <string>https</string>
-            <string>http</string>
-            <string>mailto</string>
-        </array>
+		<true/>
+		<key>UIApplicationSupportsIndirectInputEvents</key>
+		<true/>
+		<key>UIStatusBarHidden</key>
+		<false/>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>ERP NOVACONCRET necesita acceso a tu ubicación para registrar el posicionamiento en la aplicación.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>ERP NOVACONCRET requiere acceso continuo a la ubicación para el rastreo de operaciones en segundo plano.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Necesitamos acceso a la cámara para tomar fotografías de los documentos o evidencias.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Necesitamos acceso a la galería para subir imágenes y documentos al sistema.</string>
+		<key>UIFileSharingEnabled</key>
+		<true/>
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<true/>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>https</string>
+			<string>http</string>
+			<string>mailto</string>
+		</array>
 	</dict>
 </plist>
