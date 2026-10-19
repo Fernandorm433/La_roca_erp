@@ -62,6 +62,8 @@ class GuiasMainPage extends StatelessWidget {
                 ),
               ),
               child: TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.center,
                 labelColor: const Color(0xFF0F172A),
                 unselectedLabelColor: Colors.grey.shade400,
                 indicatorColor: Colors.lightBlue.shade600,

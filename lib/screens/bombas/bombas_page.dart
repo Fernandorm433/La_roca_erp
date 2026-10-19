@@ -200,12 +200,26 @@ class _GestorBombasPageState extends State<GestorBombasPage>
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
     try {
-      await supabase.from('asignacion_bombas').upsert({
-        'id_venta': idSeguro,
-        'bomba_asignada': bombaSeleccionada,
-        'hora_entrega_real': hora,
-        'estado_obra': estado,
-      }, onConflict: 'id_venta');
+      final existente = await supabase
+          .from('asignacion_bombas')
+          .select('id')
+          .eq('id_venta', idSeguro)
+          .maybeSingle();
+
+      if (existente != null) {
+        await supabase.from('asignacion_bombas').update({
+          'bomba_asignada': bombaSeleccionada,
+          'hora_entrega_real': hora,
+          'estado_obra': estado,
+        }).eq('id_venta', idSeguro);
+      } else {
+        await supabase.from('asignacion_bombas').insert({
+          'id_venta': idSeguro,
+          'bomba_asignada': bombaSeleccionada,
+          'hora_entrega_real': hora,
+          'estado_obra': estado,
+        });
+      }
 
       if (mounted) Navigator.pop(context);
       cargarObras();
@@ -654,12 +668,26 @@ class _VistaCapturaTimelineState extends State<VistaCapturaTimeline> {
     if (nuevoEstado != null) {
       String idSeguro = obra['id_seguro'];
       try {
-        await Supabase.instance.client.from('asignacion_bombas').upsert({
-          'id_venta': idSeguro,
-          'bomba_asignada': obra['bomba_asignada_real'] ?? '',
-          'hora_entrega_real': obra['hora_entrega_editada'] ?? '08:00',
-          'estado_obra': nuevoEstado,
-        }, onConflict: 'id_venta');
+        final existente = await Supabase.instance.client
+            .from('asignacion_bombas')
+            .select('id')
+            .eq('id_venta', idSeguro)
+            .maybeSingle();
+
+        if (existente != null) {
+          await Supabase.instance.client.from('asignacion_bombas').update({
+            'bomba_asignada': obra['bomba_asignada_real'] ?? '',
+            'hora_entrega_real': obra['hora_entrega_editada'] ?? '08:00',
+            'estado_obra': nuevoEstado,
+          }).eq('id_venta', idSeguro);
+        } else {
+          await Supabase.instance.client.from('asignacion_bombas').insert({
+            'id_venta': idSeguro,
+            'bomba_asignada': obra['bomba_asignada_real'] ?? '',
+            'hora_entrega_real': obra['hora_entrega_editada'] ?? '08:00',
+            'estado_obra': nuevoEstado,
+          });
+        }
         setState(() {
           obra['estado_obra'] = nuevoEstado;
         });
@@ -690,12 +718,26 @@ class _VistaCapturaTimelineState extends State<VistaCapturaTimeline> {
     });
 
     try {
-      await Supabase.instance.client.from('asignacion_bombas').upsert({
-        'id_venta': idSeguro,
-        'bomba_asignada': nuevaBomba,
-        'hora_entrega_real': nuevaHora,
-        'estado_obra': obra['estado_obra'] ?? 'Pendiente',
-      }, onConflict: 'id_venta');
+      final existente = await Supabase.instance.client
+          .from('asignacion_bombas')
+          .select('id')
+          .eq('id_venta', idSeguro)
+          .maybeSingle();
+
+      if (existente != null) {
+        await Supabase.instance.client.from('asignacion_bombas').update({
+          'bomba_asignada': nuevaBomba,
+          'hora_entrega_real': nuevaHora,
+          'estado_obra': obra['estado_obra'] ?? 'Pendiente',
+        }).eq('id_venta', idSeguro);
+      } else {
+        await Supabase.instance.client.from('asignacion_bombas').insert({
+          'id_venta': idSeguro,
+          'bomba_asignada': nuevaBomba,
+          'hora_entrega_real': nuevaHora,
+          'estado_obra': obra['estado_obra'] ?? 'Pendiente',
+        });
+      }
       widget.onRecargar();
     } catch (e) {
       if (mounted) {

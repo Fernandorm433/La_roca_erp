@@ -429,10 +429,10 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
     });
   }
 
-  void _abrirPdfGuia(Map<String, dynamic> venta, _FilaCarguioData carguio) {
+  void _abrirPdfGuia(Map<String, dynamic> venta, _FilaCarguioData carguio) async {
     if (carguio.id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Este viaje aún no se ha guardado.')));
-      return;
+      final idVenta = venta['id'].toString();
+      await _guardarFilaUnica(idVenta, carguio, silently: true);
     }
     
     Map<String, dynamic> cData = {
@@ -444,12 +444,14 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
       'precinto': carguio.precCtrl.text,
     };
     
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => GuiaPdfPreview(venta: venta, carguio: cData),
-      ),
-    );
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GuiaPdfPreview(venta: venta, carguio: cData),
+        ),
+      );
+    }
   }
 
   Future<void> _actualizarHoraVenta(String idVenta, String nuevaHora) async {
@@ -556,19 +558,14 @@ class _GestorMixersPageState extends State<GestorMixersPage> {
 
       Map<String, dynamic> cData = {
         'id_venta': idVenta.toString(), 
-        'orden_carga': ordVal,
-        'nro_guia': f.numCtrl.text,
+        'orden_carga': ordVal ?? 1,
         'numero_carguio': f.numeroCarguioCA, 
         'volumen_carguio': f.volumen,
         'operador_id': f.operadorId,
         'operador_nombre': f.operadorNombre,
         'codigo_mixer': f.codigoMixer,
-        'hora_carguio': f.hpCtrl.text, 
+        'hora_carguio': f.hsCtrl.text.isNotEmpty ? f.hsCtrl.text : f.hpCtrl.text, 
         'estado': f.estado,
-        'optimizado_vol': f.optVol,
-        'reprocesado_vol': f.repVol,
-        'precinto': f.precCtrl.text,
-        'hora_salida': f.hsCtrl.text,
       };
 
       if (f.id != null) {

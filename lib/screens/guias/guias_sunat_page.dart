@@ -650,8 +650,10 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
 
   // ─── CABECERA CORPORATIVA CON LOGO Y TONALIDADES NOVA ─────
   Widget _buildHeader() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(28, 20, 28, 18),
+      padding: EdgeInsets.fromLTRB(isMobile ? 14 : 28, isMobile ? 14 : 20, isMobile ? 14 : 28, isMobile ? 12 : 18),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: _kBorderColor, width: 1)),
@@ -659,7 +661,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [_kBrandNavy, _kBrandBlue],
@@ -675,19 +677,19 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
                 ),
               ],
             ),
-            child: const Icon(Icons.local_shipping_rounded, color: Colors.white, size: 26),
+            child: Icon(Icons.local_shipping_rounded, color: Colors.white, size: isMobile ? 22 : 26),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 14),
 
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Guías de Remisión Electrónica (GRE)',
+                Text(
+                  isMobile ? 'Guías Electrónicas (GRE)' : 'Guías de Remisión Electrónica (GRE)',
                   style: TextStyle(
                     color: _kTextDark,
-                    fontSize: 22,
+                    fontSize: isMobile ? 17 : 22,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
                   ),
@@ -711,12 +713,15 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '$_totalCount guías de mixer registradas  •  Emisión local y envío programado',
-                      style: const TextStyle(
-                        color: _kTextMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        isMobile ? '$_totalCount guías' : '$_totalCount guías registradas  •  Emisión local y envío SUNAT',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _kTextMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -732,19 +737,19 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
               foregroundColor: _kTextDark,
               side: const BorderSide(color: _kBorderColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 8 : 12),
             ),
             icon: const Icon(Icons.calendar_month_rounded, size: 18, color: _kBrandBlue),
             label: Text(
               _dateRange != null
                   ? '${_formatDate(_dateRange!.start)} — ${_formatDate(_dateRange!.end)}'
-                  : 'Filtrar fechas',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  : (isMobile ? 'Fechas' : 'Filtrar fechas'),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: isMobile ? 11 : 13),
             ),
           ),
 
           if (_dateRange != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             IconButton(
               icon: const Icon(Icons.close_rounded, size: 18, color: _kTextMuted),
               onPressed: () {
@@ -754,7 +759,7 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
             ),
           ],
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           IconButton.filledTonal(
             onPressed: _cargarDatos,
@@ -769,8 +774,39 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
     );
   }
 
-  // ─── BARRA DE MÉTRICAS Y ESTADOS ──────────────────────────
+  // ─── BARRA DE MÉTRICAS Y ESTADOS RESPONSIVE ───────────────
   Widget _buildStatsBar() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
+
+    final cards = [
+      _buildStatCard('Total Despachos', _totalCount.toString(), Icons.receipt_long_rounded, _kBrandBlue, 0, isMobile),
+      _buildStatCard('Pendientes Envío', _pendientesCount.toString(), Icons.hourglass_bottom_rounded, _kAccentAmber, 1, isMobile),
+      _buildStatCard('Aceptadas SUNAT', _aceptadasCount.toString(), Icons.verified_rounded, _kAccentGreen, 2, isMobile),
+      _buildStatCard('Con Error / Obs.', _errorCount.toString(), Icons.error_outline_rounded, _kAccentRed, 3, isMobile),
+    ];
+
+    if (isMobile) {
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: _kBorderColor, width: 0.8)),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              for (int i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                SizedBox(width: 155, child: cards[i]),
+              ]
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
       decoration: const BoxDecoration(
@@ -779,101 +815,80 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
       ),
       child: Row(
         children: [
-          _buildStatCard(
-            'Total Despachos',
-            _totalCount.toString(),
-            Icons.receipt_long_rounded,
-            _kBrandBlue,
-            0,
-          ),
+          Expanded(child: cards[0]),
           const SizedBox(width: 14),
-          _buildStatCard(
-            'Pendientes Envío',
-            _pendientesCount.toString(),
-            Icons.hourglass_bottom_rounded,
-            _kAccentAmber,
-            1,
-          ),
+          Expanded(child: cards[1]),
           const SizedBox(width: 14),
-          _buildStatCard(
-            'Aceptadas SUNAT',
-            _aceptadasCount.toString(),
-            Icons.verified_rounded,
-            _kAccentGreen,
-            2,
-          ),
+          Expanded(child: cards[2]),
           const SizedBox(width: 14),
-          _buildStatCard(
-            'Con Error / Observadas',
-            _errorCount.toString(),
-            Icons.error_outline_rounded,
-            _kAccentRed,
-            3,
-          ),
+          Expanded(child: cards[3]),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String count, IconData icon, Color color, int index) {
+  Widget _buildStatCard(String label, String count, IconData icon, Color color, int index, bool isMobile) {
     final isActive = (_statusFilter == null && index == 0) ||
         (_statusFilter == _GREStatus.pendiente && index == 1) ||
         (_statusFilter == _GREStatus.aceptado && index == 2) ||
         (_statusFilter == _GREStatus.error && index == 3);
 
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            if (index == 0) {
-              _statusFilter = null;
-            } else if (index == 1) {
-              _statusFilter = _statusFilter == _GREStatus.pendiente ? null : _GREStatus.pendiente;
-            } else if (index == 2) {
-              _statusFilter = _statusFilter == _GREStatus.aceptado ? null : _GREStatus.aceptado;
-            } else {
-              _statusFilter = _statusFilter == _GREStatus.error ? null : _GREStatus.error;
-            }
-          });
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.08) : _kPageBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isActive ? color : _kBorderColor,
-              width: isActive ? 1.8 : 1,
-            ),
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (index == 0) {
+            _statusFilter = null;
+          } else if (index == 1) {
+            _statusFilter = _statusFilter == _GREStatus.pendiente ? null : _GREStatus.pendiente;
+          } else if (index == 2) {
+            _statusFilter = _statusFilter == _GREStatus.aceptado ? null : _GREStatus.aceptado;
+          } else {
+            _statusFilter = _statusFilter == _GREStatus.error ? null : _GREStatus.error;
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? color.withOpacity(0.08) : _kPageBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isActive ? color : _kBorderColor,
+            width: isActive ? 1.8 : 1,
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 12),
-              Column(
+              child: Icon(icon, color: color, size: isMobile ? 18 : 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     count,
                     style: TextStyle(
                       color: isActive ? color : _kTextDark,
-                      fontSize: 20,
+                      fontSize: isMobile ? 17 : 20,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
                     ),
                   ),
                   Text(
                     label,
-                    style: TextStyle(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: _kTextMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -881,8 +896,8 @@ class _GuiasSunatPageState extends State<GuiasSunatPage> {
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
