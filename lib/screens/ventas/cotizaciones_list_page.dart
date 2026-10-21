@@ -250,7 +250,19 @@ class _CotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = double.tryParse(cot['total']?.toString() ?? '0') ?? 0;
+    double total = double.tryParse(cot['total']?.toString() ?? '0') ?? 0;
+    final rawItems = cot['cotizacion_items'] as List<dynamic>? ?? [];
+    if (rawItems.isNotEmpty) {
+      double itemsTotal = 0;
+      for (var it in rawItems) {
+        final cant = double.tryParse(it['cantidad']?.toString() ?? '0') ?? 0;
+        final pUnit = double.tryParse(it['precio_unitario']?.toString() ?? '0') ?? 0;
+        itemsTotal += cant * pUnit;
+      }
+      if (itemsTotal > 0 && total > itemsTotal && (total - itemsTotal) > 0.05) {
+        total = itemsTotal;
+      }
+    }
     final estado = cot['estado'] ?? 'borrador';
     final fmt = NumberFormat('#,##0.00', 'es_PE');
     final isDrive = estado == 'aprobada' || estado == 'enviada';

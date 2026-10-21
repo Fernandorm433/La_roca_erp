@@ -514,10 +514,13 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
   }
 
   // ─── TOTALES ─────────────────────────────────────────────────────────────
-  double get _sub => _items.fold(0, (s, i) => s + i.subtotal);
+  /// El precio por M³ ya incluye IGV. La suma de ítems es el Total bruto.
+  double get _total => _items.fold(0.0, (s, i) => s + i.subtotal);
   double get _igvPct => _tipoComprobante == 'Recibo' ? 0 : 18;
-  double get _igvM => _sub * (_igvPct / 100);
-  double get _total => _sub + _igvM;
+  /// Base imponible (Subtotal sin IGV): Total / 1.18
+  double get _sub => _igvPct > 0 ? ((_total / (1 + _igvPct / 100) * 100).roundToDouble() / 100.0) : _total;
+  /// IGV: Total - Subtotal
+  double get _igvM => ((_total - _sub) * 100).roundToDouble() / 100.0;
 
   Future<String> _genNumero({int offset = 0}) async {
     final yr = DateTime.now().year;
@@ -680,6 +683,9 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
         elementoVaciar: concretoItem.elemento.isNotEmpty ? concretoItem.elemento : null,
         formaVaciado: formaVaciadoStr,
         igvPorcentaje: _igvPct,
+        subTotalCustom: _sub,
+        igvMontoCustom: _igvM,
+        totalCustom: _total,
         items: _items.map((i) => i.toPdf()).toList(),
       );
       if (mounted) {
@@ -1141,11 +1147,11 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _searchClienteCtrl.text.trim().length == 11 ? '🔍 Buscar RUC en SUNAT en vivo' : '🔍 Buscar DNI en RENIEC en vivo',
+                          _searchClienteCtrl.text.trim().length == 11 ? '🔍 Buscar RUC' : '🔍 Buscar DNI',
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
                         ),
                         Text(
-                          'Consultar "${_searchClienteCtrl.text.trim()}" y autocompletar nombre y dirección',
+                          'Consultar "${_searchClienteCtrl.text.trim()}"',
                           style: const TextStyle(fontSize: 11, color: Colors.white70),
                         ),
                       ],
@@ -1371,11 +1377,51 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
         const SizedBox(height: 10),
       ],
 
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text('Total:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        Text('S/ ${fmt.format(_total)}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
-      ]),
+      if (_items.isNotEmpty) ...[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Subtotal (Base Imponible):', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                Text('S/ ${fmt.format(_sub)}',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+              ]),
+              const SizedBox(height: 6),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('I.G.V. (${_igvPct.toStringAsFixed(0)}%):',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                Text('S/ ${fmt.format(_igvM)}',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+              ]),
+              const Divider(height: 18, color: Color(0xFFE2E8F0)),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Total (Inc. IGV):', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                Text('S/ ${fmt.format(_total)}',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
+              ]),
+            ],
+          ),
+        ),
+      ] else ...[
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text('Total:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('S/ ${fmt.format(_total)}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+        ]),
+      ],
       const SizedBox(height: 16),
 
       SizedBox(

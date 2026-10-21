@@ -66,6 +66,18 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       final horaEntregaDt = DateTime.tryParse(_cot['hora_entrega'] ?? '');
       final fechaCreacion = DateTime.tryParse(_cot['created_at'] ?? '') ?? DateTime.now();
 
+      double itemsTotal = 0;
+      for (var it in items) {
+        itemsTotal += it.subtotal;
+      }
+      double dbTotal = double.tryParse(_cot['total']?.toString() ?? '') ?? itemsTotal;
+      if (itemsTotal > 0 && (dbTotal == 0 || (dbTotal > itemsTotal && (dbTotal - itemsTotal) > 0.05))) {
+        dbTotal = itemsTotal;
+      }
+      final igvPct = double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18;
+      final subtotal = igvPct > 0 ? ((dbTotal / (1 + igvPct / 100) * 100).roundToDouble() / 100.0) : dbTotal;
+      final igvMonto = ((dbTotal - subtotal) * 100).roundToDouble() / 100.0;
+
       final datos = DatosCotizacion(
         numeroCotizacion: _cot['numero_cotizacion'] ?? '',
         fecha: fechaCreacion,
@@ -84,10 +96,10 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
         fechaVaciado: horaEntregaDt != null ? DateFormat('dd/MM/yyyy').format(horaEntregaDt) : null,
         elementoVaciar: concretoItem?['elemento']?.toString(),
         formaVaciado: (concretoItem?['bombeable'] == true) ? 'BOMBEABLE' : 'DIRECTO',
-        igvPorcentaje: double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18,
-        subTotalCustom: double.tryParse(_cot['subtotal']?.toString() ?? ''),
-        igvMontoCustom: double.tryParse(_cot['igv_monto']?.toString() ?? ''),
-        totalCustom: double.tryParse(_cot['total']?.toString() ?? ''),
+        igvPorcentaje: igvPct,
+        subTotalCustom: subtotal,
+        igvMontoCustom: igvMonto,
+        totalCustom: dbTotal,
         items: items,
       );
       
@@ -134,20 +146,21 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       }
       
       // Recalculate totals
-      double subtotal = 0;
+      double total = 0;
       for (var item in _items) {
         if (item['tipo'] == 'Concreto') {
           double pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
-          subtotal += nuevoVolumen * pUnit;
+          total += nuevoVolumen * pUnit;
         } else {
           double cant = double.tryParse(item['cantidad'].toString()) ?? 0;
           double pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
-          subtotal += cant * pUnit;
+          total += cant * pUnit;
         }
       }
+      total = (total * 100).roundToDouble() / 100.0;
       double igvPct = double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18;
-      double igvMonto = subtotal * (igvPct / 100);
-      double total = subtotal + igvMonto;
+      double subtotal = igvPct > 0 ? ((total / (1 + igvPct / 100) * 100).roundToDouble() / 100.0) : total;
+      double igvMonto = ((total - subtotal) * 100).roundToDouble() / 100.0;
 
       // Update cotizaciones
       await _sb.from('cotizaciones').update({
@@ -212,7 +225,19 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
   @override
   Widget build(BuildContext context) {
     final fmt = NumberFormat('#,##0.00', 'es_PE');
-    final total = double.tryParse(_cot['total']?.toString() ?? '0') ?? 0;
+    double itemsTotal = 0;
+    for (var i in _items) {
+      final c = double.tryParse(i['cantidad']?.toString() ?? '0') ?? 0;
+      final p = double.tryParse(i['precio_unitario']?.toString() ?? '0') ?? 0;
+      itemsTotal += c * p;
+    }
+    double total = double.tryParse(_cot['total']?.toString() ?? '0') ?? 0;
+    if (itemsTotal > 0 && (total == 0 || (total > itemsTotal && (total - itemsTotal) > 0.05))) {
+      total = itemsTotal;
+    }
+    final igvPct = double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18;
+    final subtotal = igvPct > 0 ? ((total / (1 + igvPct / 100) * 100).roundToDouble() / 100.0) : total;
+    final igvMonto = ((total - subtotal) * 100).roundToDouble() / 100.0;
     final fecha = DateTime.tryParse(_cot['created_at'] ?? '')?.toLocal();
     final horaEntrega = DateTime.tryParse(_cot['hora_entrega'] ?? '')?.toLocal();
 
@@ -306,22 +331,54 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
                     ..._items.map((i) => _ItemTile(item: i, fmt: fmt)),
                     const SizedBox(height: 12),
 
-                    // Total
+                    // Totales con desglose de IGV
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryDark,
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          const Text('TOTAL',
-                              style: TextStyle(color: Colors.white,
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text('S/ ${fmt.format(total)}',
-                              style: const TextStyle(color: Colors.white,
-                                  fontWeight: FontWeight.w900, fontSize: 22)),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Subtotal (Base Imponible):',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                              Text('S/ ${fmt.format(subtotal)}',
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B))),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('I.G.V. (${igvPct.toStringAsFixed(0)}%):',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                              Text('S/ ${fmt.format(igvMonto)}',
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1E293B))),
+                            ],
+                          ),
+                          const Divider(height: 18, color: Color(0xFFE2E8F0)),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('TOTAL',
+                                  style: TextStyle(color: AppColors.primaryDark,
+                                      fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text('S/ ${fmt.format(total)}',
+                                  style: const TextStyle(color: AppColors.primaryDark,
+                                      fontWeight: FontWeight.w900, fontSize: 22)),
+                            ],
+                          ),
                         ],
                       ),
                     ),

@@ -116,9 +116,33 @@ class DatosCotizacion {
     this.totalCustom,
   });
 
-  double get subTotal => subTotalCustom ?? items.fold(0.0, (sum, item) => sum + item.subtotal);
-  double get igvMonto => igvMontoCustom ?? (subTotal * (igvPorcentaje / 100));
-  double get total => totalCustom ?? (subTotal + igvMonto);
+  double get itemsTotal => items.fold(0.0, (sum, item) => sum + item.subtotal);
+
+  /// El precio por M³ ya incluye IGV. Por lo tanto, la suma de los ítems es el Total bruto.
+  double get total {
+    if (items.isNotEmpty && totalCustom != null && (totalCustom! - itemsTotal) > 0.05) {
+      return itemsTotal;
+    }
+    return totalCustom ?? itemsTotal;
+  }
+
+  /// Base imponible (Subtotal sin IGV): Total / 1.18
+  double get subTotal {
+    if (igvPorcentaje <= 0) return total;
+    if (subTotalCustom != null && (subTotalCustom! - total).abs() > 0.05 && subTotalCustom! < total) {
+      return subTotalCustom!;
+    }
+    return (total / (1 + igvPorcentaje / 100) * 100).roundToDouble() / 100.0;
+  }
+
+  /// Monto de IGV (18%): Total - Subtotal
+  double get igvMonto {
+    if (igvPorcentaje <= 0) return 0.0;
+    if (igvMontoCustom != null && ((subTotal + igvMontoCustom!) - total).abs() <= 0.05) {
+      return igvMontoCustom!;
+    }
+    return ((total - subTotal) * 100).roundToDouble() / 100.0;
+  }
 }
 
 // ─── Generador principal ─────────────────────────────────────────────────────
@@ -226,24 +250,24 @@ class CotizacionPdfGenerator {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             if (logo != null)
-              pw.Image(logo, height: 40, fit: pw.BoxFit.contain)
+              pw.Image(logo, height: 58, fit: pw.BoxFit.contain)
             else
               pw.Row(
                 children: [
                   pw.Container(
-                    width: 30,
-                    height: 30,
+                    width: 36,
+                    height: 36,
                     decoration: pw.BoxDecoration(
                       color: _azulPrimario,
                       borderRadius: pw.BorderRadius.circular(6),
                     ),
                     alignment: pw.Alignment.center,
-                    child: pw.Text('N', style: pw.TextStyle(color: _blanco, font: bold, fontSize: 18)),
+                    child: pw.Text('N', style: pw.TextStyle(color: _blanco, font: bold, fontSize: 20)),
                   ),
                   pw.SizedBox(width: 8),
                   pw.Text(
                     'NOVACON',
-                    style: pw.TextStyle(font: bold, fontSize: 20, color: _azulOscuro, letterSpacing: 1.2),
+                    style: pw.TextStyle(font: bold, fontSize: 22, color: _azulOscuro, letterSpacing: 1.2),
                   ),
                 ],
               ),
@@ -544,13 +568,14 @@ class CotizacionPdfGenerator {
       pw.FlexColumnWidth(1.8), // Precio Total
     ];
 
+    final conIgv = cot.igvPorcentaje > 0;
     final headers = [
       'Item',
       'Descripción',
       'Cantidad',
       'Unidad',
-      'Precio Unitario\n(Incluye IGV)',
-      'Precio Total\n(Incluye IGV)',
+      conIgv ? 'Precio Unitario\n(Incluye IGV)' : 'Precio Unitario',
+      conIgv ? 'Precio Total\n(Incluye IGV)' : 'Precio Total',
     ];
 
     return pw.Column(
@@ -855,11 +880,11 @@ class CotizacionPdfGenerator {
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
             if (logo != null)
-              pw.Image(logo, height: 44, fit: pw.BoxFit.contain)
+              pw.Image(logo, height: 58, fit: pw.BoxFit.contain)
             else
               pw.Text(
                 'NOVACON',
-                style: pw.TextStyle(font: bold, fontSize: 22, color: _azulOscuro, letterSpacing: 1.2),
+                style: pw.TextStyle(font: bold, fontSize: 24, color: _azulOscuro, letterSpacing: 1.2),
               ),
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
