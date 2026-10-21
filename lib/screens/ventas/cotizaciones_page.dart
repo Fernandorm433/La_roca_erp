@@ -522,19 +522,27 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
   /// IGV: Total - Subtotal
   double get _igvM => ((_total - _sub) * 100).roundToDouble() / 100.0;
 
+  String? _numeroGeneradoLocal;
+
   Future<String> _genNumero({int offset = 0}) async {
     final yr = DateTime.now().year;
     try {
       final d = await _sb.from('cotizaciones')
           .select('numero_cotizacion')
-          .like('numero_cotizacion', 'COT-$yr-%')
-          .order('numero_cotizacion', ascending: false)
-          .limit(1);
-      if ((d as List).isNotEmpty) {
-        final last = d.first['numero_cotizacion'] as String;
-        final n = int.tryParse(last.split('-').last) ?? 0;
-        return 'COT-$yr-${(n + 1 + offset).toString().padLeft(5, '0')}';
+          .like('numero_cotizacion', 'COT-$yr-%');
+      
+      int maxN = 0;
+      if (d is List && d.isNotEmpty) {
+        for (var row in d) {
+          final numStr = (row['numero_cotizacion'] as String?) ?? '';
+          final parts = numStr.split('-');
+          if (parts.length >= 3) {
+            final n = int.tryParse(parts.last) ?? 0;
+            if (n > maxN) maxN = n;
+          }
+        }
       }
+      return 'COT-$yr-${(maxN + 1 + offset).toString().padLeft(5, '0')}';
     } catch (_) {}
     return 'COT-$yr-${(1 + offset).toString().padLeft(5, '0')}';
   }
@@ -608,7 +616,9 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
         int intento = 0;
         while (true) {
           try {
-            payload['numero_cotizacion'] = await _genNumero(offset: intento);
+            payload['numero_cotizacion'] = (intento == 0 && _numeroGeneradoLocal != null)
+                ? _numeroGeneradoLocal!
+                : await _genNumero(offset: intento);
             final r = await _sb.from('cotizaciones').insert(payload).select().single();
             cotId = r['id'];
             break;
@@ -654,15 +664,15 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
           .replaceAll(' (Yo)', '')
           .replaceAll(' (Administrador)', '')
           .trim();
-      final numero = widget.cotizacionExistente?['numero_cotizacion'] ?? await _genNumero();
+      if (_numeroGeneradoLocal == null && widget.cotizacionExistente == null) {
+        _numeroGeneradoLocal = await _genNumero();
+      }
+      final numero = widget.cotizacionExistente?['numero_cotizacion'] ?? _numeroGeneradoLocal ?? await _genNumero();
       final nombre = _nombreCtrl.text.toUpperCase().trim().isEmpty ? 'CLIENTE' : _nombreCtrl.text.toUpperCase().trim();
-      final concretoItem = _items.firstWhere(
-        (i) => i.tipo.toLowerCase() == 'concreto',
-        orElse: () => _items.first,
-      );
-      final formaVaciadoStr = concretoItem.tipoVaciado.isNotEmpty
-          ? concretoItem.tipoVaciado
-          : (concretoItem.descripcion.toUpperCase().contains('BOMBA') ? 'BOMBEABLE' : 'DIRECTO');
+      final concretoItems = _items.where((i) => i.tipo.toLowerCase() == 'concreto').toList();
+      final elementosStr = concretoItems.map((c) => c.elemento).where((e) => e.isNotEmpty).toSet().join(' / ');
+      final formasVaciadoSet = concretoItems.map((c) => c.tipoVaciado.isNotEmpty ? c.tipoVaciado : (c.descripcion.toUpperCase().contains('BOMBA') ? 'BOMBEABLE' : 'DIRECTO')).toSet();
+      final formaVaciadoStr = formasVaciadoSet.isNotEmpty ? formasVaciadoSet.join(' / ') : 'DIRECTO';
 
       final datos = DatosCotizacion(
         numeroCotizacion: numero,
@@ -680,7 +690,7 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
         tipoComprobante: _tipoComprobante,
         formaPago: 'DEPÓSITO',
         fechaVaciado: _fechaEntrega != null ? DateFormat('dd/MM/yyyy').format(_fechaEntrega!) : null,
-        elementoVaciar: concretoItem.elemento.isNotEmpty ? concretoItem.elemento : null,
+        elementoVaciar: elementosStr.isNotEmpty ? elementosStr : null,
         formaVaciado: formaVaciadoStr,
         igvPorcentaje: _igvPct,
         subTotalCustom: _sub,

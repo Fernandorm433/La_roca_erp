@@ -81,21 +81,31 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
       }
 
       int enviados = 0;
+      final nroCot = (_cot['numero_cotizacion'] ?? '').toString().trim();
+      final baseCode = nroCot.isNotEmpty ? nroCot : 'REQ-${DateTime.now().millisecondsSinceEpoch}';
+
       for (int idx = 0; idx < concretoItems.length; idx++) {
         final it = concretoItems[idx];
         final resistencia = it['resistencia']?.toString() ?? '';
         final fuerza = resistencia.isNotEmpty ? "F'c=$resistencia" : (it['descripcion'] ?? '');
 
-        String codigoLimpio = _cot['clave_unica']?.toString() ?? '';
-        String claveUnicaSupabase = codigoLimpio;
-        if (concretoItems.length > 1 && idx > 0) {
-          claveUnicaSupabase = '${codigoLimpio}_item$idx';
-        }
-        if (claveUnicaSupabase.isEmpty) {
-          claveUnicaSupabase = 'REQ-${DateTime.now().millisecondsSinceEpoch}-$idx';
-        }
+        final claveUnicaSupabase = concretoItems.length > 1
+            ? '$baseCode-ITEM${idx + 1}'
+            : baseCode;
 
         final volItem = double.tryParse((it['cantidad'] ?? '0').toString()) ?? 0.0;
+
+        final esBombeable = (it['bombeable'] == true) ||
+            (it['tipo_vaciado']?.toString().toUpperCase() == 'BOMBEABLE') ||
+            (it['descripcion']?.toString().toUpperCase().contains('BOMBA') ?? false);
+        final bombaFinal = esBombeable
+            ? (bombasStr.isNotEmpty ? bombasStr : 'BOMBA')
+            : 'DIRECTO';
+
+        final obsBase = _comentarioCtrl.text.trim();
+        final obsItem = concretoItems.length > 1
+            ? (obsBase.isNotEmpty ? '[$fuerza - ${it['elemento'] ?? ''}] $obsBase' : '[$fuerza - ${it['elemento'] ?? ''}]')
+            : obsBase;
 
         final payload = {
           'asesor_comercial':       _cot['asesor_nombre'] ?? '',
@@ -107,7 +117,7 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
           'direccion':              _cot['obra_direccion'] ?? '',
           'telefono':               _cot['cliente_telefono'] ?? '',
           'distrito':               _cot['obra_distrito'] ?? '',
-          'numero_atencion':        '1',
+          'numero_atencion':        '${idx + 1}',
           'volumen':                volItem,
           'volumen_programado':     volItem,
           'volumen_despachado':     0.0,
@@ -118,21 +128,21 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
           'aditivo':                _aditivoCtrl.text.trim().isNotEmpty ? _aditivoCtrl.text.trim() : (it['aditivo'] ?? ''),
           'aditivo_adicional':      '',
           'tipo_cemento':           _cleanCemento(it['tipo_cemento']?.toString() ?? ''),
-          'bombas':                 bombasStr.isNotEmpty ? bombasStr : 'DIRECTO',
-          'cbp_12':                 _bombas['CBP12'] == true ? 'SI' : null,
-          'cbp_13':                 _bombas['CBP13'] == true ? 'SI' : null,
-          'cbp_15':                 _bombas['CBP15'] == true ? 'SI' : null,
-          'cbp_16':                 _bombas['CBP16'] == true ? 'SI' : null,
-          'cbp_17':                 _bombas['CBP17'] == true ? 'SI' : null,
-          'cbp_21':                 _bombas['CBP21'] == true ? 'SI' : null,
-          'be_12':                  _bombas['BE12'] == true ? 'SI' : null,
+          'bombas':                 bombaFinal,
+          'cbp_12':                 (esBombeable && _bombas['CBP12'] == true) ? 'SI' : null,
+          'cbp_13':                 (esBombeable && _bombas['CBP13'] == true) ? 'SI' : null,
+          'cbp_15':                 (esBombeable && _bombas['CBP15'] == true) ? 'SI' : null,
+          'cbp_16':                 (esBombeable && _bombas['CBP16'] == true) ? 'SI' : null,
+          'cbp_17':                 (esBombeable && _bombas['CBP17'] == true) ? 'SI' : null,
+          'cbp_21':                 (esBombeable && _bombas['CBP21'] == true) ? 'SI' : null,
+          'be_12':                  (esBombeable && _bombas['BE12'] == true) ? 'SI' : null,
           'mixers':                 _mixer,
           'capacidad_maxima':       _capacidad,
           'tiempo_estimado_vaciado': _tiempo,
           'personal_calidad':       _calidad ? 'SI' : 'NO',
-          'observaciones':          _comentarioCtrl.text.trim(),
+          'observaciones':          obsItem,
           'mapa_coordenadas':       _cot['obra_maps_link'] ?? '',
-          'orden_pedido':           _cot['numero_cotizacion'] ?? '',
+          'orden_pedido':           nroCot,
           'clave_unica':            claveUnicaSupabase,
         };
 
@@ -210,7 +220,7 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
         decoration: BoxDecoration(shape: BoxShape.circle,
             color: active ? AppColors.primaryDark : Colors.grey.shade100,
             border: Border.all(color: active ? AppColors.primaryDark : Colors.grey.shade300, width: 2),
-            boxShadow: active ? [BoxShadow(color: AppColors.primaryDark.withOpacity(.25), blurRadius: 8, offset: const Offset(0, 3))] : []),
+            boxShadow: active ? [BoxShadow(color: AppColors.primaryDark.withValues(alpha: .25), blurRadius: 8, offset: const Offset(0, 3))] : []),
         child: Icon(i < _paso ? Icons.check_rounded : icon,
             color: active ? Colors.white : Colors.grey.shade400, size: 20)),
       const SizedBox(height: 4),
@@ -220,39 +230,182 @@ class _RequerimientoPageState extends State<RequerimientoPage> {
     ]);
   }
 
-  Widget _buildMaquinas() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _cardHeader(Icons.event_outlined, 'Fecha y hora de entrega'),
+  Widget _buildConcretosInfo(List concretoItems) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _cardHeader(Icons.inventory_2_outlined, 'Concretos a Requerir'),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryDark.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primaryDark.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  '${concretoItems.length} tipo${concretoItems.length > 1 ? 's' : ''} de concreto',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...concretoItems.asMap().entries.map((entry) {
+            final idx = entry.key + 1;
+            final it = entry.value;
+            final cant = double.tryParse((it['cantidad'] ?? '0').toString()) ?? 0.0;
+            final resistencia = it['resistencia']?.toString() ?? '';
+            final disenoStr = resistencia.isNotEmpty ? "F'c = $resistencia" : (it['descripcion'] ?? '');
+            final elemento = (it['elemento']?.toString() ?? '').toUpperCase();
+            final slump = it['slump']?.toString() ?? '4" - 6"';
+            final huso = it['huso']?.toString() ?? '-';
+            final cemento = _cleanCemento(it['tipo_cemento']?.toString() ?? '');
+            final esBomb = (it['bombeable'] == true) ||
+                (it['tipo_vaciado']?.toString().toUpperCase() == 'BOMBEABLE') ||
+                (it['descripcion']?.toString().toUpperCase().contains('BOMBA') ?? false);
+            final aditivo = it['aditivo']?.toString() ?? '';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Ítem $idx',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          disenoStr,
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                      Text(
+                        '${cant.toStringAsFixed(cant % 1 == 0 ? 0 : 1)} m³',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primaryDark),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _specPill(Icons.foundation, 'Elemento', elemento.isNotEmpty ? elemento : 'General'),
+                      _specPill(Icons.water_drop_outlined, 'Slump', slump),
+                      _specPill(Icons.grain, 'Huso', huso),
+                      _specPill(Icons.square_foot, 'Cemento', cemento.isNotEmpty ? cemento : 'YURA PRO'),
+                      _specPill(
+                        esBomb ? Icons.precision_manufacturing : Icons.local_shipping,
+                        'Vaciado',
+                        esBomb ? 'BOMBEABLE' : 'DIRECTO',
+                        color: esBomb ? const Color(0xFF0284C7) : const Color(0xFF059669),
+                      ),
+                      if (aditivo.isNotEmpty)
+                        _specPill(Icons.science_outlined, 'Aditivo', aditivo),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _specPill(IconData icon, String label, String value, {Color? color}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color ?? Colors.grey.shade600),
+        const SizedBox(width: 4),
+        Text(
+          '$label: ',
+          style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: color ?? const Color(0xFF1E293B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaquinas() {
+    final concretoItems = _items.where(
+      (i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto'
+    ).toList();
+    if (concretoItems.isEmpty && _items.isNotEmpty) {
+      concretoItems.add(_items.first);
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (concretoItems.isNotEmpty) ...[
+        _buildConcretosInfo(concretoItems),
+        const SizedBox(height: 14),
+      ],
+      _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _cardHeader(Icons.event_outlined, 'Fecha y hora de entrega'),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: _dateBtn(Icons.calendar_month_outlined,
+              DateFormat('dd / MM / yyyy').format(_fecha), _selFecha)),
+          const SizedBox(width: 10),
+          Expanded(child: _dateBtn(Icons.access_time_rounded,
+              DateFormat('HH : mm').format(_fecha), _selHora)),
+        ]),
+      ])),
       const SizedBox(height: 14),
-      Row(children: [
-        Expanded(child: _dateBtn(Icons.calendar_month_outlined,
-            DateFormat('dd / MM / yyyy').format(_fecha), _selFecha)),
-        const SizedBox(width: 10),
-        Expanded(child: _dateBtn(Icons.access_time_rounded,
-            DateFormat('HH : mm').format(_fecha), _selHora)),
-      ]),
-    ])),
-    const SizedBox(height: 14),
-    _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _cardHeader(Icons.settings_outlined, 'Tipo de máquina'),
-      const SizedBox(height: 4),
-      const Text('Selecciona las que aplican', style: TextStyle(fontSize: 12, color: Colors.grey)),
+      _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _cardHeader(Icons.settings_outlined, 'Tipo de máquina'),
+        const SizedBox(height: 4),
+        const Text('Selecciona las que aplican', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 14),
+        GridView.count(crossAxisCount: 2, shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 3.4,
+          children: _bombas.keys.map(_bombaTile).toList()),
+      ])),
       const SizedBox(height: 14),
-      GridView.count(crossAxisCount: 2, shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 3.4,
-        children: _bombas.keys.map(_bombaTile).toList()),
-    ])),
-    const SizedBox(height: 14),
-    _card(child: Row(children: [
-      _iconBox(Icons.cable_outlined),
-      const SizedBox(width: 12),
-      const Expanded(child: Text('Agregar extensiones',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1A2E1A)))),
-      Switch(value: _extensiones, onChanged: (v) => setState(() => _extensiones = v),
-          activeColor: AppColors.primaryDark),
-    ])),
-  ]);
+      _card(child: Row(children: [
+        _iconBox(Icons.cable_outlined),
+        const SizedBox(width: 12),
+        const Expanded(child: Text('Agregar extensiones',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1A2E1A)))),
+        Switch(value: _extensiones, onChanged: (v) => setState(() => _extensiones = v),
+            activeColor: AppColors.primaryDark),
+      ])),
+    ]);
+  }
 
   Widget _buildExtra() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     _card(child: Column(children: [

@@ -92,10 +92,12 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
         precioUnitario: double.tryParse(i['precio_unitario'].toString()) ?? 0,
       )).toList();
       final rawItems = c['cotizacion_items'] as List? ?? [];
-      final concretoItem = rawItems.firstWhere(
+      final concretoItems = rawItems.where(
         (i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto',
-        orElse: () => rawItems.isNotEmpty ? rawItems.first : null,
-      );
+      ).toList();
+      final elementosStr = concretoItems.map((ci) => ci['elemento']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().join(' / ');
+      final formasVaciadoSet = concretoItems.map((ci) => ((ci['bombeable'] == true) || (ci['tipo_vaciado']?.toString().toUpperCase() == 'BOMBEABLE') || (ci['descripcion']?.toString().toUpperCase().contains('BOMBA') ?? false)) ? 'BOMBEABLE' : 'DIRECTO').toSet();
+      final formaVaciadoStr = formasVaciadoSet.isNotEmpty ? formasVaciadoSet.join(' / ') : 'DIRECTO';
       final horaEntregaDt = DateTime.tryParse(c['hora_entrega'] ?? '');
       final fechaCreacion = DateTime.tryParse(c['created_at'] ?? '') ?? DateTime.now();
 
@@ -115,8 +117,8 @@ class _CotizacionesListPageState extends State<CotizacionesListPage> {
         tipoComprobante: c['tipo_comprobante'] ?? 'Factura',
         formaPago: 'DEPÓSITO',
         fechaVaciado: horaEntregaDt != null ? DateFormat('dd/MM/yyyy').format(horaEntregaDt) : null,
-        elementoVaciar: concretoItem?['elemento']?.toString(),
-        formaVaciado: (concretoItem?['bombeable'] == true) ? 'BOMBEABLE' : 'DIRECTO',
+        elementoVaciar: elementosStr.isNotEmpty ? elementosStr : null,
+        formaVaciado: formaVaciadoStr,
         igvPorcentaje: double.tryParse(c['igv_porcentaje']?.toString() ?? '18') ?? 18.0,
         subTotalCustom: double.tryParse(c['subtotal']?.toString() ?? ''),
         igvMontoCustom: double.tryParse(c['igv_monto']?.toString() ?? ''),

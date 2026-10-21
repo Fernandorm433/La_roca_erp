@@ -78,6 +78,11 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       final subtotal = igvPct > 0 ? ((dbTotal / (1 + igvPct / 100) * 100).roundToDouble() / 100.0) : dbTotal;
       final igvMonto = ((dbTotal - subtotal) * 100).roundToDouble() / 100.0;
 
+      final concretoItems = _items.where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto').toList();
+      final elementosStr = concretoItems.map((c) => c['elemento']?.toString() ?? '').where((e) => e.isNotEmpty).toSet().join(' / ');
+      final formasVaciadoSet = concretoItems.map((c) => ((c['bombeable'] == true) || (c['tipo_vaciado']?.toString().toUpperCase() == 'BOMBEABLE') || (c['descripcion']?.toString().toUpperCase().contains('BOMBA') ?? false)) ? 'BOMBEABLE' : 'DIRECTO').toSet();
+      final formaVaciadoStr = formasVaciadoSet.isNotEmpty ? formasVaciadoSet.join(' / ') : 'DIRECTO';
+
       final datos = DatosCotizacion(
         numeroCotizacion: _cot['numero_cotizacion'] ?? '',
         fecha: fechaCreacion,
@@ -94,8 +99,8 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
         tipoComprobante: _cot['tipo_comprobante'] ?? 'Factura',
         formaPago: 'DEPÓSITO',
         fechaVaciado: horaEntregaDt != null ? DateFormat('dd/MM/yyyy').format(horaEntregaDt) : null,
-        elementoVaciar: concretoItem?['elemento']?.toString(),
-        formaVaciado: (concretoItem?['bombeable'] == true) ? 'BOMBEABLE' : 'DIRECTO',
+        elementoVaciar: elementosStr.isNotEmpty ? elementosStr : null,
+        formaVaciado: formaVaciadoStr,
         igvPorcentaje: igvPct,
         subTotalCustom: subtotal,
         igvMontoCustom: igvMonto,
@@ -125,37 +130,32 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       backgroundColor: Colors.transparent,
       builder: (_) => _EditRequerimientoModal(
         cotizacion: _cot,
-        onGuardar: (DateTime nuevaFecha, double nuevoVolumen) async {
-          await _actualizarRequerimiento(nuevaFecha, nuevoVolumen);
+        onGuardar: (DateTime nuevaFecha, Map<String, double> nuevosVolumenes) async {
+          await _actualizarRequerimiento(nuevaFecha, nuevosVolumenes);
         },
       ),
     );
   }
 
-  Future<void> _actualizarRequerimiento(DateTime nuevaFecha, double nuevoVolumen) async {
+  Future<void> _actualizarRequerimiento(DateTime nuevaFecha, Map<String, double> nuevosVolumenes) async {
     setState(() => _loading = true);
     try {
       final cotId = _cot['id'];
       
-      // Update cotizacion_items (only 'Concreto')
-      final concretoItem = _items.firstWhere((i) => i['tipo'] == 'Concreto', orElse: () => null);
-      if (concretoItem != null) {
+      // Update each item in cotizacion_items
+      for (var entry in nuevosVolumenes.entries) {
         await _sb.from('cotizacion_items').update({
-          'cantidad': nuevoVolumen,
-        }).eq('id', concretoItem['id']);
+          'cantidad': entry.value,
+        }).eq('id', entry.key);
       }
       
-      // Recalculate totals
+      // Recalculate totals with new volumes
       double total = 0;
       for (var item in _items) {
-        if (item['tipo'] == 'Concreto') {
-          double pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
-          total += nuevoVolumen * pUnit;
-        } else {
-          double cant = double.tryParse(item['cantidad'].toString()) ?? 0;
-          double pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
-          total += cant * pUnit;
-        }
+        final itemId = item['id']?.toString() ?? '';
+        final cant = nuevosVolumenes[itemId] ?? (double.tryParse(item['cantidad'].toString()) ?? 0);
+        final pUnit = double.tryParse(item['precio_unitario'].toString()) ?? 0;
+        total += cant * pUnit;
       }
       total = (total * 100).roundToDouble() / 100.0;
       double igvPct = double.tryParse(_cot['igv_porcentaje']?.toString() ?? '18') ?? 18;
@@ -171,28 +171,30 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
       }).eq('id', cotId);
       
       // Update ventas_programacion if exists
-      final oldFechaStr = DateTime.tryParse(_cot['hora_entrega'] ?? '')?.toIso8601String().split('T')[0];
+      final nroCot = (_cot['numero_cotizacion'] ?? '').toString().trim();
+      final horaStr = DateFormat('HH:mm').format(nuevaFecha);
+      final fechaStr = DateFormat('yyyy-MM-dd').format(nuevaFecha);
       
-      String idVentaStr = '';
-      Map<String, dynamic>? existingVenta;
-      
-      if (oldFechaStr != null) {
-        final ventasData = await _sb.from('ventas_programacion')
-            .select()
-            .eq('fecha_entrega', oldFechaStr)
-            .ilike('nombre_razon_social', _cot['cliente_nombre'] ?? '')
-            .limit(1);
-            
-        if (ventasData.isNotEmpty) {
-           existingVenta = ventasData[0];
-           idVentaStr = existingVenta['id']?.toString() ?? '';
-           final horaStr = DateFormat('HH:mm:ss').format(nuevaFecha);
-           final fechaStr = DateFormat('yyyy-MM-dd').format(nuevaFecha);
-           await _sb.from('ventas_programacion').update({
-             'fecha_entrega': fechaStr,
-             'hora_entrega': horaStr,
-             'volumen': nuevoVolumen,
-           }).eq('id', idVentaStr);
+      if (nroCot.isNotEmpty) {
+        // Update fecha y hora for all records with this orden_pedido
+        await _sb.from('ventas_programacion').update({
+          'fecha_entrega': fechaStr,
+          'hora_entrega': horaStr,
+        }).eq('orden_pedido', nroCot);
+
+        // Update individual item volumes in ventas_programacion
+        final concretoItems = _items.where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto').toList();
+        for (int idx = 0; idx < concretoItems.length; idx++) {
+          final it = concretoItems[idx];
+          final itemId = it['id']?.toString() ?? '';
+          if (nuevosVolumenes.containsKey(itemId)) {
+            final nuevoVol = nuevosVolumenes[itemId]!;
+            final claveUnica = concretoItems.length > 1 ? '$nroCot-ITEM${idx + 1}' : nroCot;
+            await _sb.from('ventas_programacion').update({
+              'volumen': nuevoVol,
+              'volumen_programado': nuevoVol,
+            }).eq('clave_unica', claveUnica);
+          }
         }
       }
 
@@ -292,12 +294,15 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: const Color(0xFF81C784)),
                         ),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.check_circle, color: AppColors.primaryDark, size: 16),
-                          SizedBox(width: 6),
-                          Text('Requerimiento Generado',
-                              style: TextStyle(color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.bold, fontSize: 12)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.check_circle, color: AppColors.primaryDark, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            _items.where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto').length > 1
+                                ? 'Requerimientos Generados (${_items.where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto').length} ítems de concreto)'
+                                : 'Requerimiento Generado',
+                            style: const TextStyle(color: AppColors.primaryDark,
+                                fontWeight: FontWeight.bold, fontSize: 12)),
                         ]),
                       ),
 
@@ -402,9 +407,12 @@ class _CotizacionDetallePageState extends State<CotizacionDetallePage> {
                         elevation: 0,
                       ),
                       icon: const Icon(Icons.shopping_cart_checkout, color: Colors.white),
-                      label: const Text('GENERAR REQUERIMIENTO',
-                          style: TextStyle(color: Colors.white,
-                              fontWeight: FontWeight.bold, fontSize: 15)),
+                      label: Text(
+                        _items.where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto').length > 1
+                            ? 'GENERAR REQUERIMIENTOS (${_items.where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto').length} ÍTEMS)'
+                            : 'GENERAR REQUERIMIENTO',
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold, fontSize: 15)),
                       onPressed: _abrirRequerimiento,
                     ),
                   ),
@@ -514,7 +522,7 @@ class _ItemTile extends StatelessWidget {
 // ─── BOTTOM SHEET EDICIÓN REQUERIMIENTO ──────────────────────────────────────────
 class _EditRequerimientoModal extends StatefulWidget {
   final Map<String, dynamic> cotizacion;
-  final Future<void> Function(DateTime, double) onGuardar;
+  final Future<void> Function(DateTime, Map<String, double>) onGuardar;
 
   const _EditRequerimientoModal({required this.cotizacion, required this.onGuardar});
 
@@ -524,23 +532,33 @@ class _EditRequerimientoModal extends StatefulWidget {
 
 class _EditRequerimientoModalState extends State<_EditRequerimientoModal> {
   DateTime? _fechaEntrega;
-  final _volCtrl = TextEditingController();
+  final Map<String, TextEditingController> _volCtrls = {};
   bool _saving = false;
+  List<Map<String, dynamic>> _concretoItems = [];
 
   @override
   void initState() {
     super.initState();
     _fechaEntrega = DateTime.tryParse(widget.cotizacion['hora_entrega'] ?? '')?.toLocal();
     final items = widget.cotizacion['cotizacion_items'] as List? ?? [];
-    final concretoItem = items.firstWhere((i) => i['tipo'] == 'Concreto', orElse: () => null);
-    if (concretoItem != null) {
-      _volCtrl.text = concretoItem['cantidad']?.toString() ?? '0';
+    _concretoItems = items
+        .where((i) => (i['tipo'] ?? '').toString().toLowerCase() == 'concreto')
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (_concretoItems.isEmpty && items.isNotEmpty) {
+      _concretoItems.add(Map<String, dynamic>.from(items.first));
+    }
+    for (var it in _concretoItems) {
+      final id = it['id']?.toString() ?? '';
+      _volCtrls[id] = TextEditingController(text: it['cantidad']?.toString() ?? '0');
     }
   }
 
   @override
   void dispose() {
-    _volCtrl.dispose();
+    for (var c in _volCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -573,18 +591,23 @@ class _EditRequerimientoModalState extends State<_EditRequerimientoModal> {
   }
 
   Future<void> _guardar() async {
-    final vol = double.tryParse(_volCtrl.text) ?? 0;
     if (_fechaEntrega == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione la fecha y hora.')));
       return;
     }
-    if (vol <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El volumen debe ser mayor a 0.')));
-      return;
+    final Map<String, double> vols = {};
+    for (var it in _concretoItems) {
+      final id = it['id']?.toString() ?? '';
+      final v = double.tryParse(_volCtrls[id]?.text ?? '0') ?? 0;
+      if (v <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('El volumen de "${it['descripcion'] ?? 'Concreto'}" debe ser mayor a 0.')));
+        return;
+      }
+      vols[id] = v;
     }
 
     setState(() => _saving = true);
-    await widget.onGuardar(_fechaEntrega!, vol);
+    await widget.onGuardar(_fechaEntrega!, vols);
     if (mounted) Navigator.pop(context);
   }
 
@@ -644,30 +667,79 @@ class _EditRequerimientoModalState extends State<_EditRequerimientoModal> {
                 ]),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             
-            // Volumen
-            const Text('Nuevo Volumen (m³)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: TextField(
-                controller: _volCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  suffixText: 'm³',
-                ),
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
+            // Volúmenes de Concreto
+            Text(
+              _concretoItems.length > 1 ? 'Volúmenes de Concreto (${_concretoItems.length} ítems)' : 'Nuevo Volumen (m³)',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
             ),
+            const SizedBox(height: 8),
+            ..._concretoItems.asMap().entries.map((entry) {
+              final idx = entry.key + 1;
+              final it = entry.value;
+              final id = it['id']?.toString() ?? '';
+              final ctrl = _volCtrls[id];
+              final diseno = it['resistencia'] != null && it['resistencia'].toString().isNotEmpty
+                  ? "F'c=${it['resistencia']}"
+                  : (it['descripcion'] ?? '');
+              final elem = (it['elemento']?.toString() ?? '').toUpperCase();
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryDark,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text('Ítem $idx', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$diseno ${elem.isNotEmpty ? '· $elem' : ''}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: TextField(
+                        controller: ctrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          suffixText: 'm³',
+                        ),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
             
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 50,
